@@ -73,6 +73,7 @@ export interface Config {
     media: Media;
     jobs: Job;
     groups: Group;
+    'social-links': SocialLink;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -85,6 +86,7 @@ export interface Config {
     media: MediaSelect<false> | MediaSelect<true>;
     jobs: JobsSelect<false> | JobsSelect<true>;
     groups: GroupsSelect<false> | GroupsSelect<true>;
+    'social-links': SocialLinksSelect<false> | SocialLinksSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -175,15 +177,53 @@ export interface Alumnus {
   id: number;
   prenom: string;
   nom: string;
-  role: 'community' | 'recruteur';
   statut?: ('etudiant' | 'alumni') | null;
-  promotion?: number | null;
+  bio?: string | null;
+  telephone?: string | null;
+  ville?: string | null;
   diplome?: string | null;
+  promotion?: number | null;
   poste?: string | null;
   entreprise?: string | null;
-  ville?: string | null;
-  isMentor?: boolean | null;
+  experiences?:
+    | {
+        poste: string;
+        entreprise: string;
+        periode?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  formations?:
+    | {
+        nom: string;
+        etablissement: string;
+        annee?: string | null;
+        isENC?: boolean | null;
+        id?: string | null;
+      }[]
+    | null;
+  interets?:
+    | {
+        nom: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Stocke les icônes, labels et URLs/IDs de fichiers.
+   */
+  socialLinks?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   photo?: (number | null) | Media;
+  isMentor?: boolean | null;
+  linkedin?: string | null;
+  instagram?: string | null;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -270,6 +310,20 @@ export interface Group {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "social-links".
+ */
+export interface SocialLink {
+  id: number;
+  icon: string;
+  label: string;
+  url?: string | null;
+  file?: (number | null) | Media;
+  owner: number | Alumnus;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -311,6 +365,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'groups';
         value: number | Group;
+      } | null)
+    | ({
+        relationTo: 'social-links';
+        value: number | SocialLink;
       } | null);
   globalSlug?: string | null;
   user:
@@ -393,15 +451,42 @@ export interface UsersSelect<T extends boolean = true> {
 export interface AlumniSelect<T extends boolean = true> {
   prenom?: T;
   nom?: T;
-  role?: T;
   statut?: T;
-  promotion?: T;
+  bio?: T;
+  telephone?: T;
+  ville?: T;
   diplome?: T;
+  promotion?: T;
   poste?: T;
   entreprise?: T;
-  ville?: T;
-  isMentor?: T;
+  experiences?:
+    | T
+    | {
+        poste?: T;
+        entreprise?: T;
+        periode?: T;
+        id?: T;
+      };
+  formations?:
+    | T
+    | {
+        nom?: T;
+        etablissement?: T;
+        annee?: T;
+        isENC?: T;
+        id?: T;
+      };
+  interets?:
+    | T
+    | {
+        nom?: T;
+        id?: T;
+      };
+  socialLinks?: T;
   photo?: T;
+  isMentor?: T;
+  linkedin?: T;
+  instagram?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -464,6 +549,19 @@ export interface GroupsSelect<T extends boolean = true> {
   miniature?: T;
   membres?: T;
   isPublic?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "social-links_select".
+ */
+export interface SocialLinksSelect<T extends boolean = true> {
+  icon?: T;
+  label?: T;
+  url?: T;
+  file?: T;
+  owner?: T;
   updatedAt?: T;
   createdAt?: T;
 }

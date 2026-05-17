@@ -11,6 +11,7 @@ import { Jobs } from './collections/Jobs'
 import { Groups } from './collections/Groups'
 import { Media } from './collections/Media'
 import { Users } from './collections/Users'
+import { SocialLinks } from './collections/SocialLink'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -30,7 +31,8 @@ export default buildConfig({
     Alumni, // Ta collection avec auth: true
     Media, 
     Jobs, 
-    Groups
+    Groups,
+    SocialLinks
   ],
   editor: lexicalEditor(),
   // Assure-toi d'avoir un PAYLOAD_SECRET dans ton fichier .env

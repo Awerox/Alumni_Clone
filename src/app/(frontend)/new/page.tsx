@@ -13,8 +13,10 @@ export default function RegisterPage() {
     statut: '',
     promotion: '',
     diplome: '',
-    isMentor: false, // Nouveau champ pour le mentorat
-    ville: 'Paris'
+    poste: '',
+    entreprise: '',
+    ville: '',
+    isMentor: false,
   })
   const [error, setError] = useState('')
   const router = useRouter()
@@ -46,7 +48,7 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
-      <div className="max-w-xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden">
+      <div className="max-w-xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100">
         
         {/* Header avec Progress Bar */}
         <div className="bg-enc p-8 text-white text-center">
@@ -118,29 +120,43 @@ export default function RegisterPage() {
             </div>
           )}
 
-          {/* ÉTAPE 2 : PARCOURS & MENTORAT */}
+          {/* ÉTAPE 2 : PARCOURS & INFOS PRO */}
           {step === 2 && (
             <div className="space-y-4 animate-in slide-in-from-right duration-500">
-              <p className="text-gray-500 font-medium text-center mb-6">Quel est votre parcours à l'ENC ?</p>
+              <p className="text-gray-500 font-medium text-center mb-6">Votre parcours et situation actuelle</p>
               
-              <div className="space-y-1">
-                <label className="text-xs font-bold uppercase text-gray-400 ml-1">
-                  Votre statut <span className="text-red-500">*</span>
-                </label>
-                <select 
-                  required
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-enc"
-                  onChange={(e) => setFormData({...formData, statut: e.target.value})}
-                >
-                  <option value="">Sélectionnez...</option>
-                  <option value="etudiant">Étudiant</option>
-                  <option value="alumni">Alumni (Ancien)</option>
-                </select>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase text-gray-400 ml-1">
+                    Statut <span className="text-red-500">*</span>
+                  </label>
+                  <select 
+                    required
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-enc bg-white"
+                    onChange={(e) => setFormData({...formData, statut: e.target.value})}
+                  >
+                    <option value="">Sélectionnez...</option>
+                    <option value="etudiant">Étudiant</option>
+                    <option value="alumni">Alumni (Ancien)</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase text-gray-400 ml-1">
+                    Promotion <span className="text-red-500">*</span>
+                  </label>
+                  <input 
+                    type="number"
+                    required
+                    placeholder="ex: 2026"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-enc"
+                    onChange={(e) => setFormData({...formData, promotion: e.target.value})}
+                  />
+                </div>
               </div>
 
               <div className="space-y-1">
                 <label className="text-xs font-bold uppercase text-gray-400 ml-1">
-                  Diplôme suivi <span className="text-red-500">*</span>
+                  Diplôme suivi à l'ENC <span className="text-red-500">*</span>
                 </label>
                 <input 
                   required
@@ -150,16 +166,34 @@ export default function RegisterPage() {
                 />
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase text-gray-400 ml-1">Poste actuel</label>
+                  <input 
+                    placeholder="ex: Développeur"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-enc"
+                    onChange={(e) => setFormData({...formData, poste: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold uppercase text-gray-400 ml-1">Entreprise</label>
+                  <input 
+                    placeholder="ex: Freelance, Google..."
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-enc"
+                    onChange={(e) => setFormData({...formData, entreprise: e.target.value})}
+                  />
+                </div>
+              </div>
+
               <div className="space-y-1">
                 <label className="text-xs font-bold uppercase text-gray-400 ml-1">
-                  Année de promotion <span className="text-red-500">*</span>
+                  Ville <span className="text-red-500">*</span>
                 </label>
                 <input 
-                  type="number"
                   required
-                  placeholder="ex: 2026"
+                  placeholder="ex: Paris, Ivry-sur-Seine..."
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-enc"
-                  onChange={(e) => setFormData({...formData, promotion: e.target.value})}
+                  onChange={(e) => setFormData({...formData, ville: e.target.value})}
                 />
               </div>
 
@@ -175,8 +209,8 @@ export default function RegisterPage() {
                     />
                   </div>
                   <div className="text-sm">
-                    <span className="font-bold text-gray-700 block">Souhaitez-vous devenir Mentor ?</span>
-                    <p className="text-gray-400 text-xs">Aidez les étudiants en partageant votre expérience.</p>
+                    <span className="font-bold text-gray-700 block text-[13px]">Souhaitez-vous devenir Mentor ?</span>
+                    <p className="text-gray-400 text-[11px]">Partagez votre expérience avec les futurs diplômés.</p>
                   </div>
                 </label>
               </div>
@@ -185,13 +219,13 @@ export default function RegisterPage() {
                 <button 
                   type="button"
                   onClick={handleBack}
-                  className="flex-1 py-4 border-2 border-gray-100 text-gray-400 rounded-xl font-bold uppercase hover:bg-gray-50"
+                  className="flex-1 py-4 border-2 border-gray-100 text-gray-400 rounded-xl font-bold uppercase text-xs hover:bg-gray-50 transition-all"
                 >
                   Retour
                 </button>
                 <button 
                   type="submit"
-                  className="flex-[2] py-4 bg-enc text-white rounded-xl font-bold uppercase tracking-widest hover:bg-opacity-90 transition-all"
+                  className="flex-[2] py-4 bg-enc text-white rounded-xl font-bold uppercase text-xs tracking-widest hover:bg-opacity-90 transition-all"
                 >
                   Finaliser l'inscription
                 </button>

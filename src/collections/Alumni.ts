@@ -2,70 +2,29 @@ import type { CollectionConfig } from 'payload'
 
 export const Alumni: CollectionConfig = {
   slug: 'alumni',
-  // Active l'authentification pour cette collection
-  auth: true, 
+  auth: true, // Active l'authentification (email/password)
   admin: {
     useAsTitle: 'nom',
     group: 'Utilisateurs',
-    // On définit le champ à afficher dans les listes
     defaultColumns: ['prenom', 'nom', 'email', 'statut'],
   },
-  // --- PROTECTION DU PANEL ADMIN ---
   access: {
-    // CORRECTION : Autorise l'accès si un utilisateur est authentifié, 
-    // quelle que soit sa collection (Users ou Alumni)
-    admin: ({ req: { user } }) => {
-      return Boolean(user)
-    },
-    // Tout le monde peut voir les profils (important pour l'annuaire)
+    admin: ({ req: { user } }) => Boolean(user),
     read: () => true,
-    // Création libre (pour le formulaire d'inscription frontend)
     create: () => true,
-    // CORRECTION : Un utilisateur peut modifier uniquement son propre profil
     update: ({ req: { user } }) => {
       if (!user) return false
-      
-      // Si c'est un administrateur (collection 'users'), il peut tout modifier
-      if (user.collection === 'users') return true
-      
-      // Si c'est un alumni, il ne peut modifier que son propre ID
-      return {
-        id: {
-          equals: user.id,
-        },
-      }
-    },
-    // Seul un admin peut supprimer un profil
-    delete: ({ req: { user } }) => {
-      return user?.collection === 'users'
+      if (user.collection === 'users') return true // L'admin peut tout modifier
+      return { id: { equals: user.id } } // L'utilisateur modifie son propre profil
     },
   },
   fields: [
+    // --- IDENTITÉ ---
     {
       type: 'row',
       fields: [
-        {
-          name: 'prenom',
-          type: 'text',
-          required: true,
-          label: 'Prénom',
-        },
-        {
-          name: 'nom',
-          type: 'text',
-          required: true,
-          label: 'Nom',
-        },
-      ],
-    },
-    {
-      name: 'role',
-      type: 'select',
-      required: true,
-      defaultValue: 'community',
-      options: [
-        { label: 'Community', value: 'community' },
-        { label: 'Recruteur', value: 'recruteur' },
+        { name: 'prenom', type: 'text', required: true },
+        { name: 'nom', type: 'text', required: true },
       ],
     },
     {
@@ -77,41 +36,79 @@ export const Alumni: CollectionConfig = {
         { label: 'Alumni', value: 'alumni' },
       ],
     },
+    { name: 'bio', type: 'textarea', label: 'Résumé du profil' },
+
+    // --- COORDONNÉES ---
     {
-      name: 'promotion',
-      type: 'number',
+      type: 'row',
+      fields: [
+        { name: 'telephone', type: 'text', label: 'Numéro de téléphone' },
+        { name: 'ville', type: 'text', label: 'Localisation (Ville)' },
+      ],
+    },
+
+    // --- PARCOURS & PRO ---
+    { name: 'diplome', type: 'text', label: 'Dernier diplôme à l\'ENC' },
+    { name: 'promotion', type: 'number', label: 'Année de promotion' },
+    {
+      type: 'row',
+      fields: [
+        { name: 'poste', type: 'text', label: 'Poste actuel' },
+        { name: 'entreprise', type: 'text', label: 'Entreprise actuelle' },
+      ],
+    },
+
+    // --- EXPÉRIENCES PROFESSIONNELLES (Liste dynamique) ---
+    {
+      name: 'experiences',
+      type: 'array',
+      label: 'Historique des expériences',
+      fields: [
+        { name: 'poste', type: 'text', required: true },
+        { name: 'entreprise', type: 'text', required: true },
+        { name: 'periode', type: 'text', label: 'Période (ex: 2022-2024)' },
+      ],
+    },
+
+    // --- FORMATIONS (Liste dynamique) ---
+    {
+      name: 'formations',
+      type: 'array',
+      label: 'Parcours scolaire',
+      fields: [
+        { name: 'nom', type: 'text', required: true },
+        { name: 'etablissement', type: 'text', required: true },
+        { name: 'annee', type: 'text', label: 'Année d\'obtention' },
+        { name: 'isENC', type: 'checkbox', label: 'Diplôme de l\'ENC ?', defaultValue: false },
+      ],
+    },
+
+    // --- CENTRES D'INTÉRÊT ---
+    {
+      name: 'interets',
+      type: 'array',
+      label: 'Centres d\'intérêt',
+      fields: [
+        { name: 'nom', type: 'text', required: true },
+      ],
+    },
+
+    // --- CV, PORTFOLIO & RÉSEAUX SOCIAUX (JSON pour plus de flexibilité) ---
+    {
+      name: 'socialLinks',
+      type: 'json',
+      label: 'Liens externes (CV, Portfolio, Réseaux)',
       admin: {
-        placeholder: 'Ex: 2026',
+        description: 'Stocke les icônes, labels et URLs/IDs de fichiers.',
       },
     },
-    {
-      name: 'diplome',
-      type: 'text',
-      label: 'Diplôme (ex: BTS SIO SLAM)',
-    },
-    {
-      name: 'poste',
-      type: 'text',
-      label: 'Poste actuel',
-    },
-    {
-      name: 'entreprise',
-      type: 'text',
-    },
-    {
-      name: 'ville',
-      type: 'text',
-    },
-    {
-      name: 'isMentor',
-      type: 'checkbox',
-      label: 'Volontaire pour le mentorat',
-      defaultValue: false,
-    },
-    {
-      name: 'photo',
-      type: 'upload',
-      relationTo: 'media',
-    },
+
+    // --- MÉDIAS & PARAMÈTRES ---
+    { name: 'photo', type: 'upload', relationTo: 'media', label: 'Photo de profil' },
+    { name: 'isMentor', type: 'checkbox', label: 'Membre Mentor', defaultValue: false },
+    
+    // Champs pour les réseaux sociaux fixes (Sidebar)
+    { name: 'linkedin', type: 'text', label: 'Lien LinkedIn' },
+    { name: 'instagram', type: 'text', label: 'Lien Instagram' },
   ],
 }
