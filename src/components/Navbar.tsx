@@ -10,13 +10,16 @@ const Navbar = () => {
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
-  // 1. Récupérer l'utilisateur connecté au chargement de la page
+  // État pour savoir quel menu déroulant desktop est actuellement survolé/ouvert
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
+
+  // 1. Récupérer l'utilisateur connecté avec les cookies de session
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await fetch('/api/alumni/me')
+        const res = await fetch('/api/alumni/me', { credentials: 'include' })
         const data = await res.json()
-        if (data.user) {
+        if (data?.user) {
           setUser(data.user)
         }
       } catch (err) {
@@ -36,32 +39,53 @@ const Navbar = () => {
       })
       if (res.ok) {
         setUser(null)
-        router.push('/')
-        router.refresh()
+        window.location.href = '/'
       }
     } catch (err) {
       console.error('Erreur lors de la déconnexion', err)
     }
   }
 
+  // Structure des liens mise à jour avec les sous-menus demandés
   const navLinks = [
     { name: 'Accueil', href: '/' },
     { name: 'À propos', href: '/about' },
-    { name: 'Annuaire', href: '/directory' },
+    { 
+      name: 'Membres', 
+      href: '#',
+      submenu: [
+        { name: 'Annuaire', href: '/directory' },
+        { name: 'Groupes', href: '/groups' }
+      ]
+    },
     { name: 'Mentorat', href: '/mentoring' },
-    { name: 'Actualités', href: '/blog' },
+    { 
+      name: 'Actualités', 
+      href: '#',
+      submenu: [
+        { name: 'Fil d\'actualités', href: '/feed' },
+        { name: 'Actualités', href: '/blog' },
+        { name: 'Événements', href: '/events' }
+      ]
+    },
     { name: 'Emplois/stages', href: '/jobs' },
   ]
 
-  // Fonction pour formater le statut proprement
   const formatStatut = (statut: string) => {
     if (statut === 'etudiant') return 'Étudiant'
     if (statut === 'alumni') return 'Alumni'
     return 'Membre'
   }
 
+  const getUserAvatarUrl = () => {
+    if (user?.avatar && typeof user.avatar === 'object' && user.avatar.url) {
+      return user.avatar.url
+    }
+    return `https://ui-avatars.com/api/?name=${user?.prenom || 'U'}+${user?.nom || 'N'}&background=800020&color=fff`
+  }
+
   return (
-    <header className="sticky top-0 z-50 shadow-sm">
+    <header className="sticky top-0 z-50 shadow-sm bg-white">
       {/* 1. TOP BAR */}
       <div className="bg-white border-b border-gray-100 py-1.5 hidden md:block">
         <div className="max-w-7xl mx-auto px-4 flex justify-between items-center text-[11px] text-gray-500 font-medium">
@@ -69,9 +93,9 @@ const Navbar = () => {
             <span className="font-bold">ENC Bessières</span>
             <span className="text-gray-300">|</span>
             <div className="flex gap-4 items-center text-gray-400">
-              <a href="https://www.enc-bessieres.org/" target="_blank" className="hover:text-enc"><i className="fa-solid fa-globe"></i></a>
-              <a href="https://www.instagram.com/ufa.bessieres/" target="_blank" className="hover:text-enc"><i className="fa-brands fa-instagram"></i></a>
-              <a href="https://www.linkedin.com/school/enc-bessieres/" target="_blank" className="hover:text-enc"><i className="fa-brands fa-linkedin-in"></i></a>
+              <a href="https://www.enc-bessieres.org/" target="_blank" rel="noopener noreferrer" className="hover:text-enc"><i className="fa-solid fa-globe"></i></a>
+              <a href="https://www.instagram.com/ufa.bessieres/" target="_blank" rel="noopener noreferrer" className="hover:text-enc"><i className="fa-brands fa-instagram"></i></a>
+              <a href="https://www.linkedin.com/school/enc-bessieres/" target="_blank" rel="noopener noreferrer" className="hover:text-enc"><i className="fa-brands fa-linkedin-in"></i></a>
             </div>
           </div>
           <div className="flex gap-4">
@@ -85,29 +109,64 @@ const Navbar = () => {
       <nav className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-24">
-            {/* Logo */}
+            
+            {/* ZONE LOGO : IMAGE UNIQUE SANS ENCADRÉ NI TEXTE DE MARQUE */}
             <div className="flex items-center">
-              <Link href="/" className="flex flex-col group">
-                <span className="text-2xl font-black text-gray-800 leading-none tracking-tighter">
-                  <span className="text-enc">ENC</span> BESSIÈRES
-                </span>
-                <span className="text-[10px] font-bold text-gray-400 tracking-widest uppercase mt-1">
-                  École Nationale de Commerce
-                </span>
+              <Link href="/" className="flex items-center gap-3 group transition-transform active:scale-[0.98]">
+                <div className="flex items-center justify-center w-28 h-20 overflow-hidden flex-shrink-0 bg-transparent">
+                  <img 
+                    src="https://www.enc-bessieres.org/wp-content/uploads/2025/01/logo_enc_2025.jpg" 
+                    alt="Logo ENC Bessières 2025" 
+                    className="w-full h-full object-contain img-render-smooth mix-blend-multiply brightness-100 contrast-100"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none'
+                      const fallback = e.currentTarget.parentElement?.querySelector('.navbar-fallback-letter')
+                      if (fallback) fallback.classList.remove('hidden')
+                    }}
+                  />
+                  <span className="navbar-fallback-letter hidden text-white bg-enc px-3 py-1.5 rounded-xl font-black text-2xl tracking-tighter">E</span>
+                </div>
               </Link>
             </div>
 
             {/* Menu Desktop */}
             <div className="hidden lg:flex items-center space-x-8">
-              <div className="flex items-center space-x-6 mr-6">
+              <div className="flex items-center space-x-6 mr-6 h-full">
                 {navLinks.map((link) => (
-                  <Link key={link.name} href={link.href} className="text-[13px] font-bold text-gray-700 hover:text-enc uppercase">
-                    {link.name}
-                  </Link>
+                  <div
+                    key={link.name}
+                    className="relative h-full flex items-center"
+                    onMouseEnter={() => link.submenu && setActiveDropdown(link.name)}
+                    onMouseLeave={() => setActiveDropdown(null)}
+                  >
+                    <Link 
+                      href={link.href} 
+                      className="text-[13px] font-bold text-gray-700 hover:text-enc uppercase tracking-wide transition-colors flex items-center gap-1 py-4"
+                    >
+                      {link.name}
+                      {link.submenu && (
+                        <i className={`fa-solid fa-chevron-down text-[10px] transition-transform duration-200 ${activeDropdown === link.name ? 'rotate-180 text-enc' : 'text-gray-400'}`}></i>
+                      )}
+                    </Link>
+
+                    {/* SOUS-MENU DÉROULANT (DROPDOWN DESKTOP) */}
+                    {link.submenu && activeDropdown === link.name && (
+                      <div className="absolute top-[75%] left-0 w-48 bg-white border border-gray-100 shadow-xl rounded-xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 text-left">
+                        {link.submenu.map((sub) => (
+                          <Link
+                            key={sub.name}
+                            href={sub.href}
+                            className="block px-4 py-2.5 text-[13px] font-semibold text-gray-600 hover:bg-gray-50 hover:text-enc transition-colors"
+                          >
+                            {sub.name}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
               
-              {/* --- CONDITION : SI CONNECTÉ OU NON --- */}
               {!loading && (
                 user ? (
                   <div className="relative group flex items-center">
@@ -116,32 +175,27 @@ const Navbar = () => {
                         <p className="text-[13px] font-black text-gray-800 leading-none uppercase">
                           {user.prenom} {user.nom}
                         </p>
-                        <p className="text-[10px] text-enc font-bold uppercase tracking-tighter">
+                        <p className="text-[10px] text-enc font-bold uppercase tracking-tighter mt-1">
                           {formatStatut(user.statut)}
                         </p>
                       </div>
-                      <div className="h-10 w-10 rounded-full border-2 border-enc p-0.5">
+                      <div className="h-10 w-10 rounded-full border-2 border-enc p-0.5 overflow-hidden flex-shrink-0">
                         <img 
-                          src={`https://ui-avatars.com/api/?name=${user.prenom}+${user.nom}&background=800020&color=fff`} 
+                          src={getUserAvatarUrl()} 
                           alt="Profil" 
                           className="h-full w-full rounded-full object-cover"
                         />
                       </div>
                     </div>
 
-                    {/* Dropdown Menu au survol */}
-                    <div className="absolute right-0 top-full w-52 bg-white border border-gray-100 shadow-2xl rounded-xl py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform group-hover:translate-y-1 z-50">
-                      <Link href="/profile" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:text-enc transition-colors">
-                        <i className="fa-regular fa-user w-4"></i> Profil
+                    {/* Dropdown Profil */}
+                    <div className="absolute right-0 top-full w-52 bg-white border border-gray-100 shadow-2xl rounded-xl py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform group-hover:translate-y-1 z-50 text-left">
+                      <Link href="/profile" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:text-enc font-medium transition-colors">
+                        <i className="fa-regular fa-user w-4 text-gray-400"></i> Profil
                       </Link>
-                      <Link href="/settings" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:text-enc transition-colors">
-                        <i className="fa-solid fa-gear w-4"></i> Paramètres
+                      <Link href="/settings" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:text-enc font-medium transition-colors">
+                        <i className="fa-solid fa-gear w-4 text-gray-400"></i> Paramètres
                       </Link>
-                      <div className="h-[1px] bg-gray-100 my-1 mx-2"></div>
-                      <div className="px-4 py-2 flex items-center justify-between text-sm text-gray-600">
-                        <span className="flex items-center gap-3"><i className="fa-solid fa-language w-4"></i> Langue</span>
-                        <span className="text-lg">🇫🇷</span>
-                      </div>
                       <div className="h-[1px] bg-gray-100 my-1 mx-2"></div>
                       <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 font-bold transition-colors">
                         <i className="fa-solid fa-power-off w-4"></i> Déconnexion
@@ -149,10 +203,9 @@ const Navbar = () => {
                     </div>
                   </div>
                 ) : (
-                  /* --- SI NON CONNECTÉ --- */
                   <Link
                     href="/login"
-                    className="px-6 py-3 rounded bg-enc text-white text-xs font-bold hover:bg-opacity-90 shadow-md transition-all active:scale-95"
+                    className="px-6 py-3 rounded-xl bg-enc text-white text-xs font-black uppercase tracking-wider hover:brightness-110 shadow-md transition-all active:scale-95"
                   >
                     Connexion / Inscription
                   </Link>
@@ -160,9 +213,9 @@ const Navbar = () => {
               )}
             </div>
 
-            {/* Menu Mobile Button */}
+            {/* Bouton Mobile */}
             <div className="flex lg:hidden items-center">
-              <button onClick={() => setIsOpen(!isOpen)} className="p-2 text-gray-400 hover:text-enc">
+              <button onClick={() => setIsOpen(!isOpen)} className="p-2 text-gray-400 hover:text-enc transition-colors">
                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   {isOpen ? <path d="M6 18L18 6M6 6l12 12" strokeWidth={2} /> : <path d="M4 6h16M4 12h16M4 18h16" strokeWidth={2} />}
                 </svg>
@@ -171,19 +224,40 @@ const Navbar = () => {
           </div>
         </div>
 
-        {/* Mobile Menu Content */}
+        {/* Menu Mobile */}
         {isOpen && (
-          <div className="lg:hidden bg-white border-t border-gray-100 p-4 space-y-2 shadow-inner">
+          <div className="lg:hidden bg-white border-t border-gray-100 p-4 space-y-2 shadow-inner text-left">
             {navLinks.map((link) => (
-              <Link key={link.name} href={link.href} className="block px-3 py-3 font-bold text-gray-700 uppercase" onClick={() => setIsOpen(false)}>
-                {link.name}
-              </Link>
+              <div key={link.name} className="space-y-1">
+                <Link 
+                  href={link.href} 
+                  className="block px-3 py-2 font-bold text-gray-700 uppercase hover:text-enc"
+                  onClick={() => !link.submenu && setIsOpen(false)}
+                >
+                  {link.name}
+                </Link>
+                {/* Affichage imbriqué des sous-menus sur Mobile */}
+                {link.submenu && (
+                  <div className="pl-6 space-y-1 border-l-2 border-gray-150 ml-3">
+                    {link.submenu.map((sub) => (
+                      <Link
+                        key={sub.name}
+                        href={sub.href}
+                        className="block py-2 text-[13px] font-semibold text-gray-500 hover:text-enc"
+                        onClick={() => setIsOpen(false)}
+                      >
+                        {sub.name}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
             ))}
             {!loading && (
               user ? (
-                <button onClick={handleLogout} className="block w-full py-4 rounded bg-red-50 text-red-600 font-bold mt-4">Déconnexion</button>
+                <button onClick={handleLogout} className="block w-full py-4 rounded-xl bg-red-50 text-red-600 font-bold mt-4 transition-colors hover:bg-red-100">Déconnexion</button>
               ) : (
-                <Link href="/login" className="block w-full py-4 rounded bg-enc text-white text-center font-bold mt-4" onClick={() => setIsOpen(false)}>
+                <Link href="/login" className="block w-full py-4 rounded-xl bg-enc text-white text-center font-bold mt-4 shadow-sm" onClick={() => setIsOpen(false)}>
                   Connexion / Inscription
                 </Link>
               )

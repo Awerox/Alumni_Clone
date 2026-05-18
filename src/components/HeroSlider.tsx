@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 
 const images = [
   "https://www.barre-lambot.com/wp-content/uploads/2022/11/01ENC.jpg",
-  "https://www.enc-bessieres.org/wp-content/uploads/2021/01/slider-enc-1.jpg",
+  "https://www.enc-bessieres.org/wp-content/uploads/2021/01/IMG_5390-scaled-e1610381385584.jpg.webp",
   "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&q=80&w=1000"
 ]
 
