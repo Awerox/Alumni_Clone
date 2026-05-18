@@ -64,9 +64,20 @@ export const Alumni: CollectionConfig = {
       type: 'array',
       label: 'Historique des expériences',
       fields: [
-        { name: 'poste', type: 'text', required: true },
-        { name: 'entreprise', type: 'text', required: true },
-        { name: 'periode', type: 'text', label: 'Période (ex: 2022-2024)' },
+        { name: 'poste', type: 'text', required: true, label: 'Fonction' },
+        { name: 'entreprise', type: 'text', required: true, label: 'Entreprise' },
+        { name: 'localite', type: 'text', required: true, label: 'Localisation' },
+        { name: 'isCurrent', type: 'checkbox', label: 'J\'occupe actuellement cette fonction', defaultValue: false },
+        { name: 'dateDebut', type: 'text', required: true, label: 'Date de début (MM/AAAA)' },
+        { name: 'dateFin', type: 'text', label: 'Date de fin (MM/AAAA)' },
+        { name: 'description', type: 'textarea', label: 'Description des missions' },
+        // Informations complémentaires / Statistiques
+        { name: 'matchFormation', type: 'checkbox', label: 'Cet emploi correspond à mon domaine de formation', defaultValue: false },
+        { name: 'secteur', type: 'text', label: 'Secteur d\'activité de l\'entreprise' },
+        { name: 'typeContrat', type: 'text', label: 'Type de contrat' },
+        { name: 'isCadre', type: 'checkbox', label: 'Statut cadre', defaultValue: false },
+        { name: 'remuneration', type: 'text', label: 'Rémunération annuelle brute' },
+        { name: 'provenanceEmploi', type: 'text', label: 'Comment avez-vous trouvé cet emploi ?' },
       ],
     },
 

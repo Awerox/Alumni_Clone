@@ -189,7 +189,17 @@ export interface Alumnus {
     | {
         poste: string;
         entreprise: string;
-        periode?: string | null;
+        localite: string;
+        isCurrent?: boolean | null;
+        dateDebut: string;
+        dateFin?: string | null;
+        description?: string | null;
+        matchFormation?: boolean | null;
+        secteur?: string | null;
+        typeContrat?: string | null;
+        isCadre?: boolean | null;
+        remuneration?: string | null;
+        provenanceEmploi?: string | null;
         id?: string | null;
       }[]
     | null;
@@ -464,7 +474,17 @@ export interface AlumniSelect<T extends boolean = true> {
     | {
         poste?: T;
         entreprise?: T;
-        periode?: T;
+        localite?: T;
+        isCurrent?: T;
+        dateDebut?: T;
+        dateFin?: T;
+        description?: T;
+        matchFormation?: T;
+        secteur?: T;
+        typeContrat?: T;
+        isCadre?: T;
+        remuneration?: T;
+        provenanceEmploi?: T;
         id?: T;
       };
   formations?:
