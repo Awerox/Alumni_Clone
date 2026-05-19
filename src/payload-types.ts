@@ -311,10 +311,19 @@ export interface Job {
 export interface Group {
   id: number;
   titre: string;
+  /**
+   * Généré automatiquement à partir du titre si laissé vide.
+   */
+  slug: string;
+  /**
+   * Sélectionnez la thématique principale associée à ce cercle.
+   */
+  categorie: 'bts_sio' | 'entrepreneuriat' | 'vie_etudiante' | 'entraide';
   description: string;
-  miniature?: (number | null) | Media;
-  membres?: (number | Alumnus)[] | null;
+  miniature: number | Media;
+  banniere: number | Media;
   isPublic?: boolean | null;
+  membres?: (number | Alumnus)[] | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -565,10 +574,13 @@ export interface JobsSelect<T extends boolean = true> {
  */
 export interface GroupsSelect<T extends boolean = true> {
   titre?: T;
+  slug?: T;
+  categorie?: T;
   description?: T;
   miniature?: T;
-  membres?: T;
+  banniere?: T;
   isPublic?: T;
+  membres?: T;
   updatedAt?: T;
   createdAt?: T;
 }

@@ -5,10 +5,10 @@ import { buildConfig } from 'payload'
 import { fileURLToPath } from 'url'
 import sharp from 'sharp'
 
-// Import de tes collections
+// Import de tes collections (Correction de l'import de Groups qui est en export default)
 import { Alumni } from './collections/Alumni'
 import { Jobs } from './collections/Jobs'
-import { Groups } from './collections/Groups'
+import Groups from './collections/Groups' // Correct : pas d'accolades car c'est un export default
 import { Media } from './collections/Media'
 import { Users } from './collections/Users'
 import { SocialLinks } from './collections/SocialLink'
@@ -18,24 +18,23 @@ const dirname = path.dirname(filename)
 
 export default buildConfig({
   admin: {
-    // C'est ici que tu définis qui est l'administrateur principal
-    user: Users.slug, 
+    // C'est ici que tu définis qui est l'administrateur principal du back-office
+    user: Users.slug,
     importMap: {
       baseDir: path.resolve(dirname),
     },
   },
-  // L'ordre peut influencer la priorité des cookies, on garde Users en premier 
-  // car c'est la collection de l'admin
+  // L'ordre influence la priorité : Users reste en premier pour la gestion admin
   collections: [
-    Users, 
-    Alumni, // Ta collection avec auth: true
-    Media, 
-    Jobs, 
-    Groups,
-    SocialLinks
+    Users,
+    Alumni, // Ta collection membres avec auth: true
+    Media,
+    Jobs,
+    Groups, // Ta nouvelle collection groupes est maintenant parfaitement déclarée
+    SocialLinks,
   ],
   editor: lexicalEditor(),
-  // Assure-toi d'avoir un PAYLOAD_SECRET dans ton fichier .env
+  // Assure-toi d'avoir ton PAYLOAD_SECRET configuré dans ton fichier .env
   secret: process.env.PAYLOAD_SECRET || 'VOTRE_SECRET_DE_SECOURS_TRES_LONG',
   typescript: {
     outputFile: path.resolve(dirname, 'payload-types.ts'),
