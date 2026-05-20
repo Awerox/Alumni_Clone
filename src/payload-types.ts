@@ -74,6 +74,7 @@ export interface Config {
     jobs: Job;
     groups: Group;
     'social-links': SocialLink;
+    articles: Article;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -87,6 +88,7 @@ export interface Config {
     jobs: JobsSelect<false> | JobsSelect<true>;
     groups: GroupsSelect<false> | GroupsSelect<true>;
     'social-links': SocialLinksSelect<false> | SocialLinksSelect<true>;
+    articles: ArticlesSelect<false> | ArticlesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -345,6 +347,37 @@ export interface SocialLink {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "articles".
+ */
+export interface Article {
+  id: number;
+  titre: string;
+  slug: string;
+  description: string;
+  contenu: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  categorie: 'vie_etablissement' | 'portraits_anciens' | 'international' | 'evenements';
+  statut?: ('publie' | 'brouillon' | 'attente') | null;
+  couverture: number | Media;
+  auteur?: (number | null) | Alumnus;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -390,6 +423,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'social-links';
         value: number | SocialLink;
+      } | null)
+    | ({
+        relationTo: 'articles';
+        value: number | Article;
       } | null);
   globalSlug?: string | null;
   user:
@@ -601,6 +638,22 @@ export interface SocialLinksSelect<T extends boolean = true> {
   url?: T;
   file?: T;
   owner?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "articles_select".
+ */
+export interface ArticlesSelect<T extends boolean = true> {
+  titre?: T;
+  slug?: T;
+  description?: T;
+  contenu?: T;
+  categorie?: T;
+  statut?: T;
+  couverture?: T;
+  auteur?: T;
   updatedAt?: T;
   createdAt?: T;
 }

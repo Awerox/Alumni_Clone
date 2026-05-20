@@ -50,23 +50,23 @@ const Navbar = () => {
   const navLinks = [
     { name: 'Accueil', href: '/' },
     { name: 'À propos', href: '/about' },
-    { 
-      name: 'Membres', 
+    {
+      name: 'Membres',
       href: '#',
       submenu: [
         { name: 'Annuaire', href: '/directory' },
-        { name: 'Groupes', href: '/groups' }
-      ]
+        { name: 'Groupes', href: '/groups' },
+      ],
     },
     { name: 'Mentorat', href: '/mentoring' },
-    { 
-      name: 'Actualités', 
+    {
+      name: 'Actualités',
       href: '#',
       submenu: [
-        { name: 'Fil d\'actualités', href: '/feed' },
         { name: 'Actualités', href: '/blog' },
-        { name: 'Événements', href: '/events' }
-      ]
+        { name: "Fil d'actualités", href: '/feed' },
+        { name: 'Événements', href: '/events' },
+      ],
     },
     { name: 'Emplois/stages', href: '/jobs' },
   ]
@@ -93,9 +93,30 @@ const Navbar = () => {
             <span className="font-bold">ENC Bessières</span>
             <span className="text-gray-300">|</span>
             <div className="flex gap-4 items-center text-gray-400">
-              <a href="https://www.enc-bessieres.org/" target="_blank" rel="noopener noreferrer" className="hover:text-enc"><i className="fa-solid fa-globe"></i></a>
-              <a href="https://www.instagram.com/ufa.bessieres/" target="_blank" rel="noopener noreferrer" className="hover:text-enc"><i className="fa-brands fa-instagram"></i></a>
-              <a href="https://www.linkedin.com/school/enc-bessieres/" target="_blank" rel="noopener noreferrer" className="hover:text-enc"><i className="fa-brands fa-linkedin-in"></i></a>
+              <a
+                href="https://www.enc-bessieres.org/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-enc"
+              >
+                <i className="fa-solid fa-globe"></i>
+              </a>
+              <a
+                href="https://www.instagram.com/ufa.bessieres/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-enc"
+              >
+                <i className="fa-brands fa-instagram"></i>
+              </a>
+              <a
+                href="https://www.linkedin.com/school/enc-bessieres/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-enc"
+              >
+                <i className="fa-brands fa-linkedin-in"></i>
+              </a>
             </div>
           </div>
           <div className="flex gap-4">
@@ -109,22 +130,27 @@ const Navbar = () => {
       <nav className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-24">
-            
             {/* ZONE LOGO : IMAGE UNIQUE SANS ENCADRÉ NI TEXTE DE MARQUE */}
             <div className="flex items-center">
-              <Link href="/" className="flex items-center gap-3 group transition-transform active:scale-[0.98]">
+              <Link
+                href="/"
+                className="flex items-center gap-3 group transition-transform active:scale-[0.98]"
+              >
                 <div className="flex items-center justify-center w-28 h-20 overflow-hidden flex-shrink-0 bg-transparent">
-                  <img 
-                    src="https://www.enc-bessieres.org/wp-content/uploads/2025/01/logo_enc_2025.jpg" 
-                    alt="Logo ENC Bessières 2025" 
+                  <img
+                    src="https://www.enc-bessieres.org/wp-content/uploads/2025/01/logo_enc_2025.jpg"
+                    alt="Logo ENC Bessières 2025"
                     className="w-full h-full object-contain img-render-smooth mix-blend-multiply brightness-100 contrast-100"
                     onError={(e) => {
                       e.currentTarget.style.display = 'none'
-                      const fallback = e.currentTarget.parentElement?.querySelector('.navbar-fallback-letter')
+                      const fallback =
+                        e.currentTarget.parentElement?.querySelector('.navbar-fallback-letter')
                       if (fallback) fallback.classList.remove('hidden')
                     }}
                   />
-                  <span className="navbar-fallback-letter hidden text-white bg-enc px-3 py-1.5 rounded-xl font-black text-2xl tracking-tighter">E</span>
+                  <span className="navbar-fallback-letter hidden text-white bg-enc px-3 py-1.5 rounded-xl font-black text-2xl tracking-tighter">
+                    E
+                  </span>
                 </div>
               </Link>
             </div>
@@ -139,13 +165,15 @@ const Navbar = () => {
                     onMouseEnter={() => link.submenu && setActiveDropdown(link.name)}
                     onMouseLeave={() => setActiveDropdown(null)}
                   >
-                    <Link 
-                      href={link.href} 
+                    <Link
+                      href={link.href}
                       className="text-[13px] font-bold text-gray-700 hover:text-enc uppercase tracking-wide transition-colors flex items-center gap-1 py-4"
                     >
                       {link.name}
                       {link.submenu && (
-                        <i className={`fa-solid fa-chevron-down text-[10px] transition-transform duration-200 ${activeDropdown === link.name ? 'rotate-180 text-enc' : 'text-gray-400'}`}></i>
+                        <i
+                          className={`fa-solid fa-chevron-down text-[10px] transition-transform duration-200 ${activeDropdown === link.name ? 'rotate-180 text-enc' : 'text-gray-400'}`}
+                        ></i>
                       )}
                     </Link>
 
@@ -166,9 +194,9 @@ const Navbar = () => {
                   </div>
                 ))}
               </div>
-              
-              {!loading && (
-                user ? (
+
+              {!loading &&
+                (user ? (
                   <div className="relative group flex items-center">
                     <div className="flex items-center gap-3 cursor-pointer py-2 border-l border-gray-100 pl-6">
                       <div className="text-right">
@@ -180,9 +208,9 @@ const Navbar = () => {
                         </p>
                       </div>
                       <div className="h-10 w-10 rounded-full border-2 border-enc p-0.5 overflow-hidden flex-shrink-0">
-                        <img 
-                          src={getUserAvatarUrl()} 
-                          alt="Profil" 
+                        <img
+                          src={getUserAvatarUrl()}
+                          alt="Profil"
                           className="h-full w-full rounded-full object-cover"
                         />
                       </div>
@@ -190,14 +218,23 @@ const Navbar = () => {
 
                     {/* Dropdown Profil */}
                     <div className="absolute right-0 top-full w-52 bg-white border border-gray-100 shadow-2xl rounded-xl py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform group-hover:translate-y-1 z-50 text-left">
-                      <Link href="/profile" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:text-enc font-medium transition-colors">
+                      <Link
+                        href="/profile"
+                        className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:text-enc font-medium transition-colors"
+                      >
                         <i className="fa-regular fa-user w-4 text-gray-400"></i> Profil
                       </Link>
-                      <Link href="/settings" className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:text-enc font-medium transition-colors">
+                      <Link
+                        href="/settings"
+                        className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:text-enc font-medium transition-colors"
+                      >
                         <i className="fa-solid fa-gear w-4 text-gray-400"></i> Paramètres
                       </Link>
                       <div className="h-[1px] bg-gray-100 my-1 mx-2"></div>
-                      <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 font-bold transition-colors">
+                      <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 font-bold transition-colors"
+                      >
                         <i className="fa-solid fa-power-off w-4"></i> Déconnexion
                       </button>
                     </div>
@@ -209,15 +246,21 @@ const Navbar = () => {
                   >
                     Connexion / Inscription
                   </Link>
-                )
-              )}
+                ))}
             </div>
 
             {/* Bouton Mobile */}
             <div className="flex lg:hidden items-center">
-              <button onClick={() => setIsOpen(!isOpen)} className="p-2 text-gray-400 hover:text-enc transition-colors">
+              <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="p-2 text-gray-400 hover:text-enc transition-colors"
+              >
                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  {isOpen ? <path d="M6 18L18 6M6 6l12 12" strokeWidth={2} /> : <path d="M4 6h16M4 12h16M4 18h16" strokeWidth={2} />}
+                  {isOpen ? (
+                    <path d="M6 18L18 6M6 6l12 12" strokeWidth={2} />
+                  ) : (
+                    <path d="M4 6h16M4 12h16M4 18h16" strokeWidth={2} />
+                  )}
                 </svg>
               </button>
             </div>
@@ -229,8 +272,8 @@ const Navbar = () => {
           <div className="lg:hidden bg-white border-t border-gray-100 p-4 space-y-2 shadow-inner text-left">
             {navLinks.map((link) => (
               <div key={link.name} className="space-y-1">
-                <Link 
-                  href={link.href} 
+                <Link
+                  href={link.href}
                   className="block px-3 py-2 font-bold text-gray-700 uppercase hover:text-enc"
                   onClick={() => !link.submenu && setIsOpen(false)}
                 >
@@ -253,15 +296,23 @@ const Navbar = () => {
                 )}
               </div>
             ))}
-            {!loading && (
-              user ? (
-                <button onClick={handleLogout} className="block w-full py-4 rounded-xl bg-red-50 text-red-600 font-bold mt-4 transition-colors hover:bg-red-100">Déconnexion</button>
+            {!loading &&
+              (user ? (
+                <button
+                  onClick={handleLogout}
+                  className="block w-full py-4 rounded-xl bg-red-50 text-red-600 font-bold mt-4 transition-colors hover:bg-red-100"
+                >
+                  Déconnexion
+                </button>
               ) : (
-                <Link href="/login" className="block w-full py-4 rounded-xl bg-enc text-white text-center font-bold mt-4 shadow-sm" onClick={() => setIsOpen(false)}>
+                <Link
+                  href="/login"
+                  className="block w-full py-4 rounded-xl bg-enc text-white text-center font-bold mt-4 shadow-sm"
+                  onClick={() => setIsOpen(false)}
+                >
                   Connexion / Inscription
                 </Link>
-              )
-            )}
+              ))}
           </div>
         )}
       </nav>
