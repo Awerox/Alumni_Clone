@@ -1,19 +1,18 @@
-/** @type {import('tailwindcss').Config} */
-export default {
+import type { Config } from 'tailwindcss'
+
+const config: Config = {
   content: [
-    "./src/**/*.{js,ts,jsx,tsx,mdx}",
+    './src/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
     extend: {
       colors: {
-        enc: {
-          DEFAULT: '#800020', // Bordeaux ENC
-          light: '#a52a2a',
-          dark: '#5a0016',
-        },
-        orange_bessieres: '#ff8c00', // Orange du site
+        enc: '#800020',
+        orange_bessieres: '#f59e0b',
       },
     },
   },
   plugins: [],
 }
+
+export default config
