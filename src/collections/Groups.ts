@@ -4,52 +4,62 @@ export const Groups: CollectionConfig = {
   slug: 'groups',
   admin: {
     useAsTitle: 'titre',
-    defaultColumns: ['titre', 'slug', 'categorie', 'isPublic', 'createdAt'],
+    defaultColumns: ['titre', 'categorie', 'isPublic', 'createdAt'],
   },
-  // 🔐 Configuration des accès (Sécurité et conformité pour ton examen BTS SIO)
+  // 🔐 SÉCURITÉ : RESTRICTIONS D'ACCÈS
   access: {
-    read: () => true, // Tout le monde peut voir et lister les groupes
-    create: ({ req: { user } }) => !!user, // Seuls les utilisateurs connectés (Alumni ou User) peuvent créer un groupe
-    update: ({ req: { user } }) => !!user, // Nécessaire pour permettre aux membres de rejoindre/quitter le groupe
+    read: () => true, // Tout le monde peut voir les groupes
+    create: ({ req: { user } }) => !!user, // Il faut être connecté pour créer
+
+    // 🔥 SEUL LE CRÉATEUR (ou un Admin) PEUT MODIFIER LE GROUPE
+    update: ({ req: { user } }) => {
+      if (!user) return false
+      if (user.collection === 'users') return true // Les Admins ont tous les droits
+      return {
+        createur: {
+          equals: user.id, // Verrouille l'accès au créateur uniquement
+        },
+      }
+    },
+
+    // 🔥 SEUL LE CRÉATEUR (ou un Admin) PEUT SUPPRIMER LE GROUPE
     delete: ({ req: { user } }) => {
       if (!user) return false
-      if (user.collection === 'users') return true // Les administrateurs de la plateforme ont tous les droits
-      return true // Permet aux utilisateurs connectés de gérer leurs suppressions si nécessaire
+      if (user.collection === 'users') return true
+      return {
+        createur: {
+          equals: user.id,
+        },
+      }
     },
   },
-  // ⚡ Hooks pour automatiser et sécuriser la création du slug unique
   hooks: {
     beforeValidate: [
       ({ data }) => {
         if (data && !data.slug && data.titre) {
           data.slug = data.titre
             .toLowerCase()
-            .normalize('NFD') // Supprime proprement les accents français (é, è, à...)
+            .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '')
-            .replace(/[^a-z0-9]+/g, '-') // Remplace les espaces, caractères spéciaux et ponctuations par des tirets
-            .replace(/(^-|-$)+/g, '') // Supprime les tirets résiduels au début et à la fin du slug
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/(^-|-$)+/g, '')
+        }
+        return data
+      },
+    ],
+    // 🤖 AUTOMATISATION : Enregistre l'ID de la personne qui crée le groupe
+    beforeChange: [
+      ({ req, operation, data }) => {
+        if (operation === 'create' && req.user && req.user.collection === 'alumni') {
+          data.createur = req.user.id
         }
         return data
       },
     ],
   },
   fields: [
-    {
-      name: 'titre',
-      type: 'text',
-      label: 'Nom du groupe',
-      required: true,
-    },
-    {
-      name: 'slug',
-      type: 'text',
-      label: 'Slug (URL unique)',
-      required: true,
-      unique: true,
-      admin: {
-        description: 'Généré automatiquement à partir du titre si laissé vide.',
-      },
-    },
+    { name: 'titre', type: 'text', label: 'Nom du groupe', required: true },
+    { name: 'slug', type: 'text', label: 'Slug (URL unique)', required: true, unique: true },
     {
       name: 'categorie',
       type: 'select',
@@ -61,45 +71,50 @@ export const Groups: CollectionConfig = {
         { label: 'Vie Étudiante & Associations', value: 'vie_etudiante' },
         { label: 'Entraide & Mentorat', value: 'entraide' },
       ],
-      admin: {
-        description: 'Sélectionnez la thématique principale associée à ce cercle.',
-      },
     },
-    {
-      name: 'description',
-      type: 'textarea',
-      label: 'Description du groupe',
-      required: true,
-    },
+    { name: 'description', type: 'textarea', label: 'Description du groupe', required: true },
     {
       name: 'miniature',
       type: 'upload',
-      relationTo: 'media', // Relation vers ta collection Media
-      label: 'Miniature / Image carrée (Taille recommandée : 300 × 300)',
+      relationTo: 'media',
+      label: 'Image Miniature',
       required: true,
     },
     {
       name: 'banniere',
       type: 'upload',
-      relationTo: 'media', // Deuxième relation média pour l'en-tête de la fiche de détail
-      label: 'Image d’en-tête / Bannière (Taille recommandée : 800 × 480)',
+      relationTo: 'media',
+      label: 'Image d’en-tête / Bannière',
       required: true,
     },
-    {
-      name: 'isPublic',
-      type: 'checkbox',
-      label: 'Groupe Public (Ouvert à tous)',
-      defaultValue: true,
-    },
+    { name: 'isPublic', type: 'checkbox', label: 'Groupe Public', defaultValue: true },
+
+    // Champs de restriction
+    { name: 'restrictDiplome', type: 'text', label: 'Restriction Diplôme' },
+    { name: 'restrictCampus', type: 'text', label: 'Restriction Campus' },
+    { name: 'restrictCategorie', type: 'text', label: 'Restriction Catégorie' },
+    { name: 'restrictPromotion', type: 'text', label: 'Restriction Promotion' },
+
     {
       name: 'membres',
       type: 'relationship',
-      relationTo: 'alumni', // Lié à ton annuaire des membres
-      hasMany: true, // Permet d'associer un tableau d'identifiants
+      relationTo: 'alumni',
+      hasMany: true,
       label: 'Membres inscrits',
     },
+
+    // 👤 NOUVEAU CHAMP : Stocke le propriétaire du groupe
+    {
+      name: 'createur',
+      type: 'relationship',
+      relationTo: 'alumni',
+      admin: {
+        position: 'sidebar',
+        description: 'Le créateur du groupe (Attribué automatiquement)',
+      },
+    },
   ],
-  timestamps: true, // Génère les métadonnées de suivi createdAt et updatedAt
+  timestamps: true,
 }
 
 export default Groups
