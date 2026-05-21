@@ -9,10 +9,6 @@ import PublishBox from '@/components/PublishBox'
 // Force Next.js à traiter la page de manière dynamique pour lire la session et les derniers posts
 export const dynamic = 'force-dynamic'
 
-interface PageProps {
-  searchParams: Promise<{ q?: string; categorie?: string; tab?: string; mineOnly?: string }>
-}
-
 export default async function HomePage() {
   const payload = await getPayload({ config: configPromise })
 
@@ -20,11 +16,16 @@ export default async function HomePage() {
   const headersList = await headers()
   const { user } = await payload.auth({ headers: headersList as any })
 
-  // 👥 2. Récupération en parallèle de toutes les sources de données (Optimisation des requêtes)
+  // 👥 2. Récupération en parallèle de toutes les sources de données
   const [recentAlumni, postsRes, offresRes, articlesRes] = await Promise.all([
     payload.find({ collection: 'alumni', sort: '-createdAt', limit: 3 }),
     payload.find({ collection: 'posts', limit: 10, sort: '-createdAt' }),
-    payload.find({ collection: 'offres', limit: 10, sort: '-createdAt' }),
+    payload.find({
+      collection: 'offres',
+      where: { statut: { equals: 'publie' } },
+      limit: 3,
+      sort: '-createdAt',
+    }), // Vitrine d'accueil limitée à 3 offres
     payload.find({
       collection: 'articles',
       where: { statut: { equals: 'publie' } },
@@ -33,10 +34,9 @@ export default async function HomePage() {
     }),
   ])
 
-  // 🔀 3. Unification et tri chronologique décroissant pour le Feed central
+  // 🔀 3. Le flux central (Feed) ne conserve plus que les posts et articles pour éviter les doublons
   const itemsFeed: any[] = [
     ...postsRes.docs.map((p: any) => ({ ...p, typeItem: 'post' })),
-    ...offresRes.docs.map((o: any) => ({ ...o, typeItem: 'offre' })),
     ...articlesRes.docs.map((a: any) => ({ ...a, typeItem: 'article' })),
   ].sort((x, y) => new Date(y.createdAt).getTime() - new Date(x.createdAt).getTime())
 
@@ -47,7 +47,61 @@ export default async function HomePage() {
     evenements: 'Événements',
   }
 
-  // ✨ ASTUCE SÉCURITÉ TYPESCRIPT : On crée une référence typée ou "any" pour éteindre le soulignage rouge
+  // 🌟 AJOUT : Mappers globaux requis pour éviter les erreurs d'affichage
+  const remLabels: any = {
+    non_renseigne: 'Non renseigné',
+    stage_non_indemnise: 'Stage non-indemnisé',
+    stage_indemnise: 'Stage indemnisé',
+    moins_15k: '< 15k €',
+    '20_225k': '20-22,5K €',
+    '25_275k': '25-27,5K €',
+    '30_325k': '30-32,5K €',
+    '35-37,5K €': '35-37,5K €',
+    '40_45k': '40-45K €',
+    '45_50k': '45-50K €',
+    '50_55k': '50-55K €',
+    '60_65k': '60-65K €',
+    '70_75k': '70-75K €',
+  }
+
+  const expLabels: any = {
+    non_renseigne: 'Non renseigné',
+    '0_2_ans': '0-2 ans',
+    '2_4_ans': '2-4 ans',
+    '4_7_ans': '4-7 ans',
+    '7_10_ans': '7-10 ans',
+    plus_10_ans: '+ 10 ans',
+  }
+
+  const sectLabels: any = {
+    autres: 'Autres',
+    compta: 'Comptabilité / Gestion',
+    rh: 'Ressources Humaines',
+    informatique: 'Informatique / SLAM / SISR',
+    commerce: 'Commerce / Marketing',
+    agro_alimentaire: 'Agro-alimentaire',
+    architecture: 'Architecture',
+    association_non_lucrative: 'Association non lucrative',
+    banque_assurance_finance: 'Banque / Assurance / Finance',
+    conseil_audit: 'Conseil / Audit',
+    culture_media_divertissement: 'Culture / Média / Divertissement',
+    digital_technologie: 'Digital / Technologie',
+    grande_distribution_ventes: 'Grande distribution / Ventes',
+    droit_ecogestion_science_politique: 'Droit / Éco-gestion / Science Politique',
+    enseignement_formation_recrutement: 'Enseignement / Formation / Recrutement',
+    entrepreneuriat_startup: 'Entrepreneuriat / Start-up',
+    travaux_publics: 'Travaux Publics',
+    industrie: 'Industrie',
+    publicite_marketing_communication: 'Publicité / Marketing / Communication',
+    mode_luxe_beaute: 'Mode / Luxe / Beauté',
+    environnement_sante_social: 'Environnement / Santé / Social',
+    sciences_recherche: 'Sciences / Recherche',
+    secteur_public_administration: 'Secteur public et administration',
+    automobile: 'Automobile',
+    organisation_internationale: 'Organisation internationale',
+    tourisme_hotellerie_restauration: 'Tourisme / Hôtellerie / Restauration',
+  }
+
   const typedUser = user as any
 
   return (
@@ -78,7 +132,6 @@ export default async function HomePage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           {/* 👈 COLONNE GAUCHE : COMMUNAUTÉ & ARTICLES À LA UNE */}
           <div className="space-y-6">
-            {/* Boîte de publication interactive - Plus de rouge ici grâce à typedUser */}
             {typedUser ? (
               <PublishBox userPrenom={typedUser.prenom || ''} userNom={typedUser.nom || ''} />
             ) : (
@@ -145,56 +198,21 @@ export default async function HomePage() {
             </div>
           </div>
 
-          {/* 📦 COLONNE CENTRALE : FLUX CHRONOLOGIQUE */}
+          {/* 📦 COLONNE CENTRALE : FLUX ACTIVITÉ RÉSEAU (POSTS) */}
           <div className="lg:col-span-1 space-y-5">
             <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">
               ⚡ Activité du réseau
             </h3>
 
-            {itemsFeed.filter((i) => i.typeItem === 'post' || i.typeItem === 'offre').length > 0 ? (
+            {itemsFeed.filter((i) => i.typeItem === 'post').length > 0 ? (
               itemsFeed
-                .filter((i) => i.typeItem === 'post' || i.typeItem === 'offre')
+                .filter((i) => i.typeItem === 'post')
                 .map((item: any) => {
                   const dateText = new Date(item.createdAt).toLocaleDateString('fr-FR', {
                     day: 'numeric',
                     month: 'short',
                     year: 'numeric',
                   })
-
-                  if (item.typeItem === 'offre') {
-                    return (
-                      <div
-                        key={item.id}
-                        className="bg-white border border-gray-200 rounded-3xl p-5 shadow-2xs space-y-3"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-xs">
-                            💼
-                          </div>
-                          <div className="text-[11px] text-gray-500 font-semibold leading-tight">
-                            <span className="font-bold text-gray-800">
-                              {item.recruteur?.prenom || 'Un membre'}
-                            </span>{' '}
-                            vient de déposer une offre :
-                          </div>
-                        </div>
-                        <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4 flex items-center gap-4">
-                          <div className="p-3 bg-gray-200/50 rounded-xl text-gray-500 text-xs">
-                            💼
-                          </div>
-                          <div>
-                            <h4 className="text-xs font-black text-gray-800">
-                              poste de {item.poste}
-                            </h4>
-                            <p className="text-[10px] font-bold text-amber-600 uppercase mt-0.5 tracking-wide">
-                              {item.entreprise} • {item.typeContrat} • {item.localisation}
-                            </p>
-                          </div>
-                        </div>
-                        <p className="text-[9px] text-gray-400 font-bold">{dateText}</p>
-                      </div>
-                    )
-                  }
 
                   return (
                     <div
@@ -256,38 +274,152 @@ export default async function HomePage() {
                 </div>
               ))}
             </div>
-
-            {/* Bloc de rebond vers les autres articles */}
-            {itemsFeed
-              .filter((i) => i.typeItem === 'article')
-              .slice(2, 4)
-              .map((article: any) => (
-                <div
-                  key={article.id}
-                  className="bg-white border border-gray-200 rounded-3xl p-4 shadow-2xs space-y-3"
-                >
-                  <div className="space-y-1">
-                    <span className="text-[9px] font-black uppercase tracking-wider text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">
-                      {catLabels[article.categorie] || article.categorie}
-                    </span>
-                    <h4 className="font-black text-gray-900 text-xs pt-1 leading-snug">
-                      {article.titre}
-                    </h4>
-                  </div>
-                  <Link
-                    href={`/blog/${article.slug}`}
-                    className="block text-[10px] font-black text-amber-500 uppercase hover:underline"
-                  >
-                    Consulter l'article →
-                  </Link>
-                </div>
-              ))}
           </div>
         </div>
       </section>
 
-      {/* 🤝 SECTION 3 : PRÉSENTATION DU MENTORAT */}
-      <section className="py-16 bg-white border-t border-gray-100">
+      {/* 💼 SECTION 3 : VITRINE EXTRAITE - ILS RECRUTENT DANS LA COMMUNAUTÉ */}
+      <section className="bg-gray-50 border-t border-b border-gray-100 py-16">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="text-center mb-10">
+            <h2 className="text-xl font-black text-gray-800 uppercase tracking-widest relative inline-block after:content-[''] after:block after:w-16 after:h-[3px] after:bg-emerald-500 after:mx-auto after:mt-2">
+              Ils recrutent dans la communauté
+            </h2>
+          </div>
+
+          <div className="flex flex-col lg:flex-row items-center gap-12">
+            {/* Côté Gauche : Illustration & Boutons */}
+            <div className="lg:w-2/5 flex flex-col items-center text-center space-y-6">
+              <div className="w-full max-w-sm">
+                <img
+                  src="https://www.prepad1.fr/wp-content/uploads/2020/04/logo-ENC-Bessi%C3%A8res-scaled-e1586368642978.jpg"
+                  alt="Illustration Recrutement"
+                  className="w-full h-auto rounded-3xl object-cover shadow-2xs"
+                />
+              </div>
+              <div className="flex flex-col sm:flex-row lg:flex-col gap-3 w-full max-w-xs font-black uppercase text-[10px] tracking-widest">
+                <Link
+                  href="/jobs"
+                  className="w-full text-center py-3 bg-[#4c0519] hover:bg-[#3b0413] text-white rounded-xl shadow-xs transition-colors"
+                >
+                  Toutes les offres d'emploi
+                </Link>
+                <Link
+                  href="/jobs/new"
+                  className="w-full text-center py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1"
+                >
+                  <span className="text-xs">＋</span> Poster une offre
+                </Link>
+              </div>
+            </div>
+
+            {/* Côté Droit : Liste des cartes d'offres horizontales */}
+            <div className="lg:w-3/5 w-full space-y-4">
+              {offresRes.docs.length > 0 ? (
+                offresRes.docs.map((offre: any) => {
+                  const cleanDate = new Date(offre.createdAt).toLocaleDateString('fr-FR')
+                  const dateLimiteText = offre.dateLimite
+                    ? new Date(offre.dateLimite).toLocaleDateString('fr-FR')
+                    : '-'
+                  const dateDebutText = offre.dateDebut
+                    ? new Date(offre.dateDebut).toLocaleDateString('fr-FR')
+                    : 'Dès que possible'
+                  const logoUrl =
+                    offre.logo && typeof offre.logo === 'object' ? offre.logo.url : null
+
+                  return (
+                    <div
+                      key={offre.id}
+                      className="bg-white border border-gray-200 rounded-2xl p-5 shadow-2xs hover:shadow-xs hover:border-gray-300 transition-all flex flex-col justify-between relative group"
+                    >
+                      <div className="flex justify-between items-start gap-4">
+                        <div className="flex items-center gap-4">
+                          {/* 🔄 AJOUT & CORRECTION : Logo agrandi à w-16 h-16 pour une meilleure lisibilité */}
+                          {logoUrl ? (
+                            <img
+                              src={logoUrl}
+                              alt=""
+                              className="w-16 h-16 rounded-2xl border border-gray-100 object-contain bg-white p-1 shadow-3xs"
+                            />
+                          ) : (
+                            <div className="w-16 h-16 bg-gray-50 border border-gray-100 text-gray-400 rounded-2xl flex items-center justify-center text-2xl shadow-3xs">
+                              🏢
+                            </div>
+                          )}
+                          <div>
+                            <h3 className="font-black text-gray-900 text-sm group-hover:text-emerald-600 transition-colors leading-tight">
+                              {offre.poste}
+                            </h3>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase mt-0.5">
+                              <span className="text-gray-700 font-black">{offre.entreprise}</span> •
+                              📍 {offre.localisation}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[9px] font-black text-gray-400 tracking-wide">
+                          {cleanDate}
+                        </span>
+                      </div>
+
+                      {/* Corps central de la carte conforme à la maquette */}
+                      <div className="mt-4 flex items-center justify-between bg-gray-50/50 border border-gray-100 rounded-xl p-3 text-[11px] font-medium text-gray-500">
+                        <div className="space-y-0.5">
+                          <p>
+                            Contrat :{' '}
+                            <span className="text-emerald-600 font-black uppercase">
+                              {offre.typeContrat}
+                            </span>
+                          </p>
+                          <p>
+                            Date de début :{' '}
+                            <span className="text-gray-700 font-bold">{dateDebutText}</span>
+                          </p>
+                          <p>
+                            Expérience :{' '}
+                            <span className="text-gray-700 font-bold">
+                              {expLabels[offre.experience] || 'Non renseigné'}
+                            </span>
+                          </p>
+                          <p>
+                            Date limite de candidature :{' '}
+                            <span className="text-gray-700 font-bold">{dateLimiteText}</span>
+                          </p>
+                        </div>
+                        <div className="w-9 h-9 bg-white border border-gray-100 rounded-xl flex items-center justify-center text-base shadow-3xs text-gray-400">
+                          💼
+                        </div>
+                      </div>
+
+                      {/* Footer de l'offre */}
+                      <div className="mt-3 pt-3 border-t border-gray-100 flex justify-between items-center text-[9px] font-black uppercase tracking-widest">
+                        <span className="text-gray-400">
+                          Rémunération :{' '}
+                          <span className="text-gray-600">
+                            {remLabels[offre.remuneration] || offre.remuneration || 'NC'}
+                          </span>
+                        </span>
+                        <Link
+                          href={`/jobs/${offre.id}`}
+                          className="text-emerald-500 hover:text-emerald-600 font-black flex items-center gap-0.5"
+                        >
+                          Voir la fiche ➔
+                        </Link>
+                      </div>
+                    </div>
+                  )
+                })
+              ) : (
+                <div className="text-center py-10 bg-white border border-gray-200 rounded-2xl text-xs font-bold text-gray-400 italic">
+                  Aucune offre d'emploi ou de stage publiée pour le moment.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 🤝 SECTION 4 : PRÉSENTATION DU MENTORAT */}
+      <section className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center gap-4 mb-12">
             <div className="h-[1px] bg-enc flex-grow opacity-20"></div>

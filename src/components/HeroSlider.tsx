@@ -3,9 +3,9 @@
 import React, { useState, useEffect } from 'react'
 
 const images = [
-  "https://www.barre-lambot.com/wp-content/uploads/2022/11/01ENC.jpg",
-  "https://www.enc-bessieres.org/wp-content/uploads/2021/01/IMG_5390-scaled-e1610381385584.jpg.webp",
-  "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&q=80&w=1000"
+  'https://www.barre-lambot.com/wp-content/uploads/2022/11/01ENC.jpg',
+  'https://www.enc-bessieres.org/wp-content/uploads/2021/01/IMG_5390-scaled-e1610381385584.jpg.webp',
+  'https://www.enc-bessieres.org/wp-content/uploads/2021/01/IMG_5222.jpg',
 ]
 
 const HeroSlider = () => {
@@ -34,7 +34,7 @@ const HeroSlider = () => {
           />
         ))}
       </div>
-      
+
       {/* Indicateurs (les petits carrés sous l'image) */}
       <div className="flex justify-center mt-6 gap-2">
         {images.map((_, index) => (
@@ -42,7 +42,7 @@ const HeroSlider = () => {
             key={index}
             onClick={() => setCurrentIndex(index)}
             className={`h-3 rounded-sm transition-all duration-300 ${
-              index === currentIndex 
+              index === currentIndex
                 ? 'bg-enc w-8' // Le carré devient un rectangle bordeaux quand il est actif
                 : 'w-3 border border-enc hover:bg-enc/20'
             }`}
