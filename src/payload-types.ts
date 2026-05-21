@@ -75,6 +75,9 @@ export interface Config {
     groups: Group;
     'social-links': SocialLink;
     articles: Article;
+    posts: Post;
+    offres: Offre;
+    evenements: Evenement;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -89,6 +92,9 @@ export interface Config {
     groups: GroupsSelect<false> | GroupsSelect<true>;
     'social-links': SocialLinksSelect<false> | SocialLinksSelect<true>;
     articles: ArticlesSelect<false> | ArticlesSelect<true>;
+    posts: PostsSelect<false> | PostsSelect<true>;
+    offres: OffresSelect<false> | OffresSelect<true>;
+    evenements: EvenementsSelect<false> | EvenementsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -378,6 +384,80 @@ export interface Article {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "posts".
+ */
+export interface Post {
+  id: number;
+  contenu: string;
+  image?: (number | null) | Media;
+  auteur: number | Alumnus;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "offres".
+ */
+export interface Offre {
+  id: number;
+  poste: string;
+  entreprise: string;
+  typeContrat: 'CDI' | 'CDD' | 'Alternance' | 'Stage' | 'Independant';
+  localisation?: string | null;
+  description?: string | null;
+  statut?: ('publie' | 'brouillon') | null;
+  secteur?: string | null;
+  remuneration?: string | null;
+  experience?: string | null;
+  dateDebut?: string | null;
+  dateLimite?: string | null;
+  logo?: (number | null) | Media;
+  documentJoint?: (number | null) | Media;
+  restreindreDiplomes?: ('bts' | 'dcg3' | 'prepa')[] | null;
+  restreindreCampus?: ('enc_bessieres' | 'enc_bessieres_apprentissage')[] | null;
+  restreindrePromotions?: ('2026' | '2027' | '2028' | '2029' | '2030' | '2031')[] | null;
+  recruteur?: (number | null) | Alumnus;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "evenements".
+ */
+export interface Evenement {
+  id: number;
+  nom: string;
+  slug: string;
+  typeLocalisation: 'presentiel' | 'enligne';
+  dateDebut: string;
+  dateFin: string;
+  categorie: 'conference' | 'reseau' | 'atelier' | 'jpo';
+  description: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  modeInscription: 'plateforme' | 'externe' | 'libre';
+  lienExterne?: string | null;
+  statut?: ('publie' | 'brouillon' | 'attente') | null;
+  couverture: number | Media;
+  organisateur?: (number | null) | Alumnus;
+  participants?: (number | Alumnus)[] | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -427,6 +507,18 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'articles';
         value: number | Article;
+      } | null)
+    | ({
+        relationTo: 'posts';
+        value: number | Post;
+      } | null)
+    | ({
+        relationTo: 'offres';
+        value: number | Offre;
+      } | null)
+    | ({
+        relationTo: 'evenements';
+        value: number | Evenement;
       } | null);
   globalSlug?: string | null;
   user:
@@ -654,6 +746,63 @@ export interface ArticlesSelect<T extends boolean = true> {
   statut?: T;
   couverture?: T;
   auteur?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "posts_select".
+ */
+export interface PostsSelect<T extends boolean = true> {
+  contenu?: T;
+  image?: T;
+  auteur?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "offres_select".
+ */
+export interface OffresSelect<T extends boolean = true> {
+  poste?: T;
+  entreprise?: T;
+  typeContrat?: T;
+  localisation?: T;
+  description?: T;
+  statut?: T;
+  secteur?: T;
+  remuneration?: T;
+  experience?: T;
+  dateDebut?: T;
+  dateLimite?: T;
+  logo?: T;
+  documentJoint?: T;
+  restreindreDiplomes?: T;
+  restreindreCampus?: T;
+  restreindrePromotions?: T;
+  recruteur?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "evenements_select".
+ */
+export interface EvenementsSelect<T extends boolean = true> {
+  nom?: T;
+  slug?: T;
+  typeLocalisation?: T;
+  dateDebut?: T;
+  dateFin?: T;
+  categorie?: T;
+  description?: T;
+  modeInscription?: T;
+  lienExterne?: T;
+  statut?: T;
+  couverture?: T;
+  organisateur?: T;
+  participants?: T;
   updatedAt?: T;
   createdAt?: T;
 }

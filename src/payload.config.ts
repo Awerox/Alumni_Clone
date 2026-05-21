@@ -13,6 +13,9 @@ import { Media } from './collections/Media'
 import { Users } from './collections/Users'
 import { SocialLinks } from './collections/SocialLink'
 import Articles from './collections/Articles'
+import Offres from './collections/Offres'
+import Posts from './collections/Posts'
+import Evenements from './collections/Evenements'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -34,6 +37,9 @@ export default buildConfig({
     Groups, // Ta nouvelle collection groupes est maintenant parfaitement déclarée
     SocialLinks,
     Articles,
+    Posts,
+    Offres,
+    Evenements,
   ],
   editor: lexicalEditor(),
   // Assure-toi d'avoir ton PAYLOAD_SECRET configuré dans ton fichier .env

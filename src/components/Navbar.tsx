@@ -65,7 +65,7 @@ const Navbar = () => {
       submenu: [
         { name: 'Actualités', href: '/blog' },
         { name: "Fil d'actualités", href: '/feed' },
-        { name: 'Événements', href: '/events' },
+        { name: 'Événements', href: '/evenements' },
       ],
     },
     { name: 'Emplois/stages', href: '/jobs' },
