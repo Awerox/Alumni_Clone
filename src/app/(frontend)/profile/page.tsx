@@ -1,122 +1,447 @@
 'use client'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 
 export default function ProfilePage() {
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [showPopup, setShowPopup] = useState<string | null>(null)
-  const [step, setStep] = useState(1) 
+  const [step, setStep] = useState(1)
   const [tempData, setTempData] = useState<any>({})
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [isUploading, setIsUploading] = useState<boolean>(false)
+
+  // Photo de profil
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [savedAvatar, setSavedAvatar] = useState<string | null>(null)
+  const [zoom, setZoom] = useState<number>(1)
+  const [rotation, setRotation] = useState<number>(0)
+  const [flipH, setFlipH] = useState<boolean>(false)
+  const [flipV, setFlipV] = useState<boolean>(false)
+
+  // Éditeur bio
+  const editorRef = useRef<HTMLDivElement>(null)
+
+  // ✅ Ces inputs sont TOUJOURS dans le DOM (jamais conditionnels)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const documentInputRef = useRef<HTMLInputElement>(null)
+  const colorInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
-  // Structure des diplômes officiels de l'ENC Bessières
-  const diplomaHierarchy = {
-    "BTS": [
-      "BTS Assurance", "BTS CG (Comptabilité et Gestion)", "BTS Communication", 
-      "BTS CI (Commerce International)", "BTS GPME", "BTS MCO", "BTS NDRC", 
-      "BTS SAM", "BTS SIO (SLAM/SISR)", "BTS Tourisme"
+  const diplomaHierarchy: Record<string, string[]> = {
+    BTS: [
+      'BTS Assurance',
+      'BTS CG (Comptabilité et Gestion)',
+      'BTS Communication',
+      'BTS CI (Commerce International)',
+      'BTS GPME',
+      'BTS MCO',
+      'BTS NDRC',
+      'BTS SAM',
+      'BTS SIO (SLAM/SISR)',
+      'BTS Tourisme',
     ],
-    "DCG3": [
-      "DCG (Diplôme de Comptabilité et de Gestion)"
+    DCG3: ['DCG (Diplôme de Comptabilité et de Gestion)'],
+    Prépa: [
+      'Classe préparatoire ATS',
+      'Classe préparatoire ENS D1',
+      'Classe préparatoire ENS D2',
+      'Classe préparatoire ECT',
+      'Classe préparatoire ECG',
     ],
-    "Prépa": [
-      "Classe préparatoire ATS", "Classe préparatoire ENS D1", 
-      "Classe préparatoire ENS D2", "Classe préparatoire ECT", "Classe préparatoire ECG"
-    ]
   }
 
   const iconsList = [
-    { name: 'Facebook', icon: 'fa-brands fa-facebook', bg: '#EBF4FF', color: '#1877F2' },
-    { name: 'Instagram', icon: 'fa-brands fa-instagram', bg: '#FFF0F5', color: '#E4405F' },
-    { name: 'LinkedIn', icon: 'fa-brands fa-linkedin-in', bg: '#EBF4FF', color: '#0A66C2' },
-    { name: 'X / Twitter', icon: 'fa-brands fa-x-twitter', bg: '#F3F4F6', color: '#000000' },
-    { name: 'YouTube', icon: 'fa-brands fa-youtube', bg: '#FEE2E2', color: '#FF0000' },
-    { name: 'Snapchat', icon: 'fa-brands fa-snapchat', bg: '#FEF08A', color: '#FFFC00' },
-    { name: 'TikTok', icon: 'fa-brands fa-tiktok', bg: '#F3F4F6', color: '#010101' },
-    { name: 'Site internet', icon: 'fa-solid fa-globe', bg: '#E0F2FE', color: '#0369A1' },
-    { name: 'GitHub', icon: 'fa-brands fa-github', bg: '#F3F4F6', color: '#24292E' },
-    { name: 'Lien externe', icon: 'fa-solid fa-link', bg: '#F1F5F9', color: '#475569' },
-    { name: 'Fichier PDF / CV', icon: 'fa-solid fa-file-pdf', bg: '#FEE2E2', color: '#DC2626' },
-    { name: 'Mallette / Portfolio', icon: 'fa-solid fa-briefcase', bg: '#FEF3C7', color: '#D97706' },
-    { name: 'Diplôme / Certificat', icon: 'fa-solid fa-user-graduate', bg: '#E0F2FE', color: '#0284C7' },
+    {
+      name: 'Facebook',
+      icon: 'fa-brands fa-facebook',
+      bg: '#EBF4FF',
+      color: '#1877F2',
+      isFile: false,
+    },
+    {
+      name: 'Instagram',
+      icon: 'fa-brands fa-instagram',
+      bg: '#FFF0F5',
+      color: '#E4405F',
+      isFile: false,
+    },
+    {
+      name: 'LinkedIn',
+      icon: 'fa-brands fa-linkedin-in',
+      bg: '#EBF4FF',
+      color: '#0A66C2',
+      isFile: false,
+    },
+    {
+      name: 'X / Twitter',
+      icon: 'fa-brands fa-x-twitter',
+      bg: '#F3F4F6',
+      color: '#000000',
+      isFile: false,
+    },
+    {
+      name: 'YouTube',
+      icon: 'fa-brands fa-youtube',
+      bg: '#FEE2E2',
+      color: '#FF0000',
+      isFile: false,
+    },
+    {
+      name: 'Snapchat',
+      icon: 'fa-brands fa-snapchat',
+      bg: '#FEF08A',
+      color: '#000000',
+      isFile: false,
+    },
+    { name: 'TikTok', icon: 'fa-brands fa-tiktok', bg: '#F3F4F6', color: '#010101', isFile: false },
+    { name: 'Twitch', icon: 'fa-brands fa-twitch', bg: '#F3E8FF', color: '#9146FF', isFile: false },
+    {
+      name: 'Spotify',
+      icon: 'fa-brands fa-spotify',
+      bg: '#DCFCE7',
+      color: '#1ED760',
+      isFile: false,
+    },
+    {
+      name: 'SoundCloud',
+      icon: 'fa-brands fa-soundcloud',
+      bg: '#FFEDD5',
+      color: '#FF5500',
+      isFile: false,
+    },
+    { name: 'Reddit', icon: 'fa-brands fa-reddit', bg: '#FFE4E6', color: '#FF4500', isFile: false },
+    {
+      name: 'Discord',
+      icon: 'fa-brands fa-discord',
+      bg: '#E0E7FF',
+      color: '#5865F2',
+      isFile: false,
+    },
+    { name: 'GitHub', icon: 'fa-brands fa-github', bg: '#F3F4F6', color: '#24292E', isFile: false },
+    { name: 'GitLab', icon: 'fa-brands fa-gitlab', bg: '#FFEBE5', color: '#FC6D26', isFile: false },
+    { name: 'Figma', icon: 'fa-brands fa-figma', bg: '#FFEBEB', color: '#F24E1E', isFile: false },
+    { name: 'Notion', icon: 'fa-solid fa-cube', bg: '#F3F4F6', color: '#000000', isFile: false },
+    {
+      name: 'Site internet',
+      icon: 'fa-solid fa-globe',
+      bg: '#E0F2FE',
+      color: '#0369A1',
+      isFile: false,
+    },
+    {
+      name: 'Lien externe',
+      icon: 'fa-solid fa-link',
+      bg: '#F1F5F9',
+      color: '#475569',
+      isFile: false,
+    },
+    {
+      name: 'Fichier PDF / CV',
+      icon: 'fa-solid fa-file-pdf',
+      bg: '#FEE2E2',
+      color: '#DC2626',
+      isFile: true,
+    },
+    {
+      name: 'Mallette / Portfolio',
+      icon: 'fa-solid fa-briefcase',
+      bg: '#FEF3C7',
+      color: '#D97706',
+      isFile: true,
+    },
+    {
+      name: 'Arbre de liens (Tree)',
+      icon: 'fa-solid fa-tree',
+      bg: '#E6F4EA',
+      color: '#137333',
+      isFile: false,
+    },
   ]
 
+  const quickColors = [
+    { color: '#800020', label: 'Bordeaux' },
+    { color: '#1877F2', label: 'Bleu' },
+    { color: '#10B981', label: 'Émeraude' },
+    { color: '#F59E0B', label: 'Ambre' },
+    { color: '#EF4444', label: 'Rouge' },
+    { color: '#8B5CF6', label: 'Violet' },
+    { color: '#EC4899', label: 'Rose' },
+    { color: '#06B6D4', label: 'Cyan' },
+    { color: '#84CC16', label: 'Lime' },
+    { color: '#F97316', label: 'Orange' },
+    { color: '#6366F1', label: 'Indigo' },
+    { color: '#14B8A6', label: 'Teal' },
+  ]
+
+  // ─── FETCH ─────────────────────────────────────────────────────────────────
   const fetchProfile = async () => {
     try {
-      const res = await fetch('/api/alumni/me')
-      if (!res.ok) { setUser(null); setLoading(false); return; }
-      const contentType = res.headers.get('content-type')
-      if (!contentType || !contentType.includes('application/json')) { setUser(null); setLoading(false); return; }
+      const res = await fetch('/api/alumni/me?depth=1')
+      if (!res.ok) {
+        setUser(null)
+        setLoading(false)
+        return
+      }
+      const ct = res.headers.get('content-type')
+      if (!ct?.includes('application/json')) {
+        setUser(null)
+        setLoading(false)
+        return
+      }
       const data = await res.json()
-      if (data && data.user) setUser(data.user)
-    } catch (err) { 
+      if (data?.user) setUser(data.user)
+    } catch (err) {
       console.error(err)
-    } finally { 
-      setLoading(false) 
+    } finally {
+      setLoading(false)
     }
   }
 
-  useEffect(() => { 
-    fetchProfile() 
+  useEffect(() => {
+    fetchProfile()
   }, [])
 
+  // ─── AVATAR ────────────────────────────────────────────────────────────────
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 4 * 1024 * 1024) {
+      alert("L'image est trop volumineuse (max 4 Mo).")
+      return
+    }
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setAvatarPreview(reader.result as string)
+      setZoom(1)
+      setRotation(0)
+      setFlipH(false)
+      setFlipV(false)
+      setShowPopup('cropAvatar')
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+
+  const saveCroppedAvatar = useCallback(async () => {
+    if (!avatarPreview) return
+
+    const SIZE = 400
+    const canvas = document.createElement('canvas')
+    canvas.width = SIZE
+    canvas.height = SIZE
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.src = avatarPreview
+
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve()
+      img.onerror = () => reject(new Error('Chargement image échoué'))
+    })
+
+    ctx.save()
+    ctx.translate(SIZE / 2, SIZE / 2)
+    ctx.rotate((rotation * Math.PI) / 180)
+    ctx.scale(flipH ? -zoom : zoom, flipV ? -zoom : zoom)
+    ctx.drawImage(img, -SIZE / 2, -SIZE / 2, SIZE, SIZE)
+    ctx.restore()
+
+    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/png'))
+    if (!blob) return
+
+    try {
+      const formData = new FormData()
+      formData.append('file', blob, 'photo-profil.png')
+      formData.append('alt', `Avatar de ${user?.prenom || 'Alumni'}`)
+
+      const uploadRes = await fetch('/api/media', {
+        method: 'POST',
+        body: formData,
+      })
+      if (!uploadRes.ok) {
+        setErrorMessage("Échec de l'upload de la photo.")
+        return
+      }
+      const uploadData = await uploadRes.json()
+      const mediaId = uploadData?.doc?.id
+      const mediaUrl = uploadData?.doc?.url
+
+      if (!mediaId) {
+        setErrorMessage('Réponse invalide du serveur.')
+        return
+      }
+
+      if (mediaUrl) setSavedAvatar(mediaUrl)
+
+      await handleSave({ photo: mediaId })
+      setShowPopup(null)
+      setAvatarPreview(null)
+    } catch (err) {
+      console.error(err)
+      setErrorMessage("Erreur lors de l'envoi de la photo.")
+    }
+  }, [avatarPreview, zoom, rotation, flipH, flipV, user])
+
+  // ─── DOCUMENT UPLOAD ───────────────────────────────────────────────────────
+  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const MAX_SIZE = 5 * 1024 * 1024
+    if (file.size > MAX_SIZE) {
+      setErrorMessage('Fichier trop lourd — limite de 5 Mo (PDF, Word, image).')
+      e.target.value = ''
+      return
+    }
+    setErrorMessage(null)
+    setIsUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('alt', tempData.label || 'Document joint')
+
+      const uploadRes = await fetch('/api/media', {
+        method: 'POST',
+        body: formData,
+      })
+      if (!uploadRes.ok) {
+        setErrorMessage("Échec de l'upload du fichier. Vérifiez votre connexion.")
+        setIsUploading(false)
+        return
+      }
+      const uploadData = await uploadRes.json()
+      const mediaUrl = uploadData?.doc?.url
+      if (!mediaUrl) {
+        setErrorMessage('Réponse invalide du serveur.')
+        setIsUploading(false)
+        return
+      }
+      setTempData((prev: any) => ({ ...prev, url: mediaUrl, file: file, fileName: file.name }))
+    } catch (err) {
+      console.error(err)
+      setErrorMessage("Erreur réseau lors de l'envoi du fichier.")
+    } finally {
+      setIsUploading(false)
+      e.target.value = ''
+    }
+  }
+
+  // ─── ÉDITEUR WYSIWYG ───────────────────────────────────────────────────────
+  const execEditorCommand = useCallback((command: string, value?: string) => {
+    editorRef.current?.focus()
+    document.execCommand(command, false, value ?? '')
+  }, [])
+
+  const handleColorPickerChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    editorRef.current?.focus()
+    document.execCommand('foreColor', false, e.target.value)
+  }, [])
+
+  const handleHighlightPickerChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    editorRef.current?.focus()
+    document.execCommand('hiliteColor', false, e.target.value)
+  }, [])
+
+  useEffect(() => {
+    if (showPopup === 'bio' && editorRef.current) {
+      editorRef.current.innerHTML = user?.bio || ''
+    }
+  }, [showPopup])
+
+  const handleSaveBio = () => {
+    const html = editorRef.current?.innerHTML || ''
+    handleSave({ bio: html })
+  }
+
+  // ─── VALIDATION ────────────────────────────────────────────────────────────
   const validateDates = (type: string, data: any): boolean => {
     setErrorMessage(null)
-    const parseDateValue = (dateStr: string) => {
-      if (!dateStr) return 0
-      if (dateStr.includes('/')) {
-        const [month, year] = dateStr.split('/').map(Number)
-        return year * 12 + month
+    const parseDateValue = (s: string) => {
+      if (!s) return 0
+      if (s.includes('/')) {
+        const [m, y] = s.split('/').map(Number)
+        return y * 12 + m
       }
-      return Number(dateStr) * 12
+      return Number(s) * 12
     }
-
-    const regexFormat = /^(0[1-9]|1[0-2])\/\d{4}$|^\d{4}$/
+    const fmt = /^(0[1-9]|1[0-2])\/\d{4}$|^\d{4}$/
 
     if (type === 'exp') {
-      if (!data.poste || !data.entreprise || !data.localite) { setErrorMessage("Les champs marqués d'une astérisque (*) sont obligatoires."); return false; }
-      if (!data.dateDebut) { setErrorMessage("La date de début est obligatoire."); return false; }
-      if (!regexFormat.test(data.dateDebut)) { setErrorMessage("Le format de début doit être MM/AAAA (ex: 09/2024)."); return false; }
+      if (!data.poste || !data.entreprise || !data.localite) {
+        setErrorMessage('Les champs marqués (*) sont obligatoires.')
+        return false
+      }
+      if (!data.dateDebut) {
+        setErrorMessage('La date de début est obligatoire.')
+        return false
+      }
+      if (!fmt.test(data.dateDebut)) {
+        setErrorMessage('Format début : MM/AAAA (ex: 09/2024).')
+        return false
+      }
       if (!data.isCurrent && data.dateFin) {
-        if (!regexFormat.test(data.dateFin)) { setErrorMessage("Le format de fin doit être MM/AAAA (ex: 06/2025)."); return false; }
-        const start = parseDateValue(data.dateDebut)
-        const end = parseDateValue(data.dateFin)
-        if (end < start) { setErrorMessage("La date de fin ne peut pas être antérieure à la date de début."); return false; }
+        if (!fmt.test(data.dateFin)) {
+          setErrorMessage('Format fin : MM/AAAA (ex: 06/2025).')
+          return false
+        }
+        if (parseDateValue(data.dateFin) < parseDateValue(data.dateDebut)) {
+          setErrorMessage('La date de fin ne peut pas être antérieure au début.')
+          return false
+        }
       }
     }
-
     if (type === 'form') {
-      if (data.isENC === undefined) { setErrorMessage("Veuillez sélectionner l'établissement d'origine."); return false; }
-      if (!data.nom) { setErrorMessage("Le choix ou le nom de la formation est obligatoire."); return false; }
-      if (data.isENC && !data.campus) { setErrorMessage("Veuillez renseigner votre Campus de rattachement."); return false; }
-      if (!data.isENC && (!data.typeDiplome || !data.etablissement || !data.localiteEtablissement || !data.statutObtention)) {
-        setErrorMessage("Veuillez remplir tous les champs obligatoires (*).");
-        return false;
+      if (data.isENC === undefined) {
+        setErrorMessage("Sélectionnez l'établissement.")
+        return false
       }
-      if (!data.annee) { setErrorMessage("L'année d'obtention est obligatoire."); return false; }
-      const yearNum = Number(data.annee)
-      if (isNaN(yearNum) || yearNum < 1960 || yearNum > 2035) { setErrorMessage("Veuillez saisir une année valide à 4 chiffres (ex: 2025)."); return false; }
+      if (!data.nom) {
+        setErrorMessage('Le nom de la formation est obligatoire.')
+        return false
+      }
+      if (data.isENC && !data.campus) {
+        setErrorMessage('Renseignez votre campus.')
+        return false
+      }
+      if (
+        !data.isENC &&
+        (!data.typeDiplome ||
+          !data.etablissement ||
+          !data.localiteEtablissement ||
+          !data.statutObtention)
+      ) {
+        setErrorMessage('Remplissez tous les champs obligatoires (*).')
+        return false
+      }
+      if (!data.annee) {
+        setErrorMessage("L'année d'obtention est obligatoire.")
+        return false
+      }
+      const y = Number(data.annee)
+      if (isNaN(y) || y < 1960 || y > 2035) {
+        setErrorMessage('Année invalide (ex: 2025).')
+        return false
+      }
     }
-
-    if (type === 'interet') {
-      if (!data.nom || data.nom.trim() === "") { setErrorMessage("Le nom de l'intérêt ne peut pas être vide."); return false; }
-    }
-
     return true
   }
 
+  // ─── SAVE ──────────────────────────────────────────────────────────────────
   const handleSave = async (updatedFields: any, typeValidation?: string) => {
     if (typeValidation) {
-      const fieldName = typeValidation === 'exp' ? 'experiences' : typeValidation === 'form' ? 'formations' : 'interets'
-      const payloadArray = updatedFields[fieldName]
-      const lastItemAdded = payloadArray[payloadArray.length - 1]
-      if (!validateDates(typeValidation, lastItemAdded)) return;
+      const fieldName =
+        typeValidation === 'exp'
+          ? 'experiences'
+          : typeValidation === 'form'
+            ? 'formations'
+            : 'interets'
+      const arr = updatedFields[fieldName]
+      if (!validateDates(typeValidation, arr[arr.length - 1])) return
     }
-
     try {
-      const res = await fetch(`/api/alumni/${user.id}`, {
+      const res = await fetch(`/api/alumni/${user.id}?depth=1`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedFields),
@@ -128,419 +453,998 @@ export default function ProfilePage() {
         setErrorMessage(null)
         fetchProfile()
       }
-    } catch (err) { console.error(err) }
+    } catch (err) {
+      console.error(err)
+    }
   }
 
-  const handleDeleteItem = async (field: string, index: number) => {
+  const handleDeleteItem = (field: string, index: number) => {
     const newList = [...user[field]]
     newList.splice(index, 1)
     handleSave({ [field]: newList })
   }
 
-  if (loading) {
+  if (loading)
     return (
-      <div className="min-h-screen bg-[#F8F9FA] flex items-center justify-center">
-        <div className="text-center font-bold text-enc uppercase tracking-widest animate-pulse">Chargement du profil...</div>
+      <div className="min-h-screen bg-[#FAFAFC] flex items-center justify-center">
+        <div className="text-center font-black text-xs text-gray-400 uppercase tracking-[0.25em] animate-pulse">
+          Chargement du studio...
+        </div>
       </div>
     )
-  }
 
-  if (!user) {
+  if (!user)
     return (
-      <div className="min-h-screen bg-[#F8F9FA] flex flex-col items-center justify-center gap-4">
-        <div className="text-gray-500 font-bold text-sm uppercase tracking-wider">Session expirée ou introuvable</div>
-        <button onClick={() => router.push('/login')} className="px-6 py-2.5 bg-enc text-white font-bold rounded-xl text-xs uppercase shadow-md">Se connecter</button>
+      <div className="min-h-screen bg-[#FAFAFC] flex flex-col items-center justify-center gap-5">
+        <div className="text-gray-400 font-bold text-xs uppercase tracking-widest">
+          Session expirée
+        </div>
+        <button
+          onClick={() => router.push('/login')}
+          className="px-5 py-2.5 bg-[#800020] text-white font-bold rounded-xl text-xs uppercase shadow-sm"
+        >
+          Se connecter
+        </button>
       </div>
     )
-  }
+
+  const avatarSrc =
+    savedAvatar ||
+    (typeof user.photo === 'object' ? user.photo?.url : null) ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(user.prenom || '')}+${encodeURIComponent(user.nom || '')}&size=150&background=800020&color=fff`
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] py-10 px-4">
-      <div className="max-w-6xl mx-auto space-y-6">
-        
-        {/* 1. HEADER IDENTITÉ */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="h-32 bg-enc"></div>
-          <div className="px-8 pb-8 flex flex-col md:flex-row items-center md:items-center -mt-16 gap-6">
-            <img 
-              src={`https://ui-avatars.com/api/?name=${user.prenom}+${user.nom}&size=150&background=800020&color=fff`} 
-              className="w-32 h-32 rounded-full border-4 border-white shadow-lg object-cover z-10"
-              alt="Profil"
-            />
-            <div className="flex-1 text-center md:text-left pt-2 md:pt-14">
-              <div className="flex flex-col md:flex-row md:items-center gap-3 justify-center md:justify-start">
-                <h1 className="text-3xl font-black text-gray-800 uppercase tracking-tight leading-none">{user.prenom} {user.nom}</h1>
-                <span className="inline-block bg-enc/10 text-enc font-black uppercase text-[10px] px-2.5 py-1 rounded-full tracking-wider w-max mx-auto md:mx-0">Promotion {user.promotion}</span>
+    <div className="min-h-screen bg-[#F6F6FA] py-12 px-4 text-gray-800 antialiased selection:bg-gray-200">
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleAvatarChange}
+        accept="image/*"
+        className="hidden"
+      />
+      <input
+        type="file"
+        ref={documentInputRef}
+        onChange={handleDocumentUpload}
+        accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+        className="hidden"
+      />
+
+      <div className="max-w-5xl mx-auto space-y-8">
+        {/* ── HEADER ─────────────────────────────────────────────────────────── */}
+        <div className="bg-white rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
+          <div className="h-40 bg-[#800020] relative">
+            <div className="absolute inset-0 bg-[radial-gradient(#ffffff15_1px,transparent_1px)] [background-size:16px_16px] opacity-40" />
+          </div>
+          <div className="px-8 pb-8 flex flex-col md:flex-row items-center md:items-end -mt-20 gap-6 relative">
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="w-36 h-36 rounded-3xl border-4 border-white shadow-2xl overflow-hidden cursor-pointer relative group bg-gray-100 z-20 flex-shrink-0"
+              style={{ aspectRatio: '1 / 1' }}
+            >
+              <img
+                src={avatarSrc}
+                className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-105"
+                alt="Photo de profil"
+              />
+              <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center text-white gap-2 backdrop-blur-[2px]">
+                <i className="fa-solid fa-camera text-xl transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300" />
+                <span className="text-[10px] font-black uppercase tracking-wider">Modifier</span>
               </div>
             </div>
-            <div className="flex gap-3 mt-4 md:mt-14 self-center md:self-end">
-              <button onClick={() => router.push('/profile/edit')} className="px-6 py-2.5 bg-enc text-white font-bold rounded-xl text-xs uppercase hover:brightness-110 transition-all shadow-md">Modifier le profil</button>
+
+            <div className="flex-1 text-center md:text-left pt-2 md:pb-2 min-w-0">
+              <div className="flex flex-col md:flex-row md:items-center gap-2.5 justify-center md:justify-start flex-wrap">
+                <h1 className="text-3xl font-black tracking-tight text-gray-900">
+                  {user.prenom} {user.nom}
+                </h1>
+                <div className="flex items-center gap-2 justify-center md:justify-start flex-wrap">
+                  <span className="inline-block bg-[#800020]/10 text-[#800020] font-black uppercase text-[10px] px-3 py-1 rounded-lg tracking-wider">
+                    {user.statut === 'alumni' ? 'Alumni' : 'Étudiant'} · Promo {user.promotion}
+                  </span>
+                  {user.isMentor && (
+                    <span className="inline-flex items-center gap-1.5 bg-amber-400 text-white font-black uppercase text-[10px] px-3 py-1 rounded-lg tracking-wider shadow-sm">
+                      <i className="fa-solid fa-star text-[8px]" />
+                      Mentor
+                    </span>
+                  )}
+                </div>
+              </div>
+              <p className="text-sm text-gray-400 font-medium mt-1.5">
+                {user.poste && user.entreprise
+                  ? `${user.poste} · ${user.entreprise}`
+                  : 'École Nationale de Commerce · ENC Bessières'}
+              </p>
+              {user.ville && (
+                <p className="text-xs text-gray-400 mt-0.5">
+                  <i className="fa-solid fa-location-dot text-[#800020] mr-1 text-[10px]" />
+                  {user.ville}
+                </p>
+              )}
+            </div>
+
+            <div className="flex gap-3 self-center md:self-end md:pb-2">
+              <button
+                onClick={() => router.push('/profile/edit')}
+                className="px-5 py-2.5 bg-[#800020] hover:bg-[#600018] text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-colors shadow-sm"
+              >
+                <i className="fa-solid fa-pen-to-square mr-1.5" />
+                Modifier le profil
+              </button>
             </div>
           </div>
         </div>
 
-        {/* 2. GRILLE PRINCIPALE */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-          <div className="md:col-span-4 space-y-6">
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
-              <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-8 flex items-center gap-2"><i className="fa-solid fa-address-book text-enc text-xs"></i> Coordonnées</h3>
-              <div className="space-y-6">
-                <div><p className="text-[9px] font-black text-gray-400 uppercase mb-1">Email</p><p className="text-sm font-bold text-gray-800">{user.email}</p></div>
-                <div><p className="text-[9px] font-black text-gray-400 uppercase mb-1">Téléphone</p><p className="text-sm font-bold text-gray-800">{user.telephone || 'Non renseigné'}</p></div>
-                <div><p className="text-[9px] font-black text-gray-400 uppercase mb-1">Localisation</p><p className="text-sm font-bold text-gray-800">{user.ville || 'Non renseignée'}</p></div>
+        {/* Bandeau Mentor */}
+        {user.isMentor && (
+          <div className="mx-6 mb-6 p-4 bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200/60 rounded-2xl flex items-start gap-4">
+            <div className="w-10 h-10 rounded-xl bg-amber-400 flex items-center justify-center flex-shrink-0 shadow-sm">
+              <i className="fa-solid fa-star text-white text-sm" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-black text-amber-800 uppercase tracking-wider mb-0.5">
+                Membre Mentor
+              </p>
+              <p className="text-xs text-amber-700/80 font-medium leading-relaxed">
+                {user.prenom} est disponible pour accompagner les étudiants et jeunes alumni.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ── GRILLE PRINCIPALE ───────────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+          {/* COLONNE GAUCHE */}
+          <div className="md:col-span-4 space-y-8">
+            <div className="bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
+              <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                <i className="fa-solid fa-address-book text-[#800020] text-xs" /> Informations
+              </h3>
+              <div className="space-y-4">
+                {[
+                  { label: 'Email universitaire', value: user.email },
+                  { label: 'Téléphone', value: user.telephone || 'Non renseigné' },
+                  { label: 'Localisation', value: user.ville || 'Paris, France' },
+                ].map(({ label, value }) => (
+                  <div key={label} className="p-3 bg-gray-50 rounded-xl">
+                    <p className="text-[9px] font-black text-gray-400 uppercase mb-0.5">{label}</p>
+                    <p className="text-xs font-bold text-gray-800 truncate">{value}</p>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 space-y-6 relative">
-              <div className="flex justify-between items-center border-b border-gray-100 pb-4">
-                <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.15em]">Liens externes & Documents</h3>
-                <button onClick={() => { setShowPopup('social'); setStep(1); setErrorMessage(null); }} className="w-7 h-7 bg-[#4ADE80] text-white rounded-lg flex items-center justify-center hover:scale-105 transition-transform"><i className="fa-solid fa-plus text-xs"></i></button>
+            <div className="bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80 space-y-4">
+              <div className="flex justify-between items-center border-b border-gray-50 pb-3">
+                <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.15em]">
+                  Réseaux & Documents
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowPopup('social')
+                    setStep(1)
+                    setErrorMessage(null)
+                    setTempData({})
+                  }}
+                  className="w-7 h-7 bg-[#4ADE80] hover:bg-[#3bc26f] text-white rounded-lg flex items-center justify-center transition-all shadow-sm"
+                >
+                  <i className="fa-solid fa-plus text-xs" />
+                </button>
               </div>
-              <div className="space-y-6">
-                <div className="pt-2">
-                  <p className="text-[9px] font-black text-gray-400 uppercase mb-4 text-center">Mes documents & Raccourcis</p>
-                  {user.socialLinks && user.socialLinks.length > 0 ? (
-                    <div className="flex flex-wrap justify-center gap-4">
-                      {user.socialLinks.map((link: any, i: number) => {
-                        const matchedIcon = iconsList.find(item => item.icon === link.icon);
-                        return (
-                          <div key={i} className="relative group">
-                            <a href={link.url} target="_blank" rel="noopener noreferrer" style={{ backgroundColor: matchedIcon?.bg || '#F1F5F9', color: matchedIcon?.color || '#475569' }} className="w-12 h-12 rounded-full flex items-center justify-center text-xl hover:scale-110 transition-transform shadow-sm relative">
-                              <i className={link.icon}></i>
-                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 bg-gray-900 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none font-bold shadow-md z-30">{link.label}</div>
-                            </a>
-                            <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteItem('socialLinks', i); }} className="absolute -top-1 -right-1 w-4 h-4 bg-white hover:bg-red-500 hover:text-white border border-gray-100 rounded-full flex items-center justify-center text-[8px] text-gray-400">✕</button>
+              {user.socialLinks?.length > 0 ? (
+                <div className="grid grid-cols-4 gap-4 justify-items-center pt-2">
+                  {user.socialLinks.map((link: any, i: number) => {
+                    const meta = iconsList.find((x) => x.icon === link.icon)
+                    return (
+                      <div key={i} className="relative group">
+                        <a
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            backgroundColor: meta?.bg || '#F1F5F9',
+                            color: meta?.color || '#475569',
+                          }}
+                          className="w-11 h-11 rounded-xl flex items-center justify-center text-lg hover:scale-110 transition-all shadow-sm relative"
+                        >
+                          <i className={link.icon} />
+                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 bg-gray-900 text-white text-[9px] rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none font-bold shadow-md whitespace-nowrap z-30">
+                            {link.label}
                           </div>
-                        )
-                      })}
-                    </div>
-                  ) : <p className="text-center text-[11px] text-gray-400 italic">Aucun document ou lien enregistré.</p>}
+                        </a>
+                        <button
+                          onClick={() => handleDeleteItem('socialLinks', i)}
+                          className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-white shadow-sm hover:bg-red-500 hover:text-white border border-gray-100 rounded-full flex items-center justify-center text-[8px] text-gray-400 transition-colors"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    )
+                  })}
                 </div>
-              </div>
+              ) : (
+                <p className="text-center text-xs text-gray-400 italic py-4">
+                  Aucun document ou lien enregistré.
+                </p>
+              )}
             </div>
           </div>
 
-          <div className="md:col-span-8 space-y-6">
-            {/* BIO */}
-            <section className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
-              <div className="flex justify-between items-center mb-6"><h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><i className="fa-solid fa-user text-enc"></i> Quelques mots pour me définir</h3></div>
-              {user.bio ? <p className="text-gray-600 leading-relaxed font-medium italic">"{user.bio}"</p> : <div className="bg-gray-50 p-10 text-center rounded-2xl border-2 border-dashed border-gray-200"><button onClick={() => { setShowPopup('bio'); setErrorMessage(null); }} className="bg-emerald-500 text-white px-8 py-3 rounded-xl font-bold uppercase text-[10px] tracking-widest">+ Ajouter un résumé</button></div>}
+          {/* COLONNE DROITE */}
+          <div className="md:col-span-8 space-y-8">
+            <section className="bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                  <i className="fa-solid fa-user text-[#800020]" /> À propos de moi
+                </h3>
+                {user.bio && (
+                  <button
+                    onClick={() => setShowPopup('bio')}
+                    className="text-xs text-gray-400 hover:text-[#800020] transition-colors"
+                  >
+                    <i className="fa-solid fa-pen-to-square mr-1" /> Modifier
+                  </button>
+                )}
+              </div>
+              {user.bio ? (
+                <div
+                  className="text-sm text-gray-600 leading-relaxed bg-gray-50 p-5 rounded-2xl border border-gray-100 min-h-[60px] prose prose-sm max-w-none break-words"
+                  dangerouslySetInnerHTML={{ __html: user.bio }}
+                />
+              ) : (
+                <div className="text-center py-8 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
+                  <button
+                    onClick={() => setShowPopup('bio')}
+                    className="bg-[#4ADE80] hover:bg-[#3bc26f] text-white px-5 py-2.5 rounded-xl font-bold uppercase text-[9px] tracking-wider transition-colors shadow-sm"
+                  >
+                    + Ajouter un résumé
+                  </button>
+                </div>
+              )}
             </section>
 
-            {/* EXPÉRIENCES */}
-            <section className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+            <section className="bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><i className="fa-solid fa-briefcase text-enc"></i> Expériences professionnelles</h3>
-                <button onClick={() => { setTempData({ isCurrent: false, matchFormation: false, isCadre: false }); setShowPopup('exp'); setErrorMessage(null); }} className="bg-emerald-500 text-white px-4 py-2 rounded-lg font-bold uppercase text-[9px] tracking-widest">+ Ajouter</button>
+                <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                  <i className="fa-solid fa-briefcase text-[#800020]" /> Parcours Professionnel
+                </h3>
+                <button
+                  onClick={() => {
+                    setTempData({ isCurrent: false })
+                    setShowPopup('exp')
+                    setErrorMessage(null)
+                  }}
+                  className="bg-[#4ADE80] hover:bg-[#3bc26f] text-white px-3 py-1.5 rounded-lg font-bold uppercase text-[9px] tracking-wider transition-colors"
+                >
+                  + Ajouter
+                </button>
               </div>
               {user.experiences?.length > 0 ? (
                 <div className="space-y-4">
                   {user.experiences.map((exp: any, i: number) => (
-                    <div key={i} className="flex justify-between items-start p-5 bg-[#F8F9FA] rounded-2xl border border-gray-50 group">
-                      <div className="space-y-1 flex-1">
+                    <div
+                      key={i}
+                      className="flex justify-between items-start p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="space-y-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-black text-gray-800 uppercase text-sm tracking-tight">{exp.poste}</p>
-                          {exp.typeContrat && <span className="bg-gray-200 text-gray-700 font-bold text-[9px] px-2 py-0.5 rounded-sm uppercase">{exp.typeContrat}</span>}
-                          {exp.isCurrent && <span className="bg-emerald-100 text-emerald-700 font-bold text-[9px] px-2 py-0.5 rounded-sm uppercase">Poste actuel</span>}
+                          <p className="font-black text-gray-900 uppercase text-xs tracking-tight">
+                            {exp.poste}
+                          </p>
+                          {exp.typeContrat && (
+                            <span className="bg-gray-200/80 text-gray-700 font-black text-[8px] px-1.5 py-0.5 rounded uppercase tracking-wide">
+                              {exp.typeContrat}
+                            </span>
+                          )}
+                          {exp.isCurrent && (
+                            <span className="bg-emerald-100 text-emerald-800 font-bold text-[8px] px-1.5 py-0.5 rounded uppercase">
+                              Actuel
+                            </span>
+                          )}
                         </div>
-                        <p className="text-xs text-enc font-bold">{exp.entreprise} {exp.localite && <span className="text-gray-400 font-medium ml-1">📍 {exp.localite}</span>}</p>
-                        <p className="text-[10px] text-gray-400 font-bold uppercase mt-0.5"><i className="fa-regular fa-calendar-days text-xs mr-1"></i> {exp.dateDebut} — {exp.isCurrent ? 'Présent' : exp.dateFin || '---'}</p>
-                        {exp.description && <p className="text-xs text-gray-500 mt-3 italic border-l-2 border-gray-200 pl-3 whitespace-pre-line">{exp.description}</p>}
+                        <p className="text-xs text-gray-600 font-bold">
+                          {exp.entreprise}{' '}
+                          {exp.localite && (
+                            <span className="text-gray-400 font-medium ml-1">
+                              📍 {exp.localite}
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-[9px] text-gray-400 font-black uppercase tracking-wider">
+                          <i className="fa-regular fa-calendar-days mr-1" /> {exp.dateDebut} —{' '}
+                          {exp.isCurrent ? 'Présent' : exp.dateFin || '---'}
+                        </p>
                       </div>
-                      <button onClick={() => handleDeleteItem('experiences', i)} className="p-2 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity ml-4"><i className="fa-solid fa-trash-can"></i></button>
+                      <button
+                        onClick={() => handleDeleteItem('experiences', i)}
+                        className="p-2 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                      >
+                        <i className="fa-solid fa-trash-can text-xs" />
+                      </button>
                     </div>
                   ))}
                 </div>
-              ) : <div className="p-6 bg-blue-50 border-l-4 border-blue-400 rounded-r-xl"><p className="text-blue-700 text-xs font-medium">Aucune expérience saisie.</p></div>}
+              ) : (
+                <p className="text-xs text-gray-400 italic bg-gray-50 p-4 rounded-xl text-center">
+                  Aucune expérience enregistrée.
+                </p>
+              )}
             </section>
 
-            {/* FORMATIONS */}
-            <section className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
+            <section className="bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2"><i className="fa-solid fa-graduation-cap text-enc"></i> Formations</h3>
-                <button onClick={() => { setTempData({ isENC: true, statutObtention: "J'ai obtenu mon diplôme" }); setShowPopup('form'); setErrorMessage(null); }} className="bg-emerald-500 text-white px-4 py-2 rounded-lg font-bold uppercase text-[9px] tracking-widest">+ Ajouter</button>
+                <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                  <i className="fa-solid fa-graduation-cap text-[#800020]" /> Formations & Cursus
+                </h3>
+                <button
+                  onClick={() => {
+                    setTempData({ isENC: true, statutObtention: "J'ai obtenu mon diplôme" })
+                    setShowPopup('form')
+                    setErrorMessage(null)
+                  }}
+                  className="bg-[#4ADE80] hover:bg-[#3bc26f] text-white px-3 py-1.5 rounded-lg font-bold uppercase text-[9px] tracking-wider transition-colors"
+                >
+                  + Ajouter
+                </button>
               </div>
               <div className="space-y-4">
                 {user.formations?.map((form: any, i: number) => (
-                  <div key={i} className="flex justify-between items-start p-5 bg-[#F8F9FA] rounded-2xl border border-gray-50 group">
+                  <div
+                    key={i}
+                    className="flex justify-between items-start p-4 bg-gray-50/50 rounded-2xl border border-gray-100 group hover:bg-gray-50 transition-all"
+                  >
                     <div className="flex gap-4">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl shadow-sm ${form.isENC ? 'bg-enc text-white' : 'bg-white text-gray-400'}`}><i className={form.isENC ? 'fa-solid fa-certificate' : 'fa-solid fa-university'}></i></div>
+                      <div
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center text-base shadow-inner ${form.isENC ? 'bg-[#800020] text-white' : 'bg-zinc-100 text-[#800020]'}`}
+                      >
+                        <i className={form.isENC ? 'fa-solid fa-award' : 'fa-solid fa-landmark'} />
+                      </div>
                       <div>
-                        <p className="font-black text-gray-800 uppercase text-sm tracking-tight">{form.nom}</p>
-                        <p className="text-xs font-bold text-gray-500 uppercase">
-                          {form.etablissement} {form.campus ? `(${form.campus})` : form.localiteEtablissement ? `(${form.localiteEtablissement})` : ''}
+                        <p className="font-black text-gray-900 text-xs uppercase tracking-tight">
+                          {form.nom}
                         </p>
-                        <div className="flex items-center gap-2 mt-1 flex-wrap">
-                          <span className="text-[10px] text-gray-400 font-bold uppercase">Année : {form.annee}</span>
-                          {form.typeDiplome && <span className="bg-gray-200 text-gray-600 font-bold text-[8px] px-1.5 py-0.5 rounded-sm uppercase">{form.typeDiplome}</span>}
-                          {form.statutObtention && <span className="bg-blue-50 text-blue-600 font-bold text-[8px] px-1.5 py-0.5 rounded-sm uppercase">{form.statutObtention}</span>}
-                        </div>
-                        {form.descriptionFormation && <p className="text-xs text-gray-500 mt-2 italic whitespace-pre-line">{form.descriptionFormation}</p>}
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">
+                          {form.etablissement}
+                          {form.campus
+                            ? ` • ${form.campus}`
+                            : form.localiteEtablissement
+                              ? ` • ${form.localiteEtablissement}`
+                              : ''}
+                        </p>
+                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider">
+                          Promotion : {form.annee}
+                        </span>
                       </div>
                     </div>
-                    <button onClick={() => handleDeleteItem('formations', i)} className="p-2 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><i className="fa-solid fa-trash-can"></i></button>
+                    <button
+                      onClick={() => handleDeleteItem('formations', i)}
+                      className="p-2 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                    >
+                      <i className="fa-solid fa-trash-can text-xs" />
+                    </button>
                   </div>
                 ))}
               </div>
             </section>
 
-            {/* CENTRES D'INTÉRÊT RECOUPÉS PROPREMENT */}
-            <section className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
-              <div className="flex justify-between items-center mb-6">
+            <section className="bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
+              <div className="flex justify-between items-center mb-4">
                 <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                  <i className="fa-solid fa-heart text-enc"></i> Centres d'intérêt
+                  <i className="fa-solid fa-heart text-[#800020]" /> Centres d'intérêt
                 </h3>
-                <button 
-                  onClick={() => { setTempData({ nom: '' }); setShowPopup('interet'); setErrorMessage(null); }} 
-                  className="w-7 h-7 bg-[#4ADE80] text-white rounded-lg flex items-center justify-center hover:scale-105 transition-transform shadow-xs"
-                  title="Ajouter un centre d'intérêt"
+                <button
+                  onClick={() => {
+                    setTempData({ nom: '' })
+                    setShowPopup('interet')
+                    setErrorMessage(null)
+                  }}
+                  className="w-7 h-7 bg-[#4ADE80] hover:bg-[#3bc26f] text-white rounded-lg flex items-center justify-center transition-transform shadow-sm"
                 >
-                  <i className="fa-solid fa-plus text-xs"></i>
+                  <i className="fa-solid fa-plus text-xs" />
                 </button>
               </div>
-              <div className="flex flex-wrap gap-3">
-                {user.interets && user.interets.length > 0 ? (
+              <div className="flex flex-wrap gap-2.5">
+                {user.interets?.length > 0 ? (
                   user.interets.map((int: any, i: number) => (
-                    <div key={i} className="px-4 py-2 bg-gray-50 text-gray-700 rounded-xl font-bold text-[10px] uppercase flex items-center gap-2 border border-gray-200 shadow-xs">
+                    <div
+                      key={i}
+                      className="px-3 py-1.5 bg-gray-50 text-gray-800 rounded-xl font-bold text-[9px] uppercase flex items-center gap-2 border border-gray-100"
+                    >
                       <span>{int.nom}</span>
-                      <button onClick={() => handleDeleteItem('interets', i)} className="text-gray-400 hover:text-red-500 transition-colors p-0.5"><i className="fa-solid fa-xmark text-xs"></i></button>
+                      <button
+                        onClick={() => handleDeleteItem('interets', i)}
+                        className="text-gray-400 hover:text-red-500 transition-colors"
+                      >
+                        <i className="fa-solid fa-xmark text-xs" />
+                      </button>
                     </div>
                   ))
                 ) : (
-                  <p className="text-gray-400 text-xs italic font-medium">Aucun centre d'intérêt renseigné pour le moment.</p>
+                  <p className="text-gray-400 text-xs italic">Aucun centre d'intérêt renseigné.</p>
                 )}
               </div>
             </section>
-
           </div>
         </div>
       </div>
 
-      {/* POPUPS ET MODALS CONTROLLEURS */}
+      {/* ================================================================= */}
+      {/* POPUPS                                                            */}
+      {/* ================================================================= */}
       {showPopup && (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden animate-in zoom-in duration-200">
+        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-md flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden border border-gray-100">
+            {/* Header popup */}
             <div className="bg-gray-50 p-5 border-b border-gray-100 flex justify-between items-center">
-              <h2 className="text-base font-black text-gray-800 uppercase tracking-tighter">
-                {showPopup === 'social' ? 'Ajouter un lien / document' : showPopup === 'exp' ? 'Saisir une expérience professionnelle' : showPopup === 'form' ? 'Ajouter une formation' : 'Ajouter un centre d\'intérêt'}
+              <h2 className="text-xs font-black text-gray-900 uppercase tracking-wider">
+                {showPopup === 'cropAvatar'
+                  ? 'Ajuster votre photo'
+                  : showPopup === 'social'
+                    ? 'Réseaux & Fichiers joints'
+                    : showPopup === 'bio'
+                      ? 'Éditeur de biographie'
+                      : showPopup === 'exp'
+                        ? 'Parcours professionnel'
+                        : showPopup === 'form'
+                          ? 'Formation & Cursus'
+                          : "Centre d'intérêt"}
               </h2>
-              <button onClick={() => {setShowPopup(null); setStep(1); setTempData({}); setErrorMessage(null);}} className="text-gray-400 hover:text-red-500"><i className="fa-solid fa-circle-xmark text-xl"></i></button>
+              <button
+                onClick={() => {
+                  setShowPopup(null)
+                  setAvatarPreview(null)
+                  setErrorMessage(null)
+                }}
+                className="text-gray-400 hover:text-red-500"
+              >
+                <i className="fa-solid fa-circle-xmark text-lg" />
+              </button>
             </div>
-            
-            <div className="p-6 max-h-[75vh] overflow-y-auto space-y-5 text-left">
-              
+
+            <div className="p-6 max-h-[75vh] overflow-y-auto space-y-4">
               {errorMessage && (
-                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold rounded-xl flex items-center gap-2 animate-in shake duration-300">
-                  <i className="fa-solid fa-triangle-exclamation text-base"></i>
+                <div className="p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-xs font-bold flex items-center gap-2">
+                  <i className="fa-solid fa-triangle-exclamation" />
                   <span>{errorMessage}</span>
                 </div>
               )}
 
-              {/* SOCIAL */}
-              {showPopup === 'social' && (
-                <div className="space-y-4">
-                  <div className={`p-4 rounded-2xl border-2 ${step === 1 ? 'border-blue-500 bg-blue-50' : 'border-emerald-500 bg-emerald-50'}`}>
-                    {step === 1 && (
-                      <div className="grid grid-cols-5 gap-3 max-h-[160px] overflow-y-auto pr-1">
-                        {iconsList.map((item) => (
-                          <button key={item.name} onClick={() => { setTempData({...tempData, icon: item.icon}); setStep(2); }} className="h-11 bg-white rounded-xl border border-gray-200 flex items-center justify-center text-lg text-gray-700 hover:border-enc hover:scale-105 transition-all shadow-xs"><i className={item.icon}></i></button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  {step === 2 && (
-                    <div className="flex gap-2"><input className="flex-1 p-3 border border-gray-200 rounded-xl outline-none text-sm font-medium" placeholder="ex: Mon CV Web..." onChange={(e) => setTempData({...tempData, label: e.target.value})} /><button onClick={() => setStep(3)} disabled={!tempData.label} className="bg-blue-500 text-white px-5 rounded-xl font-bold text-xs uppercase">Ok</button></div>
-                  )}
-                  {step === 3 && (
-                    <div className="space-y-4"><input className="w-full p-3 border border-gray-200 rounded-xl outline-none text-sm font-medium" placeholder="https://..." onChange={(e) => setTempData({...tempData, url: e.target.value})} /><button onClick={() => handleSave({ socialLinks: [...(user.socialLinks || []), tempData] })} className="w-full py-3.5 bg-emerald-500 text-white rounded-2xl font-bold uppercase text-xs shadow-lg">Enregistrer</button></div>
-                  )}
-                </div>
-              )}
-
-              {/* EXPÉRIENCE */}
-              {showPopup === 'exp' && (
-                <div className="space-y-4 font-medium text-gray-700 text-sm">
-                  <div><label className="block text-xs font-bold text-gray-600 mb-1">Fonction <span className="text-red-500">*</span></label><input className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-blue-500" placeholder="Fonction occupée" onChange={(e) => setTempData({...tempData, poste: e.target.value})} /></div>
-                  <div><label className="block text-xs font-bold text-gray-600 mb-1">Entreprise <span className="text-red-500">*</span></label><input className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-blue-500" placeholder="Nom de l'entreprise" onChange={(e) => setTempData({...tempData, entreprise: e.target.value})} /></div>
-                  <div><label className="block text-xs font-bold text-gray-600 mb-1">Localisation <span className="text-red-500">*</span></label><input className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-blue-500" placeholder="Ville, Pays" onChange={(e) => setTempData({...tempData, localite: e.target.value})} /></div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1.5">J'occupe actuellement cette fonction <span className="text-red-500">*</span></label>
-                    <div className="flex gap-2 w-max border rounded-xl overflow-hidden p-1 bg-gray-50">
-                      <button onClick={() => setTempData({...tempData, isCurrent: true})} className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase ${tempData.isCurrent ? 'bg-white text-emerald-600 shadow-sm border border-emerald-200' : 'text-gray-400'}`}>Oui</button>
-                      <button onClick={() => setTempData({...tempData, isCurrent: false})} className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase ${!tempData.isCurrent ? 'bg-white text-rose-500 shadow-sm border border-rose-200' : 'text-gray-400'}`}>Non</button>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div><label className="block text-xs font-bold text-gray-600 mb-1">Date de début <span className="text-red-500">*</span></label><input className="w-full p-3 border border-gray-200 rounded-xl outline-none text-center" placeholder="ex: 09/2024" onChange={(e) => setTempData({...tempData, dateDebut: e.target.value})} /></div>
-                    {!tempData.isCurrent && <div><label className="block text-xs font-bold text-gray-600 mb-1">Date de fin <span className="text-red-500">*</span></label><input className="w-full p-3 border border-gray-200 rounded-xl outline-none text-center" placeholder="ex: 06/2025" onChange={(e) => setTempData({...tempData, dateFin: e.target.value})} /></div>}
-                  </div>
-                  <div><label className="block text-xs font-bold text-gray-600 mb-1">Description des missions</label><textarea rows={3} className="w-full p-3 border border-gray-200 rounded-xl text-xs outline-none focus:border-blue-500 leading-relaxed" placeholder="Détaillez vos activités..." onChange={(e) => setTempData({...tempData, description: e.target.value})}></textarea></div>
-                  
-                  <div className="bg-[#FFFDF4] border border-[#FDEFC2] rounded-2xl p-5 space-y-4">
-                    <p className="text-xs font-bold text-[#A17903] uppercase tracking-wider border-b border-[#FDEFC2] pb-1.5">Informations complémentaires</p>
-                    <div>
-                      <label className="block text-[11px] font-bold text-gray-500 mb-1">Secteur d'activité de l'entreprise</label>
-                      <select className="w-full p-2.5 border bg-white border-gray-200 rounded-xl text-xs outline-none" onChange={(e) => setTempData({...tempData, secteur: e.target.value})}>
-                        <option value="">Sélectionnez un secteur</option>
-                        <option value="Agro-alimentaire">Agro-alimentaire</option><option value="Architecture">Architecture</option><option value="Association non lucrative">Association non lucrative</option><option value="Banque / Assurance / Finance">Banque / Assurance / Finance</option><option value="Conseil / Audit">Conseil / Audit</option><option value="Digital / Technologie">Digital / Technologie</option><option value="Enseignement / Formation / Recrutement">Enseignement / Formation / Recrutement</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-gray-500 mb-1">Type de contrat</label>
-                      <select className="w-full p-2.5 border bg-white border-gray-200 rounded-xl text-xs outline-none" onChange={(e) => setTempData({...tempData, typeContrat: e.target.value})}>
-                        <option value="">Sélectionnez un contrat</option><option value="CDI">CDI (Temps plein)</option><option value="CDD">CDD</option><option value="Alternance">Alternance / Apprentissage</option><option value="Stage">Stage professionnel</option><option value="Interim">Intérim</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-gray-500 mb-1">Rémunération annuelle brute</label>
-                      <select className="w-full p-2.5 border bg-white border-gray-200 rounded-xl text-xs outline-none" onChange={(e) => setTempData({...tempData, remuneration: e.target.value})}>
-                        <option value="">Sélectionnez une tranche (K€)</option><option value="Moins de 20k">Moins de 20 000 €</option><option value="20k - 25k">20 000 € - 25 000 €</option><option value="25k - 30k">25 000 € - 30 000 €</option><option value="30k - 35k">30 000 € - 35 000 €</option><option value="Plus de 80k">Plus de 80 000 €</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-gray-500 mb-1">Comment avez-vous trouvé cet emploi ?</label>
-                      <select className="w-full p-2.5 border bg-white border-gray-200 rounded-xl text-xs outline-none" onChange={(e) => setTempData({...tempData, provenanceEmploi: e.target.value})}>
-                        <option value="">Sélectionnez une option</option><option value="Réseau Alumni ENC">Le réseau Alumni de l'ENC</option><option value="Candidature spontanée">Candidature spontanée</option><option value="Job board (Indeed, Welcome to the Jungle, etc.)">Job board (Indeed, Welcome to the Jungle, etc.)</option><option value="Suite du Stage / Alternance">Suite logique d'un stage ou d'une alternance</option>
-                      </select>
-                    </div>
-                  </div>
-                  <button onClick={() => handleSave({ experiences: [...(user.experiences || []), tempData] }, 'exp')} className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold uppercase text-xs shadow-md">Enregistrer</button>
-                </div>
-              )}
-
-              {/* FORMATIONS */}
-              {showPopup === 'form' && (
-                <div className="space-y-4 font-medium text-gray-700 text-sm">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-2">Ajouter une nouvelle formation dispensée par :</label>
-                    <div className="flex gap-6 items-center p-3 bg-gray-50 rounded-xl border border-gray-100">
-                      <label className="flex items-center gap-2 cursor-pointer text-xs font-bold">
-                        <input type="radio" checked={tempData.isENC === true} onChange={() => setTempData({ isENC: true, nom: '', annee: '', etablissement: 'ENC Bessières', campus: 'ENC Bessières' })} className="text-enc focus:ring-enc w-4 h-4" />
-                        <span>ENC Bessières</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer text-xs font-bold">
-                        <input type="radio" checked={tempData.isENC === false} onChange={() => setTempData({ isENC: false, nom: '', annee: '', etablissement: '', typeDiplome: '', localiteEtablissement: '', statutObtention: '' })} className="text-enc focus:ring-enc w-4 h-4" />
-                        <span>Un autre établissement</span>
-                      </label>
+              {/* ── RECADRAGE AVATAR ──────────────────────────────────────────── */}
+              {showPopup === 'cropAvatar' && (
+                <div className="space-y-6 text-center">
+                  <div className="w-48 h-48 rounded-3xl mx-auto overflow-hidden bg-gray-100 border-2 border-gray-200 shadow-inner">
+                    <div
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        transform: `scale(${zoom}) rotate(${rotation}deg) scaleX(${flipH ? -1 : 1}) scaleY(${flipV ? -1 : 1})`,
+                        transition: 'transform 0.15s ease-out',
+                      }}
+                    >
+                      {avatarPreview && (
+                        <img
+                          src={avatarPreview}
+                          className="w-full h-full object-cover"
+                          alt="Aperçu"
+                        />
+                      )}
                     </div>
                   </div>
 
-                  {tempData.isENC ? (
-                    <>
-                      <div>
-                        <label className="block text-xs font-bold text-gray-600 mb-1">Diplôme <span className="text-red-500">*</span></label>
-                        <select className="w-full p-3 border bg-white border-gray-200 rounded-xl text-xs outline-none focus:border-blue-500" value={tempData.nom || ''} onChange={(e) => setTempData({...tempData, nom: e.target.value})}>
-                          <option value="">Sélectionnez votre filière</option>
-                          <optgroup label="BTS">
-                            {diplomaHierarchy.BTS.map((name) => <option key={name} value={name}>{name}</option>)}
-                          </optgroup>
-                          <optgroup label="DCG3">
-                            {diplomaHierarchy.DCG3.map((name) => <option key={name} value={name}>{name}</option>)}
-                          </optgroup>
-                          <optgroup label="Prépa">
-                            {diplomaHierarchy.Prépa.map((name) => <option key={name} value={name}>{name}</option>)}
-                          </optgroup>
-                        </select>
-                      </div>
+                  <div className="flex justify-center gap-3">
+                    {[
+                      {
+                        icon: 'fa-rotate-left',
+                        action: () => setRotation((r) => r - 90),
+                        title: 'Rotation gauche',
+                      },
+                      {
+                        icon: 'fa-rotate-right',
+                        action: () => setRotation((r) => r + 90),
+                        title: 'Rotation droite',
+                      },
+                      {
+                        icon: 'fa-arrows-left-right',
+                        action: () => setFlipH((v) => !v),
+                        title: 'Miroir horizontal',
+                      },
+                      {
+                        icon: 'fa-arrows-up-down',
+                        action: () => setFlipV((v) => !v),
+                        title: 'Miroir vertical',
+                      },
+                    ].map(({ icon, action, title }) => (
+                      <button
+                        key={icon}
+                        onClick={action}
+                        type="button"
+                        title={title}
+                        className="w-9 h-9 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs transition-colors"
+                      >
+                        <i className={`fa-solid ${icon}`} />
+                      </button>
+                    ))}
+                  </div>
 
-                      <div>
-                        <label className="block text-xs font-bold text-gray-600 mb-1">Nom de l'établissement <span className="text-red-500">*</span></label>
-                        <input className="w-full p-3 border bg-gray-100 border-gray-200 rounded-xl text-xs outline-none text-gray-500 cursor-not-allowed" value="ENC Bessières" readOnly />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-gray-600 mb-1">Campus <span className="text-red-500">*</span></label>
-                        <select className="w-full p-3 border bg-white border-gray-200 rounded-xl text-xs outline-none focus:border-blue-500" value={tempData.campus || ''} onChange={(e) => setTempData({...tempData, campus: e.target.value})}>
-                          <option value="">Campus</option>
-                          <option value="ENC Bessières">ENC Bessières</option>
-                          <option value="ENC Bessières Apprentissage">ENC Bessières Apprentissage</option>
-                        </select>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="space-y-4 animate-in fade-in duration-150">
-                      <div>
-                        <label className="block text-xs font-bold text-gray-600 mb-1">Nom de la formation <span className="text-red-500">*</span></label>
-                        <input className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-blue-500 text-xs" placeholder="Master en physique nucléaire..." value={tempData.nom || ''} onChange={(e) => setTempData({...tempData, nom: e.target.value})} />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-gray-600 mb-1">Type de diplôme <span className="text-red-500">*</span></label>
-                        <select className="w-full p-3 border bg-white border-gray-200 rounded-xl text-xs outline-none" value={tempData.typeDiplome || ''} onChange={(e) => setTempData({...tempData, typeDiplome: e.target.value})}>
-                          <option value="">Type de diplôme</option>
-                          <option value="Classe préparatoire (Titre de Niveau 4)">Classe préparatoire (Titre de Niveau 4)</option>
-                          <option value="BTS / BTSA / DUT (Titre de Niveau 5)">BTS / BTSA / DUT (Titre de Niveau 5)</option>
-                          <option value="DUT / BUT (Titre de Niveau 5)">DUT / BUT (Titre de Niveau 5)</option>
-                          <option value="PACES (Titre de Niveau 6)">PACES (Titre de Niveau 6)</option>
-                          <option value="Bachelor / Licence / BUT (Titre de Niveau 6)">Bachelor / Licence / BUT (Titre de Niveau 6)</option>
-                          <option value="Master 1 (Titre de Niveau 6)">Master 1 (Titre de Niveau 6)</option>
-                          <option value="Master 2 (Titre de Niveau 7)">Master 2 (Titre de Niveau 7)</option>
-                          <option value="Diplôme d'ingénieur (Titre de Niveau 7)">Diplôme d'ingénieur (Titre de Niveau 7)</option>
-                          <option value="Doctorat (Titre de Niveau 8)">Doctorat (Titre de Niveau 8)</option>
-                          <option value="CAP (Titre de Niveau 3)">CAP (Titre de Niveau 3)</option>
-                          <option value="BEP / BEPC (Titre de Niveau 3)">BEP / BEPC (Titre de Niveau 3)</option>
-                          <option value="Baccalauréat (Titre de Niveau 4)">Baccalauréat (Titre de Niveau 4)</option>
-                          <option value="Autre">Autre</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-gray-600 mb-1">Nom de l'établissement <span className="text-red-500">*</span></label>
-                        <input className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-blue-500 text-xs" placeholder="Nom de l'établissement" value={tempData.etablissement || ''} onChange={(e) => setTempData({...tempData, etablissement: e.target.value})} />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-gray-600 mb-1">Localisation de l'établissement <span className="text-red-500">*</span></label>
-                        <input className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-blue-500 text-xs" placeholder="Localisation de l'établissement" value={tempData.localiteEtablissement || ''} onChange={(e) => setTempData({...tempData, localiteEtablissement: e.target.value})} />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-gray-600 mb-1">Obtention <span className="text-red-500">*</span></label>
-                        <select className="w-full p-3 border bg-white border-gray-200 rounded-xl text-xs outline-none focus:border-blue-500" value={tempData.statutObtention || ''} onChange={(e) => setTempData({...tempData, statutObtention: e.target.value})}>
-                          <option value="">Obtention</option>
-                          <option value="J'ai obtenu mon diplôme">J'ai obtenu mon diplôme</option>
-                          <option value="Je suis en cours d'obtention">Je suis en cours d'obtention</option>
-                          <option value="Je n'ai pas obtenu le diplôme">Je n'ai pas obtenu le diplôme</option>
-                        </select>
-                      </div>
+                  <div className="space-y-1 px-4">
+                    <div className="flex justify-between text-[10px] font-black text-gray-400 uppercase tracking-wider">
+                      <span>Zoom</span>
+                      <span>{Math.round(zoom * 100)}%</span>
                     </div>
-                  )}
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">Année d'obtention / année de promotion <span className="text-red-500">*</span></label>
-                    <input className="w-full p-3 border border-gray-200 rounded-xl outline-none focus:border-blue-500 text-xs" placeholder="ex: 2025" value={tempData.annee || ''} onChange={(e) => setTempData({...tempData, annee: e.target.value})} />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">Description de la formation</label>
-                    <textarea rows={3} className="w-full p-3 border border-gray-200 rounded-xl text-xs outline-none focus:border-blue-500 leading-relaxed" placeholder="Description de la formation" value={tempData.descriptionFormation || ''} onChange={(e) => setTempData({...tempData, descriptionFormation: e.target.value})}></textarea>
-                  </div>
-
-                  <button onClick={() => handleSave({ formations: [...(user.formations || []), tempData] }, 'form')} className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold uppercase text-xs shadow-md transition-all hover:bg-blue-700">Enregistrer</button>
-                </div>
-              )}
-
-              {/* INTERET INTÉGRÉ GRAPHRE ET VALIDÉ */}
-              {showPopup === 'interet' && (
-                <div className="space-y-4 font-medium text-gray-700 text-sm">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-600 mb-1">Nouveau centre d'intérêt <span className="text-red-500">*</span></label>
-                    <input 
-                      placeholder="Ex: Guitare, Développement Web, Cyber sécurité..." 
-                      className="w-full p-3 border border-gray-200 rounded-xl h-12 outline-none focus:border-blue-500 text-xs font-medium" 
-                      value={tempData.nom || ''}
-                      onChange={(e) => setTempData({ nom: e.target.value })} 
+                    <input
+                      type="range"
+                      min="1"
+                      max="3"
+                      step="0.05"
+                      value={zoom}
+                      onChange={(e) => setZoom(parseFloat(e.target.value))}
+                      className="w-full accent-gray-900"
                     />
                   </div>
-                  <button 
-                    onClick={() => handleSave({ interets: [...(user.interets || []), tempData] }, 'interet')} 
-                    className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold uppercase text-xs shadow-md transition-all hover:bg-blue-700"
+
+                  <button
+                    onClick={saveCroppedAvatar}
+                    className="w-full py-3.5 bg-gray-900 hover:bg-gray-800 text-white rounded-xl font-bold uppercase text-xs tracking-wider transition-colors"
                   >
-                    Enregistrer le centre d'intérêt
+                    <i className="fa-solid fa-check mr-2" />
+                    Valider la photo de profil
                   </button>
                 </div>
               )}
 
+              {/* ── BIOGRAPHIE WYSIWYG ───────────────────────────────────────── */}
+              {showPopup === 'bio' && (
+                <div className="space-y-4">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">
+                    Mettez en forme votre présentation :
+                  </p>
+
+                  <div className="flex flex-wrap gap-1.5 p-2.5 bg-gray-100 rounded-xl border border-gray-200 items-center">
+                    {[
+                      { cmd: 'bold', label: 'B', cls: 'font-bold' },
+                      { cmd: 'italic', label: 'I', cls: 'italic' },
+                      { cmd: 'underline', label: 'U', cls: 'underline' },
+                      { cmd: 'strikeThrough', label: 'S', cls: 'line-through' },
+                    ].map(({ cmd, label, cls }) => (
+                      <button
+                        key={cmd}
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          execEditorCommand(cmd)
+                        }}
+                        type="button"
+                        className={`w-8 h-8 ${cls} bg-white rounded border border-gray-200 text-xs hover:bg-gray-50 hover:border-gray-400 transition-all`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+
+                    <div className="w-px bg-gray-300 self-stretch mx-0.5" />
+
+                    <button
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        execEditorCommand('insertUnorderedList')
+                      }}
+                      type="button"
+                      className="w-8 h-8 bg-white rounded border border-gray-200 text-xs hover:bg-gray-50 transition-all"
+                    >
+                      <i className="fa-solid fa-list-ul" />
+                    </button>
+                    <button
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        execEditorCommand('insertOrderedList')
+                      }}
+                      type="button"
+                      className="w-8 h-8 bg-white rounded border border-gray-200 text-xs hover:bg-gray-50 transition-all"
+                    >
+                      <i className="fa-solid fa-list-ol" />
+                    </button>
+
+                    <div className="w-px bg-gray-300 self-stretch mx-0.5" />
+
+                    {quickColors.map(({ color, label }) => (
+                      <button
+                        key={color}
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          execEditorCommand('foreColor', color)
+                        }}
+                        type="button"
+                        title={label}
+                        className="w-5 h-5 rounded-full border-2 border-white shadow-sm hover:scale-125 transition-transform flex-shrink-0"
+                        style={{ backgroundColor: color }}
+                      />
+                    ))}
+
+                    {/* Palette infinie — couleur texte */}
+                    <div
+                      className="relative w-6 h-6 rounded-full overflow-hidden border-2 border-white shadow-sm cursor-pointer hover:scale-125 transition-transform flex-shrink-0"
+                      title="Couleur personnalisée"
+                    >
+                      <input
+                        type="color"
+                        ref={colorInputRef}
+                        defaultValue="#000000"
+                        onChange={handleColorPickerChange}
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                        style={{ transform: 'scale(2)' }}
+                      />
+                      <div
+                        className="w-full h-full pointer-events-none"
+                        style={{
+                          background: 'conic-gradient(red,yellow,lime,cyan,blue,magenta,red)',
+                        }}
+                      />
+                    </div>
+
+                    {/* Palette infinie — surlignage */}
+                    <div
+                      className="relative w-6 h-6 rounded-full overflow-hidden border-2 border-white shadow-sm cursor-pointer hover:scale-125 transition-transform flex-shrink-0"
+                      title="Surlignage"
+                    >
+                      <input
+                        type="color"
+                        defaultValue="#FFFF00"
+                        onChange={handleHighlightPickerChange}
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                        style={{ transform: 'scale(2)' }}
+                      />
+                      <div
+                        className="w-full h-full pointer-events-none flex items-center justify-center"
+                        style={{ background: 'linear-gradient(135deg,#FFFF00,#FF6EC7,#00BFFF)' }}
+                      >
+                        <i className="fa-solid fa-highlighter text-[7px] text-gray-700/60 pointer-events-none" />
+                      </div>
+                    </div>
+
+                    <div className="w-px bg-gray-300 self-stretch mx-0.5" />
+
+                    <button
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        execEditorCommand('removeFormat')
+                      }}
+                      type="button"
+                      title="Effacer le formatage"
+                      className="w-8 h-8 bg-white rounded border border-gray-200 text-xs text-red-400 hover:bg-red-50 hover:border-red-200 transition-all ml-auto"
+                    >
+                      <i className="fa-solid fa-eraser" />
+                    </button>
+                  </div>
+
+                  <div
+                    ref={editorRef}
+                    contentEditable
+                    suppressContentEditableWarning
+                    className="w-full min-h-[180px] p-4 bg-white border border-gray-200 rounded-2xl text-sm outline-none focus:border-[#800020] focus:ring-1 focus:ring-[#800020] overflow-y-auto prose prose-sm"
+                    style={{ lineHeight: '1.6' }}
+                  />
+
+                  <button
+                    onClick={handleSaveBio}
+                    className="w-full py-3 bg-[#800020] hover:bg-[#600018] text-white rounded-xl font-bold uppercase text-xs tracking-wider transition-colors shadow-md"
+                  >
+                    <i className="fa-solid fa-floppy-disk mr-2" />
+                    Sauvegarder la biographie
+                  </button>
+                </div>
+              )}
+
+              {/* ── RÉSEAUX & FICHIERS ── */}
+              {showPopup === 'social' && (
+                <div className="space-y-4">
+                  {step === 1 && (
+                    <div className="space-y-3">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">
+                        Étape 1 — Sélectionnez le type
+                      </p>
+                      <div className="grid grid-cols-4 gap-3 max-h-[260px] overflow-y-auto p-1 bg-gray-50 rounded-2xl border border-gray-100">
+                        {iconsList.map((item) => (
+                          <button
+                            key={item.name}
+                            type="button"
+                            onClick={() => {
+                              setTempData({ icon: item.icon, isFile: item.isFile })
+                              setStep(2)
+                            }}
+                            className="p-3 bg-white rounded-xl border border-gray-200 hover:border-[#800020] flex flex-col items-center gap-1.5 transition-all"
+                          >
+                            <i className={`${item.icon} text-lg`} style={{ color: item.color }} />
+                            <span className="text-[9px] font-bold text-gray-500 truncate w-full text-center">
+                              {item.name}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {step === 2 && (
+                    <div className="space-y-3">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">
+                        Étape 2 — Donnez un nom
+                      </p>
+                      <div className="flex gap-2">
+                        <input
+                          className="flex-1 p-3 border border-gray-200 rounded-xl text-xs font-semibold outline-none focus:border-gray-900"
+                          placeholder="Ex: Mon CV, Portfolio Webflow…"
+                          value={tempData.label || ''}
+                          onChange={(e) =>
+                            setTempData((p: any) => ({ ...p, label: e.target.value }))
+                          }
+                        />
+                        <button
+                          onClick={() => setStep(3)}
+                          disabled={!tempData.label}
+                          type="button"
+                          className="bg-gray-900 text-white px-4 rounded-xl font-bold text-xs uppercase disabled:opacity-50"
+                        >
+                          Suivant
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {step === 3 && (
+                    <div className="space-y-4">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider">
+                        Étape 3 — {tempData.isFile ? 'Importer un fichier' : 'Renseigner le lien'}
+                      </p>
+
+                      {/* MODE FICHIER */}
+                      {tempData.isFile && (
+                        <div className="space-y-3">
+                          <div
+                            onClick={() => !isUploading && documentInputRef.current?.click()}
+                            className={`p-6 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-2 transition-colors ${
+                              isUploading
+                                ? 'border-blue-200 bg-blue-50/50 cursor-wait'
+                                : tempData.fileName
+                                  ? 'border-emerald-300 bg-emerald-50/50 cursor-pointer'
+                                  : 'border-gray-200 bg-gray-50/50 hover:bg-gray-100 cursor-pointer hover:border-[#800020]'
+                            }`}
+                          >
+                            {isUploading ? (
+                              <>
+                                <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                                <span className="text-xs font-bold text-blue-600">
+                                  Envoi en cours…
+                                </span>
+                              </>
+                            ) : tempData.url ? (
+                              <>
+                                <i className="fa-solid fa-circle-check text-2xl text-emerald-500" />
+                                <span className="text-xs font-bold text-emerald-700 text-center">
+                                  {tempData.fileName}
+                                </span>
+                                <span className="text-[10px] text-emerald-600">Fichier chargé</span>
+                              </>
+                            ) : (
+                              <>
+                                <i className="fa-solid fa-file-arrow-up text-2xl text-[#800020]" />
+                                <span className="text-xs font-bold text-gray-700 text-center">
+                                  Cliquez pour sélectionner le fichier local
+                                </span>
+                                <span className="text-[10px] text-gray-400">
+                                  PDF, Word ou Image — max 5 Mo
+                                </span>
+                              </>
+                            )}
+                          </div>
+
+                          {tempData.fileName && !isUploading && (
+                            <button
+                              type="button"
+                              onClick={() => documentInputRef.current?.click()}
+                              className="w-full py-2 border border-gray-200 rounded-xl text-xs font-bold text-gray-500 hover:bg-gray-50 transition-colors"
+                            >
+                              <i className="fa-solid fa-arrow-rotate-right mr-2" />
+                              Changer de fichier
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleSave({ socialLinks: [...(user.socialLinks || []), tempData] })
+                            }
+                            disabled={!tempData.url || isUploading}
+                            className="w-full py-3 bg-[#4ADE80] hover:bg-[#3bc26f] text-white rounded-xl font-bold uppercase text-xs tracking-wider disabled:opacity-40 transition-colors"
+                          >
+                            <i className="fa-solid fa-floppy-disk mr-2" />
+                            Sauvegarder le fichier
+                          </button>
+                        </div>
+                      )}
+
+                      {/* MODE LIEN */}
+                      {!tempData.isFile && (
+                        <div className="space-y-3">
+                          <input
+                            className="w-full p-3 border border-gray-200 rounded-xl text-xs font-semibold outline-none focus:border-gray-900"
+                            placeholder="https://linkedin.com/in/username"
+                            value={tempData.url || ''}
+                            onChange={(e) =>
+                              setTempData((p: any) => ({ ...p, url: e.target.value }))
+                            }
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleSave({ socialLinks: [...(user.socialLinks || []), tempData] })
+                            }
+                            disabled={!tempData.url}
+                            className="w-full py-3 bg-[#4ADE80] hover:bg-[#3bc26f] text-white rounded-xl font-bold uppercase text-xs tracking-wider disabled:opacity-40 transition-colors"
+                          >
+                            <i className="fa-solid fa-floppy-disk mr-2" />
+                            Enregistrer le lien
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── EXPÉRIENCES ──────────────────────────────────────────────── */}
+              {showPopup === 'exp' && (
+                <div className="space-y-3 text-xs font-semibold text-gray-600">
+                  {[
+                    { key: 'poste', label: 'Intitulé du poste *', placeholder: 'Développeur web…' },
+                    { key: 'entreprise', label: 'Entreprise *', placeholder: 'Google France' },
+                    {
+                      key: 'localite',
+                      label: 'Ville / Localisation *',
+                      placeholder: 'Paris, Remote…',
+                    },
+                  ].map(({ key, label, placeholder }) => (
+                    <div key={key}>
+                      <label className="block mb-1 text-gray-500">{label}</label>
+                      <input
+                        className="w-full p-3 border border-gray-200 rounded-xl outline-none text-xs focus:border-gray-900"
+                        placeholder={placeholder}
+                        onChange={(e) => setTempData((p: any) => ({ ...p, [key]: e.target.value }))}
+                      />
+                    </div>
+                  ))}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block mb-1 text-gray-500">Mois/Année Début *</label>
+                      <input
+                        className="w-full p-3 border border-gray-200 rounded-xl text-center text-xs"
+                        placeholder="09/2025"
+                        onChange={(e) =>
+                          setTempData((p: any) => ({ ...p, dateDebut: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="block mb-1 text-gray-500">Mois/Année Fin</label>
+                      <input
+                        className="w-full p-3 border border-gray-200 rounded-xl text-center text-xs"
+                        placeholder="En cours"
+                        onChange={(e) =>
+                          setTempData((p: any) => ({ ...p, dateFin: e.target.value }))
+                        }
+                      />
+                    </div>
+                  </div>
+                  <button
+                    onClick={() =>
+                      handleSave({ experiences: [...(user.experiences || []), tempData] }, 'exp')
+                    }
+                    className="w-full py-3 bg-gray-900 text-white rounded-xl font-bold uppercase tracking-wider text-xs"
+                  >
+                    Sauvegarder l'expérience
+                  </button>
+                </div>
+              )}
+
+              {/* ── FORMATIONS ───────────────────────────────────────────────── */}
+              {showPopup === 'form' && (
+                <div className="space-y-3 text-xs font-semibold text-gray-600">
+                  <div className="p-3 bg-gray-50 rounded-xl flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        checked={tempData.isENC === true}
+                        onChange={() =>
+                          setTempData({
+                            isENC: true,
+                            nom: '',
+                            annee: '',
+                            etablissement: 'ENC Bessières',
+                            campus: 'ENC Bessières',
+                          })
+                        }
+                        className="accent-gray-900"
+                      />
+                      <span>ENC Bessières</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        checked={tempData.isENC === false}
+                        onChange={() =>
+                          setTempData({ isENC: false, nom: '', annee: '', etablissement: '' })
+                        }
+                        className="accent-gray-900"
+                      />
+                      <span>Autre école</span>
+                    </label>
+                  </div>
+                  {tempData.isENC ? (
+                    <div>
+                      <label className="block mb-1 text-gray-500">Cursus dispensé *</label>
+                      <select
+                        className="w-full p-3 border bg-white border-gray-200 rounded-xl text-xs"
+                        onChange={(e) => setTempData((p: any) => ({ ...p, nom: e.target.value }))}
+                      >
+                        <option value="">Sélectionnez une filière</option>
+                        {Object.entries(diplomaHierarchy).map(([cat, items]) => (
+                          <optgroup key={cat} label={cat}>
+                            {items.map((name) => (
+                              <option key={name} value={name}>
+                                {name}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block mb-1 text-gray-500">
+                        Nom de la formation externe *
+                      </label>
+                      <input
+                        className="w-full p-3 border border-gray-200 rounded-xl text-xs"
+                        placeholder="Master, Licence…"
+                        onChange={(e) => setTempData((p: any) => ({ ...p, nom: e.target.value }))}
+                      />
+                    </div>
+                  )}
+                  <div>
+                    <label className="block mb-1 text-gray-500">
+                      Année d'obtention / promotion *
+                    </label>
+                    <input
+                      className="w-full p-3 border border-gray-200 rounded-xl text-xs"
+                      placeholder="Ex: 2026"
+                      onChange={(e) => setTempData((p: any) => ({ ...p, annee: e.target.value }))}
+                    />
+                  </div>
+                  <button
+                    onClick={() =>
+                      handleSave({ formations: [...(user.formations || []), tempData] }, 'form')
+                    }
+                    className="w-full py-3 bg-gray-900 text-white rounded-xl font-bold uppercase tracking-wider text-xs"
+                  >
+                    Ajouter au cursus
+                  </button>
+                </div>
+              )}
+
+              {/* ── INTÉRÊTS ─────────────────────────────────────────────────── */}
+              {showPopup === 'interet' && (
+                <div className="space-y-3">
+                  <input
+                    placeholder="Ex: Cyber sécurité, Guitare, Gaming…"
+                    className="w-full p-3 border border-gray-200 rounded-xl text-xs font-semibold outline-none focus:border-gray-900"
+                    onChange={(e) => setTempData({ nom: e.target.value })}
+                  />
+                  <button
+                    onClick={() =>
+                      handleSave({ interets: [...(user.interets || []), tempData] }, 'interet')
+                    }
+                    className="w-full py-3 bg-gray-900 text-white rounded-xl font-bold uppercase tracking-wider text-xs"
+                  >
+                    Ajouter
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
