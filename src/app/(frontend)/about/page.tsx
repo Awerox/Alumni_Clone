@@ -92,11 +92,6 @@ export default function AboutPage() {
           </div>
         </div>
       </div>
-
-      {/* FOOTER SIMPLE */}
-      <footer className="bg-gray-900 py-10 text-center text-gray-500 text-xs">
-        © 1957 - {new Date().getFullYear()} ENC BESSIÈRES - Excellence en Gestion & Management
-      </footer>
     </div>
   )
 }

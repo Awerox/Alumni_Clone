@@ -15,7 +15,7 @@ import { SocialLinks } from './collections/SocialLink'
 import Articles from './collections/Articles'
 import Offres from './collections/Offres'
 import Posts from './collections/Posts'
-import Evenements from './collections/Evenements'
+import Evenements from './collections/evenements'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)

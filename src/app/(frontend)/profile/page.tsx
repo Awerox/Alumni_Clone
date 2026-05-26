@@ -242,11 +242,26 @@ export default function ProfilePage() {
       img.onerror = () => reject(new Error('Chargement image échoué'))
     })
 
+    // Calcul "object-fit: cover" : on recadre l'image source pour remplir le carré sans étirement
+    const imgW = img.naturalWidth
+    const imgH = img.naturalHeight
+    const imgRatio = imgW / imgH
+    let srcX = 0, srcY = 0, srcW = imgW, srcH = imgH
+    if (imgRatio > 1) {
+      // paysage → recadrer sur la largeur
+      srcW = imgH
+      srcX = (imgW - srcW) / 2
+    } else if (imgRatio < 1) {
+      // portrait → recadrer sur la hauteur
+      srcH = imgW
+      srcY = (imgH - srcH) / 2
+    }
+
     ctx.save()
     ctx.translate(SIZE / 2, SIZE / 2)
     ctx.rotate((rotation * Math.PI) / 180)
     ctx.scale(flipH ? -zoom : zoom, flipV ? -zoom : zoom)
-    ctx.drawImage(img, -SIZE / 2, -SIZE / 2, SIZE, SIZE)
+    ctx.drawImage(img, srcX, srcY, srcW, srcH, -SIZE / 2, -SIZE / 2, SIZE, SIZE)
     ctx.restore()
 
     const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/png'))
@@ -491,7 +506,7 @@ export default function ProfilePage() {
   const avatarSrc =
     savedAvatar ||
     (typeof user.photo === 'object' ? user.photo?.url : null) ||
-    `https://ui-avatars.com/api/?name=${encodeURIComponent(user.prenom || '')}+${encodeURIComponent(user.nom || '')}&size=150&background=800020&color=fff`
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(user.prenom || '')}+${encodeURIComponent(user.nom || '')}&size=400&background=800020&color=fff`
 
   return (
     <div className="min-h-screen bg-[#F6F6FA] py-12 px-4 text-gray-800 antialiased selection:bg-gray-200">
@@ -513,71 +528,76 @@ export default function ProfilePage() {
       <div className="max-w-5xl mx-auto space-y-8">
         {/* ── HEADER ─────────────────────────────────────────────────────────── */}
         <div className="bg-white rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
-          <div className="h-40 bg-[#800020] relative">
+          {/* Bannière avec avatar ancré en absolu */}
+          <div className="h-36 bg-[#800020] relative">
             <div className="absolute inset-0 bg-[radial-gradient(#ffffff15_1px,transparent_1px)] [background-size:16px_16px] opacity-40" />
-          </div>
-          <div className="px-8 pb-8 flex flex-col md:flex-row items-center md:items-end -mt-20 gap-6 relative">
+            {/* Avatar positionné en bas-gauche de la bannière, débordant vers le bas */}
             <div
               onClick={() => fileInputRef.current?.click()}
-              className="w-36 h-36 rounded-3xl border-4 border-white shadow-2xl overflow-hidden cursor-pointer relative group bg-gray-100 z-20 flex-shrink-0"
+              className="absolute -bottom-12 left-8 w-24 h-24 rounded-2xl border-4 border-white shadow-2xl overflow-hidden cursor-pointer group bg-gray-200 z-20 flex-shrink-0"
               style={{ aspectRatio: '1 / 1' }}
             >
               <img
                 src={avatarSrc}
-                className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-105"
                 alt="Photo de profil"
+                className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-105"
+                style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
               />
-              <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center text-white gap-2 backdrop-blur-[2px]">
-                <i className="fa-solid fa-camera text-xl transform translate-y-2 group-hover:translate-y-0 transition-transform duration-300" />
-                <span className="text-[10px] font-black uppercase tracking-wider">Modifier</span>
+              <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center text-white gap-1 backdrop-blur-[2px]">
+                <i className="fa-solid fa-camera text-base" />
+                <span className="text-[8px] font-black uppercase tracking-wider">Modifier</span>
               </div>
             </div>
+          </div>
 
-            <div className="flex-1 text-center md:text-left pt-2 md:pb-2 min-w-0">
-              <div className="flex flex-col md:flex-row md:items-center gap-2.5 justify-center md:justify-start flex-wrap">
-                <h1 className="text-3xl font-black tracking-tight text-gray-900">
-                  {user.prenom} {user.nom}
-                </h1>
-                <div className="flex items-center gap-2 justify-center md:justify-start flex-wrap">
-                  <span className="inline-block bg-[#800020]/10 text-[#800020] font-black uppercase text-[10px] px-3 py-1 rounded-lg tracking-wider">
+          {/* Zone texte — entièrement dans la zone blanche */}
+          <div className="pt-16 px-8 pb-7">
+            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+              {/* Infos */}
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <h1 className="text-2xl font-black tracking-tight text-gray-900 leading-tight">
+                    {user.prenom} {user.nom}
+                  </h1>
+                  <span className="inline-block bg-[#800020]/10 text-[#800020] font-black uppercase text-[9px] px-2.5 py-1 rounded-lg tracking-wider whitespace-nowrap">
                     {user.statut === 'alumni' ? 'Alumni' : 'Étudiant'} · Promo {user.promotion}
                   </span>
                   {user.isMentor && (
-                    <span className="inline-flex items-center gap-1.5 bg-amber-400 text-white font-black uppercase text-[10px] px-3 py-1 rounded-lg tracking-wider shadow-sm">
+                    <span className="inline-flex items-center gap-1.5 bg-amber-400 text-white font-black uppercase text-[9px] px-2.5 py-1 rounded-lg tracking-wider shadow-sm whitespace-nowrap">
                       <i className="fa-solid fa-star text-[8px]" />
                       Mentor
                     </span>
                   )}
                 </div>
-              </div>
-              <p className="text-sm text-gray-400 font-medium mt-1.5">
-                {user.poste && user.entreprise
-                  ? `${user.poste} · ${user.entreprise}`
-                  : 'École Nationale de Commerce · ENC Bessières'}
-              </p>
-              {user.ville && (
-                <p className="text-xs text-gray-400 mt-0.5">
-                  <i className="fa-solid fa-location-dot text-[#800020] mr-1 text-[10px]" />
-                  {user.ville}
+                <p className="text-sm text-gray-400 font-medium">
+                  {user.poste && user.entreprise
+                    ? `${user.poste} · ${user.entreprise}`
+                    : 'École Nationale de Commerce · ENC Bessières'}
                 </p>
-              )}
-            </div>
-
-            <div className="flex gap-3 self-center md:self-end md:pb-2">
-              <button
-                onClick={() => router.push('/profile/edit')}
-                className="px-5 py-2.5 bg-[#800020] hover:bg-[#600018] text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-colors shadow-sm"
-              >
-                <i className="fa-solid fa-pen-to-square mr-1.5" />
-                Modifier le profil
-              </button>
+                {user.ville && (
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    <i className="fa-solid fa-location-dot text-[#800020] mr-1 text-[10px]" />
+                    {user.ville}
+                  </p>
+                )}
+              </div>
+              {/* Bouton */}
+              <div className="flex-shrink-0">
+                <button
+                  onClick={() => router.push('/profile/edit')}
+                  className="px-5 py-2.5 bg-[#800020] hover:bg-[#600018] text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-colors shadow-sm whitespace-nowrap"
+                >
+                  <i className="fa-solid fa-pen-to-square mr-1.5" />
+                  Modifier le profil
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Bandeau Mentor */}
         {user.isMentor && (
-          <div className="mx-6 mb-6 p-4 bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200/60 rounded-2xl flex items-start gap-4">
+          <div className="p-4 bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200/60 rounded-2xl flex items-start gap-4">
             <div className="w-10 h-10 rounded-xl bg-amber-400 flex items-center justify-center flex-shrink-0 shadow-sm">
               <i className="fa-solid fa-star text-white text-sm" />
             </div>

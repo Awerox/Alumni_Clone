@@ -70,7 +70,7 @@ export default function DirectoryPage() {
     fetchAlumni()
   }, [])
 
-  // Logique de filtrage globale réactive (Correction complète des correspondances)
+  // Logique de filtrage globale réactive
   useEffect(() => {
     let result = alumni
 
@@ -333,9 +333,10 @@ export default function DirectoryPage() {
                             </span>
                           </div>
                         )}
-                        <div className="h-16 w-16 rounded-full bg-gray-50 border-4 border-white shadow-xs overflow-hidden flex items-center justify-center translate-y-6">
+                        {/* Boîtier Photo de Profil circulaire sécurisé sans distorsion */}
+                        <div className="h-16 w-16 rounded-full bg-gray-50 border-4 border-white shadow-xs overflow-hidden flex items-center justify-center translate-y-6 flex-shrink-0">
                           {photoUrl ? (
-                            <img src={photoUrl} alt="" className="w-full h-full object-cover" />
+                            <img src={photoUrl} alt="" className="w-full h-full object-cover object-center" />
                           ) : (
                             <span className="text-enc text-sm font-black uppercase">
                               {alumnus.prenom?.[0]}
@@ -382,14 +383,15 @@ export default function DirectoryPage() {
                       </div>
                     </div>
 
+                    {/* 🔄 SECTION COMPOSANT MODIFIÉE : Bouton de redirection vers le profil réel */}
                     <div className="p-5 pt-0">
-                      <div className="pt-2.5 border-t border-gray-100 flex justify-between items-center text-[11px] font-bold text-gray-400">
-                        <span>📍 {alumnus.ville || 'Paris'}</span>
+                      <div className="pt-3 border-t border-gray-100 flex justify-between items-center text-[11px] font-bold text-gray-400">
+                        <span className="truncate max-w-[50%]">📍 {alumnus.ville || 'Paris'}</span>
                         <Link
-                          href={`/directory/${alumnus.id}`}
-                          className="text-enc hover:text-orange-500 transition-colors"
+                          href={`/profile/${alumnus.id}`}
+                          className="bg-gray-900 hover:bg-enc text-white hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all shadow-3xs flex items-center gap-0.5 normal-case"
                         >
-                          Profil →
+                          Voir le profil ➔
                         </Link>
                       </div>
                     </div>

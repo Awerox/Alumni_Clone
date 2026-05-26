@@ -77,11 +77,12 @@ const Navbar = () => {
     return 'Membre'
   }
 
+  // 🔄 CORRECTION : Extraction de la vraie photo de profil dynamique pour l'avatar
   const getUserAvatarUrl = () => {
-    if (user?.avatar && typeof user.avatar === 'object' && user.avatar.url) {
-      return user.avatar.url
+    if (user?.photo && typeof user.photo === 'object' && user.photo.url) {
+      return user.photo.url
     }
-    return `https://ui-avatars.com/api/?name=${user?.prenom || 'U'}+${user?.nom || 'N'}&background=800020&color=fff`
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.prenom || 'U')}+${encodeURIComponent(user?.nom || 'N')}&background=800020&color=fff`
   }
 
   return (
@@ -207,11 +208,12 @@ const Navbar = () => {
                           {formatStatut(user.statut)}
                         </p>
                       </div>
-                      <div className="h-10 w-10 rounded-full border-2 border-enc p-0.5 overflow-hidden flex-shrink-0">
+                      {/* 🛡️ Conteneur de l'image de profil sécurisé sans distorsion */}
+                      <div className="h-11 w-11 rounded-full border-2 border-enc p-0.5 overflow-hidden flex-shrink-0 bg-white shadow-xs">
                         <img
                           src={getUserAvatarUrl()}
                           alt="Profil"
-                          className="h-full w-full rounded-full object-cover"
+                          className="h-full w-full rounded-full object-cover object-center"
                         />
                       </div>
                     </div>
