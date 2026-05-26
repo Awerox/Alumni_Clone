@@ -78,6 +78,7 @@ export interface Config {
     posts: Post;
     offres: Offre;
     evenements: Evenement;
+    discussions: Discussion;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -95,6 +96,7 @@ export interface Config {
     posts: PostsSelect<false> | PostsSelect<true>;
     offres: OffresSelect<false> | OffresSelect<true>;
     evenements: EvenementsSelect<false> | EvenementsSelect<true>;
+    discussions: DiscussionsSelect<false> | DiscussionsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -458,6 +460,26 @@ export interface Evenement {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "discussions".
+ */
+export interface Discussion {
+  id: number;
+  titre: string;
+  contenu: string;
+  auteur: number | Alumnus;
+  commentaires?:
+    | {
+        auteur: number | Alumnus;
+        message: string;
+        createdAt?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -519,6 +541,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'evenements';
         value: number | Evenement;
+      } | null)
+    | ({
+        relationTo: 'discussions';
+        value: number | Discussion;
       } | null);
   globalSlug?: string | null;
   user:
@@ -803,6 +829,25 @@ export interface EvenementsSelect<T extends boolean = true> {
   couverture?: T;
   organisateur?: T;
   participants?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "discussions_select".
+ */
+export interface DiscussionsSelect<T extends boolean = true> {
+  titre?: T;
+  contenu?: T;
+  auteur?: T;
+  commentaires?:
+    | T
+    | {
+        auteur?: T;
+        message?: T;
+        createdAt?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }

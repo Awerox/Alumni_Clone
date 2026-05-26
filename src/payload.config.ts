@@ -15,6 +15,7 @@ import { SocialLinks } from './collections/SocialLink'
 import Articles from './collections/Articles'
 import Offres from './collections/Offres'
 import Posts from './collections/Posts'
+import Discussions from './collections/Discussion'
 import Evenements from './collections/evenements'
 
 const filename = fileURLToPath(import.meta.url)
@@ -40,6 +41,7 @@ export default buildConfig({
     Posts,
     Offres,
     Evenements,
+    Discussions,
   ],
   editor: lexicalEditor(),
   // Assure-toi d'avoir ton PAYLOAD_SECRET configuré dans ton fichier .env
