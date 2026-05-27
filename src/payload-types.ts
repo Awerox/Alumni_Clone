@@ -79,6 +79,7 @@ export interface Config {
     offres: Offre;
     evenements: Evenement;
     discussions: Discussion;
+    'direct-messages': DirectMessage;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -97,6 +98,7 @@ export interface Config {
     offres: OffresSelect<false> | OffresSelect<true>;
     evenements: EvenementsSelect<false> | EvenementsSelect<true>;
     discussions: DiscussionsSelect<false> | DiscussionsSelect<true>;
+    'direct-messages': DirectMessagesSelect<false> | DirectMessagesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -480,6 +482,18 @@ export interface Discussion {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "direct-messages".
+ */
+export interface DirectMessage {
+  id: number;
+  from: number | Alumnus;
+  to: number | Alumnus;
+  message: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -545,6 +559,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'discussions';
         value: number | Discussion;
+      } | null)
+    | ({
+        relationTo: 'direct-messages';
+        value: number | DirectMessage;
       } | null);
   globalSlug?: string | null;
   user:
@@ -848,6 +866,17 @@ export interface DiscussionsSelect<T extends boolean = true> {
         createdAt?: T;
         id?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "direct-messages_select".
+ */
+export interface DirectMessagesSelect<T extends boolean = true> {
+  from?: T;
+  to?: T;
+  message?: T;
   updatedAt?: T;
   createdAt?: T;
 }
