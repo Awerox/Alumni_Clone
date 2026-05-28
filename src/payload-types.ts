@@ -488,7 +488,8 @@ export interface DirectMessage {
   id: number;
   from: number | Alumnus;
   to: number | Alumnus;
-  message: string;
+  message?: string | null;
+  file?: (number | null) | Media;
   updatedAt: string;
   createdAt: string;
 }
@@ -877,6 +878,7 @@ export interface DirectMessagesSelect<T extends boolean = true> {
   from?: T;
   to?: T;
   message?: T;
+  file?: T;
   updatedAt?: T;
   createdAt?: T;
 }

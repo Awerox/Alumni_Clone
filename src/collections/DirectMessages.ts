@@ -8,17 +8,12 @@ export const DirectMessages: CollectionConfig = {
     defaultColumns: ['from', 'to', 'message', 'createdAt'],
   },
   access: {
-    // 🎯 CORRECTION FINALE : Retour d'une structure "or" ou d'un booléen strict via typage explicite de la fonction d'accès
     read: (args: any): any => {
       const user = args?.req?.user
-      
-      // Si pas d'utilisateur connecté : on bloque l'accès
       if (!user) return false
-      
-      // Si c'est un administrateur général : on donne un accès total
+      // Administrateurs : accès total
       if (user.collection === 'users') return true
-      
-      // Pour les membres Alumni : structure homogène stricte
+      // Alumni : uniquement leurs propres messages
       return {
         or: [
           { from: { equals: user.id } },
@@ -27,7 +22,7 @@ export const DirectMessages: CollectionConfig = {
       }
     },
     create: (args: any) => !!args?.req?.user,
-    update: () => false, // Non modifiable par souci d'authenticité
+    update: () => false,
     delete: (args: any) => args?.req?.user?.collection === 'users',
   },
   fields: [
@@ -48,8 +43,15 @@ export const DirectMessages: CollectionConfig = {
     {
       name: 'message',
       type: 'textarea',
-      required: true,
+      required: false, // false pour permettre les messages avec fichier uniquement
       label: 'Contenu du message',
+    },
+    {
+      name: 'file',
+      type: 'upload',
+      relationTo: 'media',
+      label: 'Fichier joint / Image',
+      required: false,
     },
   ],
   timestamps: true,
