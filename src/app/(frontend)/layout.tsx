@@ -1,5 +1,6 @@
 import React from 'react'
 import Navbar from '@/components/Navbar' // Vérifie que le chemin vers ta Navbar est correct
+import MiniMessenger from '@/components/MiniMessenger' // 🎯 AJOUT : Importation du composant de chat flottant
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -53,6 +54,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             © {new Date().getFullYear()} ENC BESSIÈRES Alumni - École Nationale de Commerce
           </div>
         </footer>
+
+        {/* 🎯 AJOUT : La mini-fenêtre flottante style Messenger s'affiche désormais par-dessus tout le site */}
+        <MiniMessenger />
       </body>
     </html>
   )

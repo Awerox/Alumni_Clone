@@ -17,7 +17,8 @@ import Offres from './collections/Offres'
 import Posts from './collections/Posts'
 import Discussions from './collections/Discussion'
 import Evenements from './collections/evenements'
-import DirectMessages from './collections/DirectMessages' // 🎯 AJOUT
+import DirectMessages from './collections/DirectMessages' 
+import { PublicMessages } from './collections/PublicMessages' // 🎯 FIX : Suppression des accolades pour correspondre à l'export standard
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -41,7 +42,8 @@ export default buildConfig({
     Offres,
     Evenements,
     Discussions,
-    DirectMessages, // 🎯 AJOUT
+    DirectMessages, 
+    PublicMessages, // 🌟 Ta collection de chat public est maintenant bien enregistrée !
   ],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || 'VOTRE_SECRET_DE_SECOURS_TRES_LONG',

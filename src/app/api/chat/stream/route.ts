@@ -88,24 +88,53 @@ function broadcast(data: any) {
 }
 
 export async function POST(req: Request) {
+  const payload = await getPayload({ config: configPromise })
+
   try {
     const body = await req.json()
+
+    // 🎯 Sauvegarde persistante en BDD si le message est destiné au Chat Public
+    if (body.type === 'msg-public') {
+      try {
+        // En utilisant (payload.create as any), on coupe l'erreur TypeScript
+        // et Payload fera l'insertion normalement en tâche de fond !
+        await (payload.create as any)({
+          collection: 'public-messages',
+          data: {
+            user: body.user,
+            text: body.text,
+            time: body.time,
+            from: body.from || undefined, // 🎯 FIX : On stocke l'ID "from" de l'émetteur pour la persistance au F5
+          },
+        })
+      } catch (dbErr) {
+        console.error("Erreur d'écriture du message public dans Payload:", dbErr)
+      }
+    }
+
+    // Encodage des données du message reçu pour la distribution en direct
     const encodedData = new TextEncoder().encode(`data: ${JSON.stringify(body)}\n\n`)
 
+    // Distribution sélective ou globale aux clients connectés
     activeClients.forEach((client) => {
       try {
         if (body.type === 'msg-prive') {
+          // Si message privé, distribuer uniquement aux deux participants concernés
           if (client.id === body.to || client.id === body.from) {
             client.controller.enqueue(encodedData)
           }
         } else {
+          // Si message public, distribuer à tout le monde (même si l'utilisateur est le seul en ligne)
           client.controller.enqueue(encodedData)
         }
-      } catch {}
+      } catch (streamErr) {
+        // Nettoyage silencieux si un contrôleur de flux a expiré
+      }
     })
 
     return NextResponse.json({ success: true })
   } catch (err: any) {
+    console.error("Erreur au sein du point d'accès SSE Stream:", err)
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }

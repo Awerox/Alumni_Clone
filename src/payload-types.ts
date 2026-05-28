@@ -80,6 +80,7 @@ export interface Config {
     evenements: Evenement;
     discussions: Discussion;
     'direct-messages': DirectMessage;
+    'public-messages': PublicMessage;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -99,6 +100,7 @@ export interface Config {
     evenements: EvenementsSelect<false> | EvenementsSelect<true>;
     discussions: DiscussionsSelect<false> | DiscussionsSelect<true>;
     'direct-messages': DirectMessagesSelect<false> | DirectMessagesSelect<true>;
+    'public-messages': PublicMessagesSelect<false> | PublicMessagesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -495,6 +497,18 @@ export interface DirectMessage {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "public-messages".
+ */
+export interface PublicMessage {
+  id: number;
+  user: string;
+  text: string;
+  time: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -564,6 +578,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'direct-messages';
         value: number | DirectMessage;
+      } | null)
+    | ({
+        relationTo: 'public-messages';
+        value: number | PublicMessage;
       } | null);
   globalSlug?: string | null;
   user:
@@ -879,6 +897,17 @@ export interface DirectMessagesSelect<T extends boolean = true> {
   to?: T;
   message?: T;
   file?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "public-messages_select".
+ */
+export interface PublicMessagesSelect<T extends boolean = true> {
+  user?: T;
+  text?: T;
+  time?: T;
   updatedAt?: T;
   createdAt?: T;
 }
