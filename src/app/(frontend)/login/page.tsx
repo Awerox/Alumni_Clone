@@ -1,20 +1,112 @@
+// app/login/page.tsx
 'use client'
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
+
+const MAX_ATTEMPTS = 5
+const LOCKOUT_SECONDS = 30
+
+// Valide que la redirect est un chemin interne (jamais une URL externe)
+function sanitizeRedirect(url: string | null): string {
+  if (!url) return '/'
+  try {
+    // Si c'est une URL absolue, on refuse
+    const parsed = new URL(url, window.location.origin)
+    if (parsed.origin !== window.location.origin) return '/'
+    return parsed.pathname + parsed.search
+  } catch {
+    return url.startsWith('/') ? url : '/'
+  }
+}
+
+function PasswordInput({
+  value,
+  onChange,
+  disabled,
+  placeholder,
+  autoComplete,
+}: {
+  value: string
+  onChange: (v: string) => void
+  disabled: boolean
+  placeholder?: string
+  autoComplete?: string
+}) {
+  const [show, setShow] = useState(false)
+  return (
+    <div className="relative">
+      <input
+        type={show ? 'text' : 'password'}
+        required
+        disabled={disabled}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        autoComplete={autoComplete || 'current-password'}
+        placeholder={placeholder}
+        className="mt-1 block w-full px-4 py-3 pr-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-enc/20 focus:border-enc outline-none transition-all disabled:opacity-50 text-sm font-medium"
+      />
+      <button
+        type="button"
+        tabIndex={-1}
+        onClick={() => setShow(!show)}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors"
+        aria-label={show ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+      >
+        {show ? (
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+        ) : (
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        )}
+      </button>
+    </div>
+  )
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState('')
+  const [successMsg, setSuccessMsg] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [attempts, setAttempts] = useState(0)
+  const [lockoutUntil, setLockoutUntil] = useState<number | null>(null)
+  const [countdown, setCountdown] = useState(0)
 
-  // 🧭 Permet de lire les paramètres présents dans l'URL (ex: /login?redirect=/mentorat)
   const searchParams = useSearchParams()
-  const redirectTo = searchParams.get('redirect')
+  const router = useRouter()
+  const redirectTo = sanitizeRedirect(searchParams.get('redirect'))
+  const message = searchParams.get('message')
+
+  // Affiche le message de succès post-inscription
+  useEffect(() => {
+    if (message) setSuccessMsg(message)
+  }, [message])
+
+  // Compte à rebours de lockout
+  useEffect(() => {
+    if (!lockoutUntil) return
+    const interval = setInterval(() => {
+      const remaining = Math.ceil((lockoutUntil - Date.now()) / 1000)
+      if (remaining <= 0) {
+        setLockoutUntil(null)
+        setAttempts(0)
+        setCountdown(0)
+        clearInterval(interval)
+      } else {
+        setCountdown(remaining)
+      }
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [lockoutUntil])
+
+  const isLocked = lockoutUntil !== null && Date.now() < lockoutUntil
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isLocked) return
+
     setError('')
     setIsSubmitting(true)
 
@@ -22,26 +114,35 @@ export default function LoginPage() {
       const res = await fetch('/api/alumni/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, rememberMe }),
       })
 
       const contentType = res.headers.get('content-type')
       let data: any = {}
-      if (contentType && contentType.includes('application/json')) {
+      if (contentType?.includes('application/json')) {
         data = await res.json()
       }
 
       if (res.ok) {
-        // ✨ DYNAMIQUE : Si un paramètre "redirect" existe, on va là-bas.
-        // Sinon, on va sur la racine "/" ou "/profile" par défaut.
-        window.location.href = redirectTo || '/'
+        router.push(redirectTo)
       } else {
-        const serverMessage = data.message || data.errors?.[0]?.message || 'Identifiants invalides.'
-        setError(serverMessage)
+        const newAttempts = attempts + 1
+        setAttempts(newAttempts)
+
+        if (newAttempts >= MAX_ATTEMPTS) {
+          setLockoutUntil(Date.now() + LOCKOUT_SECONDS * 1000)
+          setError(
+            `Trop de tentatives. Veuillez attendre ${LOCKOUT_SECONDS} secondes avant de réessayer.`,
+          )
+        } else {
+          // Message générique volontairement vague pour ne pas confirmer si l'email existe
+          setError(
+            `Identifiants incorrects. ${MAX_ATTEMPTS - newAttempts} tentative(s) restante(s).`,
+          )
+        }
       }
-    } catch (err) {
-      console.error('Erreur de connexion :', err)
-      setError('Une erreur réseau ou serveur est survenue.')
+    } catch {
+      setError('Une erreur réseau est survenue. Veuillez réessayer.')
     } finally {
       setIsSubmitting(false)
     }
@@ -54,50 +155,78 @@ export default function LoginPage() {
           <div className="inline-block bg-enc p-3 rounded-lg text-white font-bold text-2xl mb-4">
             E
           </div>
-          <h2 className="text-3xl font-extrabold text-gray-900">Accédez à votre réseau</h2>
+          <h1 className="text-3xl font-extrabold text-gray-900">Accédez à votre réseau</h1>
           <p className="mt-2 text-sm text-gray-600">
             Connectez-vous pour retrouver vos anciens camarades.
           </p>
         </div>
 
-        <form className="mt-8 space-y-6" onSubmit={handleLogin}>
+        {successMsg && (
+          <div
+            role="alert"
+            className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 px-4 py-3 rounded-xl text-sm font-medium"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="flex-shrink-0"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+            {successMsg}
+          </div>
+        )}
+
+        <form className="mt-8 space-y-6" onSubmit={handleLogin} noValidate>
           {error && (
-            <p className="text-red-500 text-xs font-bold text-center bg-red-50 py-2.5 rounded-xl border border-red-100">
+            <p
+              role="alert"
+              className="text-red-600 text-xs font-bold text-center bg-red-50 py-2.5 px-4 rounded-xl border border-red-100"
+            >
               {error}
             </p>
           )}
 
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-bold uppercase text-gray-500 tracking-wider">
+              <label
+                htmlFor="email"
+                className="block text-xs font-bold uppercase text-gray-500 tracking-wider"
+              >
                 Email
               </label>
               <input
+                id="email"
                 type="email"
                 required
-                disabled={isSubmitting}
+                disabled={isSubmitting || isLocked}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
                 className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-enc/20 focus:border-enc outline-none transition-all disabled:opacity-50 text-sm font-medium"
-                placeholder="ex: xualex300@gmail.com"
+                placeholder="votre@email.com"
               />
             </div>
+
             <div>
-              <label className="block text-xs font-bold uppercase text-gray-500 tracking-wider">
+              <label
+                htmlFor="password"
+                className="block text-xs font-bold uppercase text-gray-500 tracking-wider"
+              >
                 Mot de passe
               </label>
-              <input
-                type="password"
-                required
-                disabled={isSubmitting}
+              <PasswordInput
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-enc/20 focus:border-enc outline-none transition-all disabled:opacity-50 text-sm font-medium"
+                onChange={setPassword}
+                disabled={isSubmitting || isLocked}
               />
             </div>
           </div>
 
           <div className="flex items-center justify-between">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-enc focus:ring-enc"
+              />
+              <span className="text-xs font-medium text-gray-600">Se souvenir de moi</span>
+            </label>
             <Link href="/forgot" className="text-xs font-bold text-enc hover:underline">
               Mot de passe oublié ?
             </Link>
@@ -105,10 +234,14 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={isSubmitting}
-            className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-md text-xs font-black uppercase tracking-widest text-white bg-enc hover:brightness-110 transition-all active:scale-[0.98] disabled:opacity-50"
+            disabled={isSubmitting || isLocked}
+            className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-md text-xs font-black uppercase tracking-widest text-white bg-enc hover:brightness-110 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isSubmitting ? 'Connexion en cours...' : 'Se connecter'}
+            {isLocked
+              ? `Réessayez dans ${countdown}s`
+              : isSubmitting
+              ? 'Connexion en cours...'
+              : 'Se connecter'}
           </button>
         </form>
 
