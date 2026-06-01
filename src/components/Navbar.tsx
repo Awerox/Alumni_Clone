@@ -77,7 +77,7 @@ const Navbar = () => {
     return 'Membre'
   }
 
-  // 🔄 CORRECTION : Extraction de la vraie photo de profil dynamique pour l'avatar
+  // Extraction de la vraie photo de profil dynamique pour l'avatar
   const getUserAvatarUrl = () => {
     if (user?.photo && typeof user.photo === 'object' && user.photo.url) {
       return user.photo.url
@@ -120,9 +120,15 @@ const Navbar = () => {
               </a>
             </div>
           </div>
-          <div className="flex gap-4">
-            <span className="cursor-pointer hover:text-enc">Contact</span>
-            <span className="cursor-pointer hover:text-enc">Aide</span>
+          <div className="flex gap-4 items-center">
+            {/* 🎯 FIX : Le bouton redirige désormais de manière fluide vers la page messagerie */}
+            <Link href="/messages" className="cursor-pointer hover:text-enc transition-colors flex items-center gap-1">
+              <i className="fa-regular fa-comment-dots text-[10px]" /> Message
+            </Link>
+            <span className="text-gray-200">|</span>
+            <Link href="/help" className="cursor-pointer hover:text-enc transition-colors">
+              Aide
+            </Link>
           </div>
         </div>
       </div>
@@ -131,7 +137,7 @@ const Navbar = () => {
       <nav className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-24">
-            {/* ZONE LOGO : IMAGE UNIQUE SANS ENCADRÉ NI TEXTE DE MARQUE */}
+            {/* ZONE LOGO */}
             <div className="flex items-center">
               <Link
                 href="/"
@@ -178,7 +184,7 @@ const Navbar = () => {
                       )}
                     </Link>
 
-                    {/* SOUS-MENU DÉROULANT (DROPDOWN DESKTOP) */}
+                    {/* SOUS-MENU DÉROULANT */}
                     {link.submenu && activeDropdown === link.name && (
                       <div className="absolute top-[75%] left-0 w-48 bg-white border border-gray-100 shadow-xl rounded-xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 text-left">
                         {link.submenu.map((sub) => (
@@ -208,7 +214,6 @@ const Navbar = () => {
                           {formatStatut(user.statut)}
                         </p>
                       </div>
-                      {/* 🛡️ Conteneur de l'image de profil sécurisé sans distorsion */}
                       <div className="h-11 w-11 rounded-full border-2 border-enc p-0.5 overflow-hidden flex-shrink-0 bg-white shadow-xs">
                         <img
                           src={getUserAvatarUrl()}
@@ -281,7 +286,6 @@ const Navbar = () => {
                 >
                   {link.name}
                 </Link>
-                {/* Affichage imbriqué des sous-menus sur Mobile */}
                 {link.submenu && (
                   <div className="pl-6 space-y-1 border-l-2 border-gray-150 ml-3">
                     {link.submenu.map((sub) => (

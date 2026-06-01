@@ -1,6 +1,6 @@
 'use client'
 import React, { useState, useEffect, useRef } from 'react'
-import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 
 interface Commentaire {
   id?: string
@@ -41,12 +41,15 @@ interface DirectoryUser {
   id: string
   prenom: string
   nom: string
+  lastMessageText?: string
+  lastMessageTime?: string
+  _rawTimestamp?: number
+  isPending?: boolean
 }
 
-export default function MessagesAndChatPage() {
+export function MessagesAndChatPage() {
+  const searchParams = useSearchParams()
   const [me, setMe] = useState<any>(null)
-  
-  // 🎯 FIX : Initialisation neutre pour éviter les conflits de rendu au rechargement
   const [activeTab, setActiveTab] = useState<'forum' | 'chat' | 'mp'>('forum')
 
   // Forum
@@ -78,6 +81,7 @@ export default function MessagesAndChatPage() {
   const chatEndRef = useRef<HTMLDivElement>(null)
   const mpEndRef = useRef<HTMLDivElement>(null)
   const chatFileInputRef = useRef<HTMLInputElement>(null)
+  const meRef = useRef<any>(null)
 
   const categoryBadges: Record<string, { label: string; cls: string }> = {
     entraide: { label: '💡 Entraide Cursus', cls: 'bg-amber-100 text-amber-800' },
@@ -87,92 +91,182 @@ export default function MessagesAndChatPage() {
     divers: { label: '☕ Café / Divers', cls: 'bg-purple-100 text-purple-800' },
   }
 
-  // 1. Chargement initial de toutes les données du back-end
   const loadInitialData = async () => {
     try {
-      const userRes = await fetch('/api/alumni/me')
+      const userRes = await fetch('/api/alumni/me', { credentials: 'include' })
       const userData = await userRes.json()
-      if (userData?.user) setMe(userData.user)
+      let currentMe = null
+      if (userData?.user) {
+        setMe(userData.user)
+        meRef.current = userData.user
+        currentMe = userData.user
+      }
 
-      const borderRes = await fetch('/api/discussions?limit=50&sort=-createdAt')
-      const discData = await borderRes.json()
+      // Forum
+      const discRes = await fetch('/api/discussions?limit=50&sort=-createdAt')
+      const discData = await discRes.json()
       if (discData?.docs) {
         setDiscussions(discData.docs)
         if (discData.docs.length > 0) setSelectedDiscussion(discData.docs[0])
       }
 
-      const allUsersRes = await fetch('/api/alumni?limit=100&sort=nom')
+      // Traitement des boîtes de réception
+      const allUsersRes = await fetch('/api/alumni?limit=100&sort=nom', { credentials: 'include' })
       const allUsersData = await allUsersRes.json()
-      if (allUsersData?.docs && userData?.user) {
-        const filteredContacts = allUsersData.docs.filter((u: any) => String(u.id) !== String(userData.user.id))
-        setAllUsers(filteredContacts)
+
+      if (allUsersData?.docs && currentMe) {
+        const filteredContacts: DirectoryUser[] = allUsersData.docs.filter(
+          (u: any) => String(u.id) !== String(currentMe.id),
+        )
+
+        const mpRes = await fetch('/api/mp?limit=500&sort=-createdAt', { credentials: 'include' })
+        const mpData = await mpRes.json()
+
+        let activeConversations: DirectoryUser[] = []
+
+        if (mpData?.docs) {
+          filteredContacts.forEach((contact) => {
+            const exchange = mpData.docs.filter((m: any) => {
+              const fId = String(typeof m.from === 'object' ? m.from?.id : m.from)
+              const tId = String(typeof m.to === 'object' ? m.to?.id : m.to)
+              return (
+                (fId === String(currentMe.id) && tId === String(contact.id)) ||
+                (fId === String(contact.id) && tId === String(currentMe.id))
+              )
+            })
+
+            if (exchange.length > 0) {
+              const lastMsg = exchange[0]
+              activeConversations.push({
+                ...contact,
+                lastMessageText: lastMsg.message || '📁 Fichier partagé',
+                lastMessageTime: new Date(lastMsg.createdAt).toLocaleTimeString('fr-FR', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                }),
+                _rawTimestamp: new Date(lastMsg.createdAt).getTime(),
+              })
+            }
+          })
+
+          activeConversations.sort((a, b) => (b._rawTimestamp || 0) - (a._rawTimestamp || 0))
+        }
+
+        // Intercepter l'utilisateur transmis par l'URL (?userId=XXX)
+        const urlUserId = searchParams.get('userId')
+        const urlPrenom = searchParams.get('prenom') || ''
+        const urlNom = searchParams.get('nom') || ''
+
+        if (urlUserId) {
+          setActiveTab('mp')
+          const alreadyInList = activeConversations.find((u) => String(u.id) === urlUserId)
+
+          if (!alreadyInList) {
+            const pendingUser: DirectoryUser = {
+              id: urlUserId,
+              prenom: urlPrenom,
+              nom: urlNom,
+              isPending: true,
+            }
+            activeConversations = [pendingUser, ...activeConversations]
+            setSelectedUserForMP(pendingUser)
+            setDirectMessages([])
+          } else {
+            setSelectedUserForMP(alreadyInList)
+            loadHistoryDirect(urlUserId, currentMe, alreadyInList)
+          }
+        } else if (activeConversations.length > 0) {
+          setSelectedUserForMP(activeConversations[0])
+          loadHistoryDirect(activeConversations[0].id, currentMe, activeConversations[0])
+        }
+
+        setAllUsers(activeConversations)
       }
 
-      const publicChatRes = await fetch('/api/public-messages?limit=50&sort=createdAt')
+      // Chat public
+      const publicChatRes = await fetch('/api/public-messages?limit=50&sort=createdAt', { credentials: 'include' })
       const publicChatData = await publicChatRes.json()
       if (publicChatData?.docs) {
-        const history = publicChatData.docs.map((doc: any) => ({
-          user: doc.user,
-          text: doc.text || doc.message || '',
-          time: doc.time,
-          from: doc.from ? String(doc.from) : undefined
-        }))
-        setChatMessages(history)
+        setChatMessages(
+          publicChatData.docs.map((doc: any) => ({
+            user: doc.user,
+            text: doc.text || doc.message || '',
+            time: doc.time,
+            from: doc.from ? String(doc.from) : undefined,
+          })),
+        )
       }
     } catch (err) {
       console.error(err)
     } finally {
-      // 🎯 ÉTAPE 1 : Fin du chargement asynchrone initial
       setLoading(false)
     }
   }
 
-  useEffect(() => { 
-    loadInitialData() 
-  }, [])
+  const loadHistoryDirect = async (uId: string, currentMe: any, contact: any) => {
+    try {
+      const resH = await fetch(`/api/mp?with=${uId}`, { credentials: 'include' })
+      const dataH = await resH.json()
+      if (dataH?.docs) {
+        setDirectMessages(
+          dataH.docs.map((doc: any) => {
+            const fromId = String(typeof doc.from === 'object' ? doc.from?.id : doc.from)
+            return {
+              user: fromId === String(currentMe.id) ? `${currentMe.prenom} ${currentMe.nom}` : `${contact.prenom} ${contact.nom}`,
+              text: doc.message || '',
+              time: new Date(doc.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+              from: fromId,
+              to: String(typeof doc.to === 'object' ? doc.to?.id : doc.to),
+              fileUrl: doc.file?.url || null,
+              fileName: doc.file?.filename || null,
+            }
+          }).reverse()
+        )
+      }
+    } catch (e) { console.error(e) }
+  }
 
-  // 🎯 ÉTAPE 2 : Récupération forcée de l'onglet mémorisé immédiatement APRÈS la fin de l'initialisation globale
+  useEffect(() => {
+    loadInitialData()
+  }, [searchParams])
+
   useEffect(() => {
     if (!loading && typeof window !== 'undefined') {
+      const urlUserId = searchParams.get('userId')
+      if (urlUserId) return 
       const savedTab = localStorage.getItem('messages_active_tab')
       if (savedTab === 'forum' || savedTab === 'chat' || savedTab === 'mp') {
         setActiveTab(savedTab)
       }
     }
-  }, [loading])
+  }, [loading, searchParams])
 
-  // 🎯 ÉTAPE 3 : Sauvegarde instantanée en tâche de fond à chaque fois que l'utilisateur clique sur un onglet
   const handleTabChange = (tab: 'forum' | 'chat' | 'mp') => {
     setActiveTab(tab)
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('messages_active_tab', tab)
-    }
+    if (typeof window !== 'undefined') localStorage.setItem('messages_active_tab', tab)
   }
 
-  // Charger l'historique MP de la BDD
   const loadHistory = async (otherUser: OnlineUser | DirectoryUser) => {
     if (!me) return
     setLoadingHistory(true)
     try {
-      const res = await fetch(`/api/mp?with=${otherUser.id}`)
+      const res = await fetch(`/api/mp?with=${otherUser.id}`, { credentials: 'include' })
       const data = await res.json()
       if (data?.docs) {
         const history: ChatMessage[] = data.docs.map((doc: any) => {
           const fromId = String(typeof doc.from === 'object' ? doc.from?.id : doc.from)
-          const toId = String(typeof doc.to === 'object' ? doc.to?.id : doc.to)
           const fromUser = typeof doc.from === 'object' ? doc.from : null
-          const userName = fromId === String(me.id) ? `${me.prenom} ${me.nom}` : fromUser ? `${fromUser.prenom} ${fromUser.nom}` : 'Inconnu'
           return {
-            user: userName,
+            user: fromId === String(me.id) ? `${me.prenom} ${me.nom}` : fromUser ? `${fromUser.prenom} ${fromUser.nom}` : 'Inconnu',
             text: doc.message || '',
             time: new Date(doc.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
             from: fromId,
-            to: toId,
+            to: String(typeof doc.to === 'object' ? doc.to?.id : doc.to),
             fileUrl: doc.file?.url || null,
             fileName: doc.file?.filename || null,
           }
         })
-        setDirectMessages(history)
+        setDirectMessages(history.reverse())
       }
     } catch (err) {
       console.error(err)
@@ -184,59 +278,97 @@ export default function MessagesAndChatPage() {
   const handleSelectUserForMP = (user: OnlineUser | DirectoryUser) => {
     setSelectedUserForMP(user)
     setDirectMessages([])
-    loadHistory(user)
+    const asDirUser = user as DirectoryUser
+    if (!asDirUser.isPending) {
+      loadHistory(user)
+    }
   }
 
-  // Établissement SSE Stream
+  // SSE stream
   useEffect(() => {
     if (!me) return
 
     const eventSource = new EventSource(
-      `/api/chat/stream?userId=${me.id}&name=${encodeURIComponent(me.prenom + ' ' + me.nom)}`
+      `/api/chat/stream?userId=${me.id}&name=${encodeURIComponent(me.prenom + ' ' + me.nom)}`,
     )
 
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data)
+      const currentMe = meRef.current
 
       if (data.type === 'presence-full') {
-        const filtrés: OnlineUser[] = (data.users as OnlineUser[]).filter((u) => String(u.id) !== String(me.id))
-        setOnlineUsers(filtrés)
-      } else if (data.type === 'presence') {
-        const filtrés: OnlineUser[] = (data.users as any[])
-          .filter((u: any) => (typeof u === 'object' ? u.name : u) !== `${me.prenom} ${me.nom}`)
-          .map((u: any) => {
-            if (typeof u === 'object' && u.id) return u as OnlineUser
-            const parts = (u as string).split(' ')
-            return { id: u, name: u, prenom: parts[0] || '', nom: parts[1] || '' }
-          })
-        setOnlineUsers(filtrés)
+        setOnlineUsers((data.users as OnlineUser[]).filter((u) => String(u.id) !== String(me.id)))
       } else if (data.type === 'msg-public') {
         setChatMessages((prev) => {
           const isDuplicate = prev.some((m) => m.user === data.user && m.text === data.text && m.time === data.time)
-          if (isDuplicate) return prev
-          return [...prev, data]
+          return isDuplicate ? prev : [...prev, data]
         })
       } else if (data.type === 'msg-prive') {
-        if (String(data.to) === String(me.id) || String(data.from) === String(me.id)) {
+        if (!currentMe) return
+        const myId = String(currentMe.id)
+        const fromId = String(data.from)
+        const toId = String(data.to)
+
+        if (toId !== myId && fromId !== myId) return
+        const otherId = fromId === myId ? toId : fromId
+
+        setAllUsers((prev) => {
+          const exists = prev.some((u) => String(u.id) === otherId)
+          if (!exists) {
+            const newContact: DirectoryUser = {
+              id: otherId,
+              prenom: data.fromPrenom || '?',
+              nom: data.fromNom || '',
+              lastMessageText: data.text,
+              lastMessageTime: data.time,
+              _rawTimestamp: Date.now(),
+            }
+            return [newContact, ...prev]
+          }
+          const updated = prev.map((u) =>
+            String(u.id) === otherId
+              ? { ...u, lastMessageText: data.text, lastMessageTime: data.time, isPending: false, _rawTimestamp: Date.now() }
+              : u,
+          )
+          const contactIdx = updated.findIndex((u) => String(u.id) === otherId)
+          if (contactIdx > 0) {
+            const [contact] = updated.splice(contactIdx, 1)
+            return [contact, ...updated]
+          }
+          return updated
+        })
+
+        // Ajouter l'aperçu synchronisé au composant central s'il est actif
+        setSelectedUserForMP((prev: any) => {
+          if (prev && String(prev.id) === otherId) {
+            return { ...prev, lastMessageText: data.text, lastMessageTime: data.time, isPending: false }
+          }
+          return prev
+        })
+
+        if (selectedUserForMP && String(selectedUserForMP.id) === otherId) {
           setDirectMessages((prev) => {
-            const exists = prev.some((m) => m.from === data.from && m.to === data.to && m.text === data.text && m.time === data.time)
+            const exists = prev.some((m) => m.from === fromId && m.text === data.text && m.time === data.time)
             if (exists) return prev
-            return [...prev, {
-              user: data.user,
-              text: data.text,
-              time: data.time,
-              from: String(data.from),
-              to: String(data.to),
-              fileUrl: data.fileUrl,
-              fileName: data.fileName,
-            }]
+            return [
+              ...prev,
+              {
+                user: data.user,
+                text: data.text,
+                time: data.time,
+                from: fromId,
+                to: toId,
+                fileUrl: data.fileUrl,
+                fileName: data.fileName,
+              },
+            ]
           })
         }
       }
     }
 
     return () => eventSource.close()
-  }, [me])
+  }, [me, selectedUserForMP])
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [chatMessages])
   useEffect(() => { mpEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [directMessages, selectedUserForMP])
@@ -270,7 +402,10 @@ export default function MessagesAndChatPage() {
       const res = await fetch('/api/discussions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ titre: newTopicTitre, contenu: newTopicContenu, categorie: newTopicCategorie, tags: newTopicTags, auteur: me.id }),
+        body: JSON.stringify({
+          titre: newTopicTitre, contenu: newTopicContenu,
+          categorie: newTopicCategorie, tags: newTopicTags, auteur: me.id,
+        }),
       })
       if (res.ok) {
         setNewTopicTitre(''); setNewTopicContenu(''); setNewTopicCategorie('entraide'); setNewTopicTags('')
@@ -282,32 +417,16 @@ export default function MessagesAndChatPage() {
   const handleSendLiveChatMessage = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!typedChatMessage.trim() || !me) return
-
     const messageTime = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-    
-    setChatMessages((prev) => [...prev, {
-      user: `${me.prenom} ${me.nom}`,
-      text: typedChatMessage,
-      time: messageTime,
-      from: String(me.id)
-    }])
-
+    setChatMessages((prev) => [...prev, { user: `${me.prenom} ${me.nom}`, text: typedChatMessage, time: messageTime, from: String(me.id) }])
     try {
       await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          type: 'msg-public', 
-          user: `${me.prenom} ${me.nom}`, 
-          text: typedChatMessage, 
-          time: messageTime,
-          from: String(me.id)
-        }),
+        body: JSON.stringify({ type: 'msg-public', user: `${me.prenom} ${me.nom}`, text: typedChatMessage, time: messageTime, from: String(me.id) }),
       })
       setTypedChatMessage('')
-    } catch (err) { 
-      console.error(err) 
-    }
+    } catch (err) { console.error(err) }
   }
 
   const handleChatFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -356,25 +475,40 @@ export default function MessagesAndChatPage() {
 
       if (res.ok) {
         const now = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-        setDirectMessages((prev) => [...prev, {
-          user: `${me.prenom} ${me.nom}`,
-          text: typedPrivateMessage || '',
-          time: now,
-          from: String(me.id),
-          to: String(selectedUserForMP.id),
-          fileUrl: uploadedFileUrl,
-          fileName: uploadedFileName,
-        }])
+
+        setAllUsers((prev) => {
+          const filtered = prev.filter((u) => String(u.id) !== String(selectedUserForMP.id))
+          const current = prev.find((u) => String(u.id) === String(selectedUserForMP.id))
+          const updatedContact: DirectoryUser = {
+            ...(current || { id: selectedUserForMP.id, prenom: selectedUserForMP.prenom, nom: selectedUserForMP.nom }),
+            lastMessageText: typedPrivateMessage || '📁 Fichier partagé',
+            lastMessageTime: now,
+            isPending: false,
+            _rawTimestamp: Date.now(),
+          }
+          return [updatedContact, ...filtered]
+        })
+
+        setSelectedUserForMP((prev: any) => prev ? { ...prev, isPending: false, lastMessageText: typedPrivateMessage, lastMessageTime: now } : null)
+
+        setDirectMessages((prev) => [
+          ...prev,
+          {
+            user: `${me.prenom} ${me.nom}`,
+            text: typedPrivateMessage || '',
+            time: now,
+            from: String(me.id),
+            to: String(selectedUserForMP.id),
+            fileUrl: uploadedFileUrl,
+            fileName: uploadedFileName,
+          },
+        ])
         setTypedPrivateMessage('')
         setSelectedFile(null)
         setFilePreview(null)
         if (chatFileInputRef.current) chatFileInputRef.current.value = ''
       }
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setIsUploadingFile(false)
-    }
+    } catch (err) { console.error(err) } finally { setIsUploadingFile(false) }
   }
 
   if (loading) return (
@@ -387,7 +521,7 @@ export default function MessagesAndChatPage() {
     <div className="bg-[#F8FAFC] min-h-screen font-sans text-left">
       <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
 
-        {/* Tab Navigation 🎯 MODIFIÉ AVEC LE NOUVEL ÉCOUTEUR PERSISTANT */}
+        {/* Tab Navigation */}
         <div className="flex bg-white p-1.5 border border-gray-200 rounded-2xl w-full max-w-md shadow-2xs font-black uppercase text-[10px] tracking-wider">
           <button onClick={() => handleTabChange('forum')} className={`flex-1 py-2.5 rounded-xl transition-all cursor-pointer ${activeTab === 'forum' ? 'bg-purple-600 text-white' : 'text-gray-500 hover:text-gray-800'}`}>🏛️ Forum</button>
           <button onClick={() => handleTabChange('chat')} className={`flex-1 py-2.5 rounded-xl transition-all cursor-pointer ${activeTab === 'chat' ? 'bg-gray-900 text-white' : 'text-gray-500 hover:text-gray-800'}`}>🟢 Chat en direct</button>
@@ -401,7 +535,8 @@ export default function MessagesAndChatPage() {
               <div className="space-y-2 overflow-y-auto flex-1">
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Sujets récents</p>
                 {discussions.map((disc) => (
-                  <div key={disc.id} onClick={() => setSelectedDiscussion(disc)} className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${selectedDiscussion?.id === disc.id ? 'border-purple-200 bg-purple-50/40 shadow-3xs' : 'border-gray-100 hover:bg-gray-50'}`}>
+                  <div key={disc.id} onClick={() => setSelectedDiscussion(disc)}
+                    className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${selectedDiscussion?.id === disc.id ? 'border-purple-200 bg-purple-50/40 shadow-3xs' : 'border-gray-100 hover:bg-gray-50'}`}>
                     <div className="flex items-center justify-between gap-2">
                       <h4 className="text-xs font-black text-gray-800 line-clamp-1 leading-tight flex-1">{disc.titre}</h4>
                       {disc.categorie && categoryBadges[disc.categorie] && (
@@ -488,40 +623,57 @@ export default function MessagesAndChatPage() {
         {/* ==================== MESSAGES PRIVÉS ==================== */}
         {activeTab === 'mp' && (
           <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-xs grid grid-cols-1 md:grid-cols-12 gap-6 h-[550px] overflow-hidden">
-            <div className="md:col-span-4 border-r border-gray-100 pr-2 overflow-y-auto space-y-2 h-full">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest pb-1">Boîte de réception :</p>
+            <div className="md:col-span-4 border-r border-gray-100 pr-2 overflow-y-auto space-y-1.5 h-full scrollbar-none">
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest pb-2">Discussions en cours :</p>
               {allUsers.length > 0 ? allUsers.map((user) => {
                 const isOnline = onlineUsers.some((u) => String(u.id) === String(user.id))
+                const isSelected = selectedUserForMP?.id === user.id
                 return (
-                  <div key={user.id} onClick={() => handleSelectUserForMP(user)} className={`p-3 rounded-xl border text-left cursor-pointer transition-all flex items-center justify-between gap-3 ${selectedUserForMP?.id === user.id ? 'border-emerald-200 bg-emerald-50/30' : 'border-gray-50 hover:bg-gray-50'}`}>
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-7 h-7 rounded-full bg-emerald-700 text-white font-black text-[9px] flex items-center justify-center uppercase flex-shrink-0">{user.prenom[0]}{user.nom[0]}</div>
-                      <span className="text-xs font-bold text-gray-800 truncate">{user.prenom} {user.nom}</span>
+                  <div key={user.id} onClick={() => handleSelectUserForMP(user)}
+                    className={`p-3 rounded-xl border text-left cursor-pointer transition-all flex items-center gap-3 ${isSelected ? 'border-emerald-200 bg-emerald-50/30' : 'border-gray-50 hover:bg-gray-50'}`}>
+                    <div className="relative flex-shrink-0">
+                      <div className="w-9 h-9 rounded-full bg-emerald-700 text-white font-black text-[9px] flex items-center justify-center uppercase">{user.prenom[0]}{user.nom[0]}</div>
+                      <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 border-2 border-white rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-gray-300'}`} />
                     </div>
-                    <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isOnline ? 'bg-emerald-500 shadow-xs' : 'bg-gray-300'}`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline justify-between gap-1">
+                        <span className="text-xs font-black text-gray-800 truncate">{user.prenom} {user.nom}</span>
+                        {user.lastMessageTime && !user.isPending && <span className="text-[8px] font-bold text-gray-400 whitespace-nowrap flex-shrink-0">{user.lastMessageTime}</span>}
+                      </div>
+                      {user.isPending ? (
+                        <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md inline-block mt-0.5">Nouvelle conversation</span>
+                      ) : user.lastMessageText ? (
+                        <p className="text-[11px] text-gray-400 truncate font-medium mt-0.5">{user.lastMessageText}</p>
+                      ) : null}
+                    </div>
                   </div>
                 )
-              }) : <p className="text-xs text-gray-400 italic">Aucun contact trouvé.</p>}
+              }) : <p className="text-xs text-gray-400 italic pt-4 pl-1">Aucune discussion ouverte.</p>}
             </div>
 
             <div className="md:col-span-8 flex flex-col justify-between h-full overflow-hidden">
               {selectedUserForMP ? (
                 <>
-                  <div className="border-b pb-2 flex items-center justify-between">
+                  <div className="border-b pb-3 flex flex-col text-left">
                     <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${onlineUsers.some((u) => String(u.id) === String(selectedUserForMP.id)) ? 'bg-emerald-500 animate-pulse' : 'bg-gray-300'}`} />
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${onlineUsers.some((u) => String(u.id) === String(selectedUserForMP.id)) ? 'bg-emerald-500 animate-pulse' : 'bg-gray-300'}`} />
                       <h3 className="text-xs font-black text-gray-800 uppercase tracking-wider">Conversation avec {selectedUserForMP.prenom} {selectedUserForMP.nom}</h3>
                     </div>
+                    {/* 🎯 APERÇU DU TOUT DERNIER MESSAGE AJOUTÉ ICI DANS LE HEADER */}
+                    {(selectedUserForMP as any).lastMessageText && !(selectedUserForMP as any).isPending && (
+                      <p className="text-[11px] text-gray-400 mt-1 truncate max-w-[500px]">
+                        <span className="font-bold text-gray-500">Dernier échange :</span> "{ (selectedUserForMP as any).lastMessageText }"
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex-1 overflow-y-auto py-4 space-y-3 pr-1">
                     {loadingHistory ? (
-                      <div className="flex items-center justify-center h-full">
-                        <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest animate-pulse">Chargement de la conversation...</div>
-                      </div>
+                      <div className="flex items-center justify-center h-full"><div className="text-[10px] text-gray-400 font-black uppercase tracking-widest animate-pulse">Chargement de la conversation...</div></div>
                     ) : directMessages.length === 0 ? (
-                      <div className="flex items-center justify-center h-full">
-                        <p className="text-xs text-gray-400 italic">Aucun échange. Laissez un message !</p>
+                      <div className="flex flex-col items-center justify-center h-full gap-2 text-center">
+                        <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-2xl">💬</div>
+                        <p className="text-xs font-bold text-gray-500">Envoyez un premier message à {selectedUserForMP.prenom} !</p>
                       </div>
                     ) : (
                       directMessages.map((msg, index) => {
@@ -533,13 +685,10 @@ export default function MessagesAndChatPage() {
                               {msg.fileUrl && (
                                 <div className="mt-2 pt-2 border-t border-white/20">
                                   {msg.fileUrl.match(/\.(jpeg|jpg|gif|png)$/i) ? (
-                                    <a href={msg.fileUrl} target="_blank" rel="noreferrer">
-                                      <img src={msg.fileUrl} className="max-w-xs max-h-40 rounded-lg object-cover border border-black/10 hover:opacity-90 transition-opacity" alt="Image partagée" />
-                                    </a>
+                                    <a href={msg.fileUrl} target="_blank" rel="noreferrer"><img src={msg.fileUrl} className="max-w-xs max-h-40 rounded-lg object-cover border border-black/10" alt="" /></a>
                                   ) : (
                                     <a href={msg.fileUrl} target="_blank" rel="noreferrer" className={`flex items-center gap-2 font-bold hover:underline ${isMe ? 'text-white' : 'text-emerald-700'}`}>
-                                      <i className="fa-solid fa-file-arrow-down text-sm" />
-                                      <span className="text-[11px] truncate max-w-[200px]">{msg.fileName || 'Télécharger'}</span>
+                                      <i className="fa-solid fa-file-arrow-down text-sm" /><span className="text-[11px] truncate max-w-[200px]">{msg.fileName || 'Télécharger'}</span>
                                     </a>
                                   )}
                                 </div>
@@ -555,62 +704,48 @@ export default function MessagesAndChatPage() {
 
                   {selectedFile && (
                     <div className="p-3 bg-gray-50 border border-gray-200 border-b-0 rounded-t-xl flex items-center gap-3 text-left">
-                      {filePreview ? (
-                        <img src={filePreview} className="w-12 h-12 object-cover rounded-lg border border-gray-200" alt="Aperçu" />
-                      ) : (
-                        <div className="w-12 h-12 bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center text-lg">
-                          <i className="fa-solid fa-file-invoice" />
-                        </div>
-                      )}
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-bold text-gray-700 truncate">{selectedFile.name}</p>
-                        <p className="text-[10px] text-gray-400">{(selectedFile.size / 1024 / 1024).toFixed(2)} Mo</p>
                       </div>
-                      <button type="button" onClick={() => { setSelectedFile(null); setFilePreview(null) }} className="text-gray-400 hover:text-red-500 cursor-pointer transition-colors">
-                        <i className="fa-solid fa-circle-xmark text-base" />
-                      </button>
+                      <button type="button" onClick={() => { setSelectedFile(null); setFilePreview(null) }} className="text-gray-400 hover:text-red-500"><i className="fa-solid fa-circle-xmark text-base" /></button>
                     </div>
                   )}
 
                   <form onSubmit={handleSendPrivateMessage} className="pt-3 border-t border-gray-100 flex items-center gap-2">
                     <input type="file" ref={chatFileInputRef} onChange={handleChatFileChange} accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" className="hidden" />
-                    <button type="button" onClick={() => chatFileInputRef.current?.click()} className="w-10 h-10 bg-white hover:bg-gray-50 text-gray-500 rounded-xl flex items-center justify-center border border-gray-200 transition-colors shadow-2xs cursor-pointer">
-                      <i className="fa-solid fa-paperclip text-sm" />
-                    </button>
-                    <input type="text" placeholder={`Envoyer un message à ${selectedUserForMP.prenom}...`} value={typedPrivateMessage} onChange={(e) => setTypedPrivateMessage(e.target.value)} disabled={isUploadingFile} className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium outline-none focus:bg-white focus:border-emerald-500 shadow-3xs" />
-                    <button type="submit" disabled={(!typedPrivateMessage.trim() && !selectedFile) || isUploadingFile} className="h-10 px-5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl font-black text-[10px] uppercase cursor-pointer tracking-wider flex items-center gap-2 transition-colors shadow-2xs">
-                      {isUploadingFile ? (
-                        <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <><span>Envoyer</span><i className="fa-solid fa-paper-plane" /></>
-                      )}
+                    <button type="button" onClick={() => chatFileInputRef.current?.click()} className="w-10 h-10 bg-white border border-gray-200 rounded-xl flex items-center justify-center shadow-2xs"><i className="fa-solid fa-paperclip text-sm" /></button>
+                    <input type="text" placeholder={`Message à ${selectedUserForMP.prenom}...`} value={typedPrivateMessage} onChange={(e) => setTypedPrivateMessage(e.target.value)} disabled={isUploadingFile} className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium outline-none focus:bg-white focus:border-emerald-500 shadow-3xs" />
+                    <button type="submit" disabled={(!typedPrivateMessage.trim() && !selectedFile) || isUploadingFile} className="h-10 px-5 bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase tracking-wider flex items-center gap-2 shadow-2xs">
+                      {isUploadingFile ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><span>Envoyer</span><i className="fa-solid fa-paper-plane" /></>}
                     </button>
                   </form>
                 </>
               ) : (
-                <div className="h-full flex items-center justify-center text-gray-400 text-xs italic">Sélectionnez un membre dans votre liste de contacts pour lire ou démarrer une conversation permanente.</div>
+                <div className="h-full flex flex-col items-center justify-center gap-3 text-center">
+                  <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center text-3xl">🔒</div>
+                  <p className="text-xs font-bold text-gray-500">Aucune discussion ouverte</p>
+                </div>
               )}
             </div>
           </div>
         )}
-
       </div>
 
-      {/* MODAL FORUM */}
+      {/* MODAL CREATION SUJET */}
       {showNewTopicModal && (
         <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-md flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden border border-gray-100 text-left animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden text-left animate-in fade-in duration-150">
             <div className="bg-gray-50 p-5 border-b border-gray-100 flex justify-between items-center">
               <h2 className="text-xs font-black text-gray-900 uppercase tracking-wider">Créer un sujet de discussion</h2>
-              <button onClick={() => setShowNewTopicModal(false)} className="text-gray-400 hover:text-red-500 cursor-pointer">✕</button>
+              <button onClick={() => setShowNewTopicModal(false)} className="text-gray-400 hover:text-red-500">✕</button>
             </div>
             <form onSubmit={handleCreateTopic} className="p-6 space-y-4 text-xs font-bold text-gray-500 uppercase tracking-wide">
               <div>
                 <label className="block mb-1 text-gray-400">Titre du sujet *</label>
-                <input type="text" required value={newTopicTitre} onChange={(e) => setNewTopicTitre(e.target.value)} className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none font-medium text-gray-800 normal-case focus:border-purple-500 shadow-2xs" placeholder="Ex: REX Oral E4 - Spécialité SLAM" />
+                <input type="text" required value={newTopicTitre} onChange={(e) => setNewTopicTitre(e.target.value)} className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none font-medium text-gray-800 normal-case focus:border-purple-500 shadow-2xs" />
               </div>
               <div>
-                <label className="block mb-1 text-gray-400">Catégorie Thématique *</label>
+                <label className="block mb-1 text-gray-400">Catégorie *</label>
                 <div className="grid grid-cols-2 gap-2 pt-1">
                   {Object.entries(categoryBadges).map(([key, value]) => (
                     <label key={key} className={`p-2.5 border rounded-xl flex items-center gap-2 cursor-pointer transition-all normal-case font-bold text-gray-700 ${newTopicCategorie === key ? 'border-purple-500 bg-purple-50/50 shadow-3xs' : 'border-gray-200 bg-white hover:bg-white/50'}`}>
@@ -621,16 +756,12 @@ export default function MessagesAndChatPage() {
                 </div>
               </div>
               <div>
-                <label className="block mb-1 text-gray-400">Tags optionnels</label>
-                <input type="text" value={newTopicTags} onChange={(e) => setNewTopicTags(e.target.value)} className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none font-medium text-gray-800 normal-case focus:border-purple-500 shadow-2xs" placeholder="Ex: #NextJS, #Java" />
-              </div>
-              <div>
                 <label className="block mb-1 text-gray-400">Message principal *</label>
-                <textarea required rows={4} value={newTopicContenu} onChange={(e) => setNewTopicContenu(e.target.value)} className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none font-medium text-gray-800 leading-relaxed normal-case focus:border-purple-500 shadow-2xs" placeholder="Décrivez votre fil de discussion..." />
+                <textarea required rows={4} value={newTopicContenu} onChange={(e) => setNewTopicContenu(e.target.value)} className="w-full p-3 bg-white border border-gray-200 rounded-xl outline-none font-medium text-gray-800 normal-case focus:border-purple-500 shadow-2xs" />
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowNewTopicModal(false)} className="flex-1 py-3 border border-gray-200 text-gray-500 rounded-xl font-black uppercase text-xs tracking-wider bg-white hover:bg-gray-50 cursor-pointer">Annuler</button>
-                <button type="submit" className="flex-1 py-3 bg-purple-600 text-white rounded-xl font-black uppercase text-xs tracking-wider hover:bg-purple-700 transition-colors shadow-sm cursor-pointer">Lancer le sujet</button>
+                <button type="button" onClick={() => setShowNewTopicModal(false)} className="flex-1 py-3 border border-gray-200 text-gray-500 rounded-xl font-black uppercase text-xs tracking-wider bg-white">Annuler</button>
+                <button type="submit" className="flex-1 py-3 bg-purple-600 text-white rounded-xl font-black uppercase text-xs tracking-wider hover:bg-purple-700 shadow-sm">Lancer le sujet</button>
               </div>
             </form>
           </div>

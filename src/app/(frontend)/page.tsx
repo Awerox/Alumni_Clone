@@ -453,7 +453,7 @@ export default async function HomePage() {
               </div>
 
               <Link
-                href="/mentorship"
+                href="/mentoring"
                 className="inline-block bg-enc text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-[#6b001a] transition-all shadow-sm"
               >
                 Charte du mentorat
