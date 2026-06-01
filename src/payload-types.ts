@@ -248,6 +248,8 @@ export interface Alumnus {
   isMentor?: boolean | null;
   linkedin?: string | null;
   instagram?: string | null;
+  subGoogle?: string | null;
+  subLinkedin?: string | null;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -710,6 +712,8 @@ export interface AlumniSelect<T extends boolean = true> {
   isMentor?: T;
   linkedin?: T;
   instagram?: T;
+  subGoogle?: T;
+  subLinkedin?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;

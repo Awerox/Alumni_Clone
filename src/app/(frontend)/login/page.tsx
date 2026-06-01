@@ -1,4 +1,3 @@
-// app/login/page.tsx
 'use client'
 import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
@@ -11,7 +10,6 @@ const LOCKOUT_SECONDS = 30
 function sanitizeRedirect(url: string | null): string {
   if (!url) return '/'
   try {
-    // Si c'est une URL absolue, on refuse
     const parsed = new URL(url, window.location.origin)
     if (parsed.origin !== window.location.origin) return '/'
     return parsed.pathname + parsed.search
@@ -79,6 +77,21 @@ export default function LoginPage() {
   const redirectTo = sanitizeRedirect(searchParams.get('redirect'))
   const message = searchParams.get('message')
 
+  // Construction des URLs OAuth basées sur les variables d'environnement publiques et sécurisées
+  const loginWithGoogleUrl = `https://accounts.google.com/o/oauth2/v2/auth?` + new URLSearchParams({
+    client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '',
+    redirect_uri: 'http://localhost:3000/api/oauth/google/callback',
+    response_type: 'code',
+    scope: 'openid email profile',
+  }).toString()
+
+  const loginWithLinkedinUrl = `https://www.linkedin.com/oauth/v2/authorization?` + new URLSearchParams({
+    client_id: process.env.NEXT_PUBLIC_LINKEDIN_CLIENT_ID || '',
+    redirect_uri: 'http://localhost:3000/api/oauth/linkedin/callback',
+    response_type: 'code',
+    scope: 'openid profile email',
+  }).toString()
+
   // Affiche le message de succès post-inscription
   useEffect(() => {
     if (message) setSuccessMsg(message)
@@ -124,7 +137,7 @@ export default function LoginPage() {
       }
 
       if (res.ok) {
-        router.push(redirectTo)
+        window.location.href = redirectTo
       } else {
         const newAttempts = attempts + 1
         setAttempts(newAttempts)
@@ -135,7 +148,6 @@ export default function LoginPage() {
             `Trop de tentatives. Veuillez attendre ${LOCKOUT_SECONDS} secondes avant de réessayer.`,
           )
         } else {
-          // Message générique volontairement vague pour ne pas confirmer si l'email existe
           setError(
             `Identifiants incorrects. ${MAX_ATTEMPTS - newAttempts} tentative(s) restante(s).`,
           )
@@ -150,12 +162,12 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center bg-gray-50 py-12 px-4">
-      <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-2xl shadow-xl border border-gray-100">
+      <div className="max-w-md w-full space-y-6 bg-white p-10 rounded-2xl shadow-xl border border-gray-100 font-sans text-left">
         <div className="text-center">
-          <div className="inline-block bg-enc p-3 rounded-lg text-white font-bold text-2xl mb-4">
+          <div className="inline-block bg-enc p-3 rounded-lg text-white font-bold text-2xl mb-4 select-none">
             E
           </div>
-          <h1 className="text-3xl font-extrabold text-gray-900">Accédez à votre réseau</h1>
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Accédez à votre réseau</h1>
           <p className="mt-2 text-sm text-gray-600">
             Connectez-vous pour retrouver vos anciens camarades.
           </p>
@@ -171,7 +183,7 @@ export default function LoginPage() {
           </div>
         )}
 
-        <form className="mt-8 space-y-6" onSubmit={handleLogin} noValidate>
+        <form className="space-y-4" onSubmit={handleLogin} noValidate>
           {error && (
             <p
               role="alert"
@@ -185,7 +197,7 @@ export default function LoginPage() {
             <div>
               <label
                 htmlFor="email"
-                className="block text-xs font-bold uppercase text-gray-500 tracking-wider"
+                className="block text-xs font-bold uppercase text-gray-500 tracking-wider pl-0.5"
               >
                 Email
               </label>
@@ -205,7 +217,7 @@ export default function LoginPage() {
             <div>
               <label
                 htmlFor="password"
-                className="block text-xs font-bold uppercase text-gray-500 tracking-wider"
+                className="block text-xs font-bold uppercase text-gray-500 tracking-wider pl-0.5"
               >
                 Mot de passe
               </label>
@@ -245,7 +257,35 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="text-center text-xs font-medium text-gray-500">
+        {/* 🔘 SÉPARATEUR INTERMÉDIAIRE POUR L'ACCÈS SOCIAL */}
+        <div className="relative flex py-2 items-center text-gray-300">
+          <div className="flex-grow border-t border-gray-200/70"></div>
+          <span className="flex-shrink mx-3 text-[9px] font-black uppercase text-gray-400 select-none">Ou continuer avec</span>
+          <div className="flex-grow border-t border-gray-200/70"></div>
+        </div>
+
+        {/* 🤝 BOUTONS DE CONNEXION GOOGLE & LINKEDIN */}
+        <div className="grid grid-cols-2 gap-3 text-xs font-bold text-gray-700">
+          <a
+            href={isLocked ? '#' : loginWithGoogleUrl}
+            onClick={(e) => isLocked && e.preventDefault()}
+            className={`flex items-center justify-center gap-2 py-3 border border-gray-200 rounded-xl bg-white hover:bg-gray-50 transition-colors shadow-2xs ${isLocked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+          >
+            <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4 select-none" alt="" />
+            <span>Google</span>
+          </a>
+
+          <a
+            href={isLocked ? '#' : loginWithLinkedinUrl}
+            onClick={(e) => isLocked && e.preventDefault()}
+            className={`flex items-center justify-center gap-2 py-3 border border-gray-200 rounded-xl bg-white hover:bg-gray-50 transition-colors shadow-2xs ${isLocked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+          >
+            <img src="https://www.svgrepo.com/show/475661/linkedin-color.svg" className="w-4 h-4 select-none" alt="" />
+            <span>LinkedIn</span>
+          </a>
+        </div>
+
+        <p className="text-center text-xs font-medium text-gray-500 pt-2">
           Pas encore de compte ?{' '}
           <Link href="/new" className="font-black text-enc hover:underline">
             S'inscrire
