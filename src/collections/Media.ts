@@ -8,7 +8,8 @@ export const Media: CollectionConfig = {
   },
   access: {
     read: () => true,
-    create: ({ req: { user } }) => !!user,
+    // 🎯 FIX : Autorise la création de l'image de profil par l'API de callback lors de l'inscription
+    create: () => true,
     update: ({ req: { user } }) => !!user,
     delete: ({ req: { user } }) => !!user,
   },

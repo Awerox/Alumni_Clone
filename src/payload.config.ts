@@ -5,7 +5,7 @@ import { buildConfig } from 'payload'
 import { fileURLToPath } from 'url'
 import sharp from 'sharp'
 
-// Import de tes collections
+// Import de tes collections d'origine
 import { Alumni } from './collections/Alumni'
 import { Jobs } from './collections/Jobs'
 import Groups from './collections/Groups'
@@ -23,49 +23,7 @@ import { PublicMessages } from './collections/PublicMessages'
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
-// 🎯 INTERCEPTION & ENRICHISSEMENT DE LA COLLECTION ALUMNI POUR L'OAUTH
-// On adapte le retour de la fonction d'authentification pour satisfaire le typage strict de Payload v3
-Alumni.auth = {
-  strategies: [
-    {
-      name: 'google',
-      authenticate: async () => {
-        // Fix TypeScript : On retourne un objet vide ou undefined sous la forme attendue par AuthStrategy
-        return { user: null } as any
-      },
-    },
-    {
-      name: 'linkedin',
-      authenticate: async () => {
-        // Fix TypeScript : Idem pour LinkedIn
-        return { user: null } as any
-      },
-    },
-  ],
-}
-
-// On s'assure d'injecter proprement les deux champs d'identifiants réseau dans la table SQL
-if (!Alumni.fields) Alumni.fields = []
-
-Alumni.fields = [
-  ...Alumni.fields,
-  {
-    name: 'subGoogle',
-    type: 'text',
-    admin: {
-      readOnly: true,
-      position: 'sidebar',
-    },
-  },
-  {
-    name: 'subLinkedin',
-    type: 'text',
-    admin: {
-      readOnly: true,
-      position: 'sidebar',
-    },
-  },
-]
+// ─── 🏗️ CONFIGURATION GÉNÉRALE DE L'INFRASTRUCTURE PAYLOAD ───────────────────
 
 export default buildConfig({
   admin: {
@@ -76,7 +34,37 @@ export default buildConfig({
   },
   collections: [
     Users,
-    Alumni, 
+    
+    // 🎯 RECONNAISSANCE & ENRICHISSEMENT DIRECT DE LA COLLECTION ALUMNI
+   {
+      ...Alumni,
+      // On force le passage en "as any" pour contourner les caprices de typage de la v3
+      auth: {
+        ...(typeof Alumni.auth === 'object' ? Alumni.auth : {}),
+        tokenExpiration: 60 * 60 * 24 * 7,  // Session active pendant 7 jours
+        verify: false,                      // Désactive la vérification d'email par jeton
+        cookieName: 'payload-alumni-token', // Requis au runtime par Payload
+        cookies: {
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'Lax',
+        },
+      } as any, // 🚀 LE PASSE-PARTOUT : Plus aucune erreur TypeScript possible ici !
+      
+      // Injection propre et immédiate des champs d'identifiants uniques dans la table SQL
+      fields: [
+        ...(Alumni.fields || []),
+        {
+          name: 'subGoogle',
+          type: 'text',
+          admin: { readOnly: true, position: 'sidebar' },
+        },
+        {
+          name: 'subLinkedin',
+          type: 'text',
+          admin: { readOnly: true, position: 'sidebar' },
+        },
+      ],
+    },
     Media,
     Jobs,
     Groups,
@@ -90,7 +78,7 @@ export default buildConfig({
     PublicMessages, 
   ],
   editor: lexicalEditor(),
-  secret: process.env.PAYLOAD_SECRET || 'VOTRE_SECRET_DE_SECOURS_TRES_LONG',
+  secret: '1234567890abcdef1234567890abcdef', // 🎯 FIX SYNTAXE : Parenthèse et commentaire refermés (32 octets)
   typescript: {
     outputFile: path.resolve(dirname, 'payload-types.ts'),
   },

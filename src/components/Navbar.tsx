@@ -13,14 +13,28 @@ const Navbar = () => {
   // État pour savoir quel menu déroulant desktop est actuellement survolé/ouvert
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
 
-  // 1. Récupérer l'utilisateur connecté avec les cookies de session
+  // 1. Récupérer l'utilisateur connecté avec les cookies de session personnalisés
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await fetch('/api/alumni/me', { credentials: 'include' })
-        const data = await res.json()
-        if (data?.user) {
-          setUser(data.user)
+        // Interrogation de la route d'identité avec forçage de l'en-tête JSON v3
+        const res = await fetch('/api/alumni/me', { 
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+          }
+        })
+        
+        if (res.ok) {
+          const data = await res.json()
+          
+          // 🎯 FIX CRITIQUE DE STRUCTURE : 
+          // Payload v3 renvoie parfois l'utilisateur directement à la racine ou sous data.user
+          if (data && data.user) {
+            setUser(data.user)
+          } else if (data && (data.email || data.id)) {
+            setUser(data) // On injecte l'objet brut s'il est renvoyé directement à la racine
+          }
         }
       } catch (err) {
         console.error("Erreur lors de la récupération de l'utilisateur", err)
@@ -121,7 +135,6 @@ const Navbar = () => {
             </div>
           </div>
           <div className="flex gap-4 items-center">
-            {/* 🎯 FIX : Le bouton redirige désormais de manière fluide vers la page messagerie */}
             <Link href="/messages" className="cursor-pointer hover:text-enc transition-colors flex items-center gap-1">
               <i className="fa-regular fa-comment-dots text-[10px]" /> Message
             </Link>
