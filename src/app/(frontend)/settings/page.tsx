@@ -1,8 +1,8 @@
 'use client'
-import React, { useEffect, useState, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import React, { useEffect, useState, useRef, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 
-export default function SettingsPage() {
+function SettingsContent() {
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('profile')
@@ -12,16 +12,19 @@ export default function SettingsPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   
-  // États pour le Popup de Recadrage (Crop)
   const [showCropModal, setShowCropModal] = useState(false)
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
   const [previewImageSrc, setPreviewImageSrc] = useState<string>('')
   const [zoomScale, setZoomScale] = useState<number>(1)
 
-  // État local du formulaire global
   const [formData, setFormData] = useState<any>({})
   const router = useRouter()
+  const searchParams = useSearchParams()
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3000'
+  const googleLinkUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ''}&redirect_uri=${encodeURIComponent(baseUrl + '/api/oauth/google/callback')}&response_type=code&scope=${encodeURIComponent('email profile openid')}`
+  const linkedinLinkUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${process.env.NEXT_PUBLIC_LINKEDIN_CLIENT_ID || ''}&redirect_uri=${encodeURIComponent(baseUrl + '/api/oauth/linkedin/callback')}&scope=${encodeURIComponent('openid profile email')}`
 
   const fetchSettings = async () => {
     try {
@@ -56,6 +59,8 @@ export default function SettingsPage() {
           notifGroupInvites: data.user.notifGroupInvites ?? true,
           mentoratRole: data.user.mentoratRole || 'filleul', 
           mentoratActive: data.user.mentoratActive ?? false,
+          subGoogle: data.user.subGoogle || null,
+          subLinkedin: data.user.subLinkedin || null,
         })
       }
     } catch (err) {
@@ -65,24 +70,25 @@ export default function SettingsPage() {
     }
   }
 
-  useEffect(() => { fetchSettings() }, [])
+  useEffect(() => { 
+    fetchSettings() 
+    if (searchParams.get('success') === 'linked') {
+      setSuccessMessage('Votre compte tiers a été lié avec succès !')
+      setTimeout(() => setSuccessMessage(null), 4000)
+    }
+  }, [searchParams])
 
-  // Envoie les modifications textuelles simples à la base de données
   const handleUpdateFields = async (fieldsToSave: any) => {
     setIsSaving(true)
     setSuccessMessage(null)
     setErrorMessage(null)
 
-    // Nettoyage de l'ID d'avatar pour ne jamais envoyer un objet imbriqué à l'API
     let avatarId = fieldsToSave.avatar
     if (avatarId && typeof avatarId === 'object') {
       avatarId = avatarId.id
     }
 
-    const payload = {
-      ...fieldsToSave,
-      avatar: avatarId
-    }
+    const payload = { ...fieldsToSave, avatar: avatarId }
 
     try {
       const res = await fetch(`/api/alumni/${user.id}`, {
@@ -117,20 +123,50 @@ export default function SettingsPage() {
     handleUpdateFields({ ...formData, mentoratRole: role })
   }
 
+  const handleUnlinkProvider = async (provider: 'google' | 'linkedin') => {
+    const field = provider === 'google' ? 'subGoogle' : 'subLinkedin'
+    const label = provider === 'google' ? 'Google' : 'LinkedIn'
+
+    if (!confirm(`Désassocier votre compte ${label} ? Vous ne pourrez plus vous connecter via ${label} jusqu'à une nouvelle association.`)) return
+
+    // Optimistic update
+    setFormData((prev: any) => ({ ...prev, [field]: null }))
+
+    try {
+      const res = await fetch(`/api/alumni/${user.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [field]: null }),
+        credentials: 'include',
+      })
+
+      if (res.ok) {
+        setSuccessMessage(`Compte ${label} désassocié avec succès.`)
+        setTimeout(() => setSuccessMessage(null), 3000)
+        fetchSettings()
+      } else {
+        // Rollback
+        setFormData((prev: any) => ({ ...prev, [field]: user[field] }))
+        setErrorMessage(`Impossible de désassocier le compte ${label}.`)
+      }
+    } catch {
+      // Rollback
+      setFormData((prev: any) => ({ ...prev, [field]: user[field] }))
+      setErrorMessage('Erreur réseau lors de la désassociation.')
+    }
+  }
+
   const handleFileSelection = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return
     const file = e.target.files[0]
-    
     setSelectedImageFile(file)
     setPreviewImageSrc(URL.createObjectURL(file))
     setZoomScale(1)
     setShowCropModal(true)
   }
 
-  // TÉLÉVERSEMENT ISOLÉ IMMÉDIAT DÈS LA VALIDATION DU CROP
   const handleSaveCroppedImage = async () => {
     if (!selectedImageFile) return
-    
     setUploadingAvatar(true)
     setShowCropModal(false)
     setErrorMessage(null)
@@ -143,17 +179,11 @@ export default function SettingsPage() {
       const mediaRes = await fetch('/api/media', {
         method: 'POST',
         body: mediaFormData,
-        credentials: 'include', // Nécessaire pour maintenir la session sur les PC du lycée
+        credentials: 'include',
       })
-      
-      if (!mediaRes.ok) {
-        throw new Error("Droits d'accès refusés par Payload sur la collection Media.")
-      }
-      
+      if (!mediaRes.ok) throw new Error("Droits d'accès refusés par Payload sur la collection Media.")
       const mediaData = await mediaRes.json()
-      
       if (mediaData?.doc?.id) {
-        // Enregistre directement la nouvelle relation en BDD pour qu'elle soit visible globalement
         setFormData((prev: any) => ({ ...prev, avatar: mediaData.doc }))
         await handleUpdateFields({ ...formData, avatar: mediaData.doc.id })
         setSuccessMessage("Photo de profil mise à jour et visible par tous les utilisateurs !")
@@ -167,12 +197,8 @@ export default function SettingsPage() {
   }
 
   const getAvatarUrl = () => {
-    if (formData.avatar && typeof formData.avatar === 'object' && formData.avatar.url) {
-      return formData.avatar.url
-    }
-    if (user?.avatar && typeof user.avatar === 'object' && user.avatar.url) {
-      return user.avatar.url
-    }
+    if (formData.avatar && typeof formData.avatar === 'object' && formData.avatar.url) return formData.avatar.url
+    if (user?.avatar && typeof user.avatar === 'object' && user.avatar.url) return user.avatar.url
     return `https://ui-avatars.com/api/?name=${formData.prenom}+${formData.nom}&size=180&background=800020&color=fff`
   }
 
@@ -189,7 +215,6 @@ export default function SettingsPage() {
             { id: 'params', label: 'Paramètres', icon: 'fa-solid fa-gear' },
             { id: 'notifs', label: 'Notifications', icon: 'fa-solid fa-bell' },
             { id: 'mentorat', label: 'Mentorat', icon: 'fa-solid fa-user-group' },
-            { id: 'signalements', label: 'Signalements', icon: 'fa-solid fa-circle-exclamation' }
           ].map((tab) => (
             <button
               key={tab.id}
@@ -209,7 +234,7 @@ export default function SettingsPage() {
         {errorMessage && <div className="mx-8 mt-6 p-3 bg-rose-50 text-rose-700 text-xs font-bold rounded-xl animate-in shake duration-200">{errorMessage}</div>}
 
         <div className="p-8 md:p-10">
-          
+
           {/* ================= ONGLET 1 : DONNÉES PERSONNELLES ================= */}
           {activeTab === 'profile' && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 text-left">
@@ -270,13 +295,10 @@ export default function SettingsPage() {
                 </button>
               </div>
 
-              {/* SECTEUR IMAGE DÉCLENCHEUR */}
+              {/* SECTEUR IMAGE */}
               <div className="lg:col-span-4 flex flex-col items-center lg:border-l border-gray-100 lg:pl-10 space-y-6">
                 <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Photo de profil</p>
-                
-                {/* Sécurité : value={''} permet de vider l'input et ré-importer la même image en boucle si besoin */}
                 <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handleFileSelection} value={''} />
-                
                 <div onClick={() => !uploadingAvatar && fileInputRef.current?.click()} className={`relative group w-44 h-44 rounded-2xl overflow-hidden border bg-gray-50 flex flex-col items-center justify-center cursor-pointer shadow-sm hover:scale-[1.02] transition-all ${uploadingAvatar ? 'animate-pulse' : ''}`}>
                   <img src={getAvatarUrl()} className="w-full h-full object-cover" alt="Avatar" />
                   <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity text-white font-bold text-xs">
@@ -284,7 +306,6 @@ export default function SettingsPage() {
                     <span>{uploadingAvatar ? 'Envoi...' : 'Changer la photo'}</span>
                   </div>
                 </div>
-                
                 <div className="w-full space-y-3 pt-6 border-t border-gray-100 text-center text-sm font-medium">
                   <p className="text-[11px] font-bold text-gray-500">CGU & Politique de Confidentialité</p>
                   <label className="flex items-center justify-center gap-2 text-xs text-gray-400">
@@ -301,26 +322,95 @@ export default function SettingsPage() {
 
           {/* ================= PARAMÈTRES DU COMPTE ================= */}
           {activeTab === 'params' && (
-            <div className="space-y-8 text-left max-w-4xl">
-              <h3 className="text-lg font-black text-gray-800 uppercase tracking-tight border-b border-gray-100 pb-2">Paramètres du compte</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
-                
-                <div className="space-y-2">
-                  <p className="font-bold text-sm text-gray-800">Visibilité du profil par les employeurs</p>
-                  <div className="flex gap-1 border border-gray-200 w-max p-1 bg-gray-50 rounded-xl">
-                    <button onClick={() => handleToggle('profileVisibility')} className={`px-4 py-1 rounded-lg text-xs font-bold uppercase ${formData.profileVisibility ? 'bg-white text-emerald-600' : 'text-gray-400'}`}>Oui</button>
-                    <button onClick={() => handleToggle('profileVisibility')} className={`px-4 py-1 rounded-lg text-xs font-bold uppercase ${!formData.profileVisibility ? 'bg-white text-rose-500' : 'text-gray-400'}`}>Non</button>
+            <div className="space-y-10 text-left max-w-4xl">
+              <div>
+                <h3 className="text-lg font-black text-gray-800 uppercase tracking-tight border-b border-gray-100 pb-2">Paramètres du compte</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8 mt-6">
+                  <div className="space-y-2">
+                    <p className="font-bold text-sm text-gray-800">Visibilité du profil par les employeurs</p>
+                    <div className="flex gap-1 border border-gray-200 w-max p-1 bg-gray-50 rounded-xl">
+                      <button onClick={() => handleToggle('profileVisibility')} className={`px-4 py-1 rounded-lg text-xs font-bold uppercase ${formData.profileVisibility ? 'bg-white text-emerald-600' : 'text-gray-400'}`}>Oui</button>
+                      <button onClick={() => handleToggle('profileVisibility')} className={`px-4 py-1 rounded-lg text-xs font-bold uppercase ${!formData.profileVisibility ? 'bg-white text-rose-500' : 'text-gray-400'}`}>Non</button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="font-bold text-sm text-gray-800">Intervenir dans l'établissement</p>
+                    <div className="flex gap-1 border border-gray-200 w-max p-1 bg-gray-50 rounded-xl">
+                      <button onClick={() => handleToggle('interveneEstablishment')} className={`px-4 py-1 rounded-lg text-xs font-bold uppercase ${formData.interveneEstablishment ? 'bg-white text-emerald-600 shadow-xs' : 'text-gray-400'}`}>Oui</button>
+                      <button onClick={() => handleToggle('interveneEstablishment')} className={`px-4 py-1 rounded-lg text-xs font-bold uppercase ${!formData.interveneEstablishment ? 'bg-white text-rose-500 shadow-xs' : 'text-gray-400'}`}>Non</button>
+                    </div>
                   </div>
                 </div>
+              </div>
 
-                <div className="space-y-2">
-                  <p className="font-bold text-sm text-gray-800">Intervenir dans l'établissement</p>
-                  <div className="flex gap-1 border border-gray-200 w-max p-1 bg-gray-50 rounded-xl">
-                    <button onClick={() => handleToggle('interveneEstablishment')} className={`px-4 py-1 rounded-lg text-xs font-bold uppercase ${formData.interveneEstablishment ? 'bg-white text-emerald-600 shadow-xs' : 'text-gray-400'}`}>Oui</button>
-                    <button onClick={() => handleToggle('interveneEstablishment')} className={`px-4 py-1 rounded-lg text-xs font-bold uppercase ${!formData.interveneEstablishment ? 'bg-white text-rose-500 shadow-xs' : 'text-gray-400'}`}>Non</button>
+              {/* COMPTES TIERS */}
+              <div className="pt-4">
+                <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-2 mb-6">Comptes tiers associés</h3>
+                <div className="max-w-xl space-y-4">
+
+                  {/* COMPTE GOOGLE */}
+                  <div className="flex justify-between items-center py-3.5 px-5 bg-gray-50/50 border border-gray-100 rounded-2xl">
+                    <div className="flex items-center gap-4">
+                      <div className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-100 shadow-xs">
+                        <i className="fa-brands fa-google text-gray-600 text-sm"></i>
+                      </div>
+                      <div>
+                        <p className="text-xs font-black uppercase text-gray-800 tracking-tight">Google ID Authenticator</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{formData.subGoogle ? 'Connexion à un clic active' : 'Non associé à votre profil'}</p>
+                      </div>
+                    </div>
+                    {formData.subGoogle ? (
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> En ligne
+                        </span>
+                        <button
+                          onClick={() => handleUnlinkProvider('google')}
+                          title="Désassocier Google"
+                          className="text-[10px] font-black uppercase tracking-wider bg-white border border-gray-200 hover:border-rose-400 text-gray-400 hover:text-rose-500 px-3 py-1.5 rounded-xl shadow-2xs transition-all active:scale-95"
+                        >
+                          <i className="fa-solid fa-xmark"></i>
+                        </button>
+                      </div>
+                    ) : (
+                      <a href={googleLinkUrl} className="text-[10px] font-black uppercase tracking-wider bg-white border border-gray-200 hover:border-purple-600 text-gray-700 hover:text-purple-600 px-4 py-2 rounded-xl shadow-2xs transition-all active:scale-95">
+                        Associer
+                      </a>
+                    )}
                   </div>
-                </div>
 
+                  {/* COMPTE LINKEDIN */}
+                  <div className="flex justify-between items-center py-3.5 px-5 bg-gray-50/50 border border-gray-100 rounded-2xl">
+                    <div className="flex items-center gap-4">
+                      <div className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-100 shadow-xs">
+                        <i className="fa-brands fa-linkedin-in text-gray-600 text-sm"></i>
+                      </div>
+                      <div>
+                        <p className="text-xs font-black uppercase text-gray-800 tracking-tight">LinkedIn Professional Connect</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{formData.subLinkedin ? 'Connexion à un clic active' : 'Non associé à votre profil'}</p>
+                      </div>
+                    </div>
+                    {formData.subLinkedin ? (
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> En ligne
+                        </span>
+                        <button
+                          onClick={() => handleUnlinkProvider('linkedin')}
+                          title="Désassocier LinkedIn"
+                          className="text-[10px] font-black uppercase tracking-wider bg-white border border-gray-200 hover:border-rose-400 text-gray-400 hover:text-rose-500 px-3 py-1.5 rounded-xl shadow-2xs transition-all active:scale-95"
+                        >
+                          <i className="fa-solid fa-xmark"></i>
+                        </button>
+                      </div>
+                    ) : (
+                      <a href={linkedinLinkUrl} className="text-[10px] font-black uppercase tracking-wider bg-white border border-gray-200 hover:border-purple-600 text-gray-700 hover:text-purple-600 px-4 py-2 rounded-xl shadow-2xs transition-all active:scale-95">
+                        Associer
+                      </a>
+                    )}
+                  </div>
+
+                </div>
               </div>
             </div>
           )}
@@ -357,12 +447,20 @@ export default function SettingsPage() {
             </div>
             <div className="flex gap-3 pt-2">
               <button onClick={handleSaveCroppedImage} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl text-xs uppercase shadow-md">Valider</button>
-              <button onClick={() => { setShowCropModal(false); setSelectedImageFile(null); setPreviewImageSrc(''); }} className="px-5 py-3 border rounded-xl font-bold text-xs uppercase text-gray-500">Annuler</button>
+              <button onClick={() => { setShowCropModal(false); setSelectedImageFile(null); setPreviewImageSrc('') }} className="px-5 py-3 border rounded-xl font-bold text-xs uppercase text-gray-500">Annuler</button>
             </div>
           </div>
         </div>
       )}
 
     </div>
+  )
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center font-bold text-enc animate-pulse uppercase">Chargement de l'environnement...</div>}>
+      <SettingsContent />
+    </Suspense>
   )
 }

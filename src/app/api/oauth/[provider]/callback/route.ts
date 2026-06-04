@@ -4,7 +4,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 interface OAuthUserData {
   email: string
   prenom: string
@@ -13,9 +12,6 @@ interface OAuthUserData {
   avatarUrl: string
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/** Normalise les champs nom/prénom avec fallbacks robustes */
 function normalizeName(given?: string, family?: string, full?: string): { prenom: string; nom: string } {
   const parts = full?.trim().split(' ') ?? []
   const prenom = (given?.trim() || parts[0] || 'Prénom').trim()
@@ -26,7 +22,6 @@ function normalizeName(given?: string, family?: string, full?: string): { prenom
   }
 }
 
-/** Échange le code OAuth Google contre les infos utilisateur */
 async function fetchGoogleUser(code: string, baseUrl: string): Promise<OAuthUserData> {
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
@@ -53,11 +48,9 @@ async function fetchGoogleUser(code: string, baseUrl: string): Promise<OAuthUser
   if (!u.email) throw new Error('Google: email manquant dans userinfo')
 
   const { prenom, nom } = normalizeName(u.given_name, u.family_name, u.name)
-
   return { email: u.email, prenom, nom, providerId: u.sub, avatarUrl: u.picture || '' }
 }
 
-/** Échange le code OAuth LinkedIn contre les infos utilisateur */
 async function fetchLinkedInUser(code: string, baseUrl: string): Promise<OAuthUserData> {
   const tokenRes = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
     method: 'POST',
@@ -84,11 +77,9 @@ async function fetchLinkedInUser(code: string, baseUrl: string): Promise<OAuthUs
   if (!u.email) throw new Error('LinkedIn: email manquant dans userinfo')
 
   const { prenom, nom } = normalizeName(u.given_name, u.family_name, u.name)
-
   return { email: u.email, prenom, nom, providerId: u.sub, avatarUrl: u.picture || '' }
 }
 
-/** Télécharge et enregistre un avatar distant dans la collection media */
 async function uploadAvatar(
   payload: Awaited<ReturnType<typeof getPayload>>,
   avatarUrl: string,
@@ -117,13 +108,11 @@ async function uploadAvatar(
   }
 }
 
-/** Construit un mot de passe stable et déterministe pour ce compte OAuth */
 function buildStablePassword(providerId: string): string {
   const secret = process.env.PAYLOAD_SECRET?.slice(0, 8) ?? 'fallback'
   return `OA-${providerId}-${secret}`
 }
 
-/** Construit la réponse HTML finale avec le cookie Payload recopié */
 function buildAuthResponse(rawSetCookie: string | null, token: string, redirectTo: string): NextResponse {
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
 <body><script>window.location.replace('${redirectTo}');</script></body></html>`
@@ -131,10 +120,8 @@ function buildAuthResponse(rawSetCookie: string | null, token: string, redirectT
   const response = new NextResponse(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
 
   if (rawSetCookie) {
-    // Recopier exactement le cookie posé par Payload (contient le sid de session)
     response.headers.append('set-cookie', rawSetCookie)
   } else {
-    // Fallback : poser le token manuellement
     response.cookies.set('payload-alumni-token', token, {
       path: '/',
       httpOnly: true,
@@ -147,7 +134,6 @@ function buildAuthResponse(rawSetCookie: string | null, token: string, redirectT
   return response
 }
 
-// ─── Handler principal ────────────────────────────────────────────────────────
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ provider: string }> }
@@ -158,7 +144,6 @@ export async function GET(
   const oauthError = searchParams.get('error')
   const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL!
 
-  // Annulation ou erreur côté fournisseur
   if (oauthError || !code) {
     return NextResponse.redirect(new URL('/login?error=auth_cancelled', req.url))
   }
@@ -166,7 +151,7 @@ export async function GET(
   const payload = await getPayload({ config: configPromise })
 
   try {
-    // ── 1. Récupération des données utilisateur depuis le fournisseur ─────────
+    // ── 1. Récupération des données utilisateur ───────────────────────────────
     let userData: OAuthUserData
 
     if (provider === 'google') {
@@ -181,26 +166,45 @@ export async function GET(
     const fieldToMatch = provider === 'google' ? 'subGoogle' : 'subLinkedin'
     const stablePassword = buildStablePassword(providerId)
 
-    // ── 2. Recherche du compte existant ───────────────────────────────────────
-    let userQuery = await payload.find({
-      collection: 'alumni',
-      where: { [fieldToMatch]: { equals: providerId } },
-      limit: 1,
-    })
+    let targetUser = null
+    let isLinkingProcess = false
 
-    // Fallback par email (compte créé manuellement avec le même email)
-    if (userQuery.docs.length === 0) {
-      userQuery = await payload.find({
-        collection: 'alumni',
-        where: { email: { equals: email } },
-        limit: 1,
-      })
+    // ── 2. Reconnaissance de session active ───────────────────────────────────
+    const tokenCookie = req.cookies.get('payload-alumni-token')?.value
+    if (tokenCookie) {
+      try {
+        const session = await payload.auth({ headers: req.headers }) as any
+        if (session?.user && session.collection === 'alumni') {
+          console.log(`[OAuth] Association détectée pour Alumni ID: ${session.user.id}`)
+          targetUser = await payload.findByID({ collection: 'alumni', id: session.user.id })
+          isLinkingProcess = true
+        }
+      } catch (e) {
+        console.log('[OAuth] Échec décodage session, repli sur login standard:', e)
+      }
     }
 
-    let targetUser = userQuery.docs[0]
+    // ── 3. Recherche du compte existant ───────────────────────────────────────
+    if (!targetUser) {
+      let userQuery = await payload.find({
+        collection: 'alumni',
+        where: { [fieldToMatch]: { equals: providerId } },
+        limit: 1,
+      })
+
+      if (userQuery.docs.length === 0) {
+        userQuery = await payload.find({
+          collection: 'alumni',
+          where: { email: { equals: email } },
+          limit: 1,
+        })
+      }
+      targetUser = userQuery.docs[0] ?? null
+    }
+
     const isNewUser = !targetUser
 
-    // ── 3. Avatar ─────────────────────────────────────────────────────────────
+    // ── 4. Avatar ─────────────────────────────────────────────────────────────
     let savedMediaId: string | null = null
     if (avatarUrl && (!targetUser || !targetUser.photo)) {
       savedMediaId = await uploadAvatar(payload, avatarUrl, prenom, nom, providerId)
@@ -210,7 +214,7 @@ export async function GET(
       ? (typeof targetUser.photo === 'object' ? String(targetUser.photo.id) : String(targetUser.photo))
       : (savedMediaId ?? null)
 
-    // ── 4. Création ou mise à jour du compte ──────────────────────────────────
+    // ── 5. Création ou mise à jour du compte ──────────────────────────────────
     if (isNewUser) {
       targetUser = await payload.create({
         collection: 'alumni',
@@ -224,42 +228,58 @@ export async function GET(
         },
       })
     } else {
+      // FIX: Toujours mettre à jour le mot de passe avec stablePassword pour garantir
+      // que le Login REST fonctionnera, même si le compte a été créé manuellement.
       targetUser = await payload.update({
-  collection: 'alumni',
-  id: targetUser.id,
-  data: {
-    [fieldToMatch]: providerId,
-    photo: photoToAssign ? Number(photoToAssign) : null,
-    password: stablePassword,
-  },
-})
+        collection: 'alumni',
+        id: targetUser.id,
+        overrideAccess: true,
+        data: {
+          [fieldToMatch]: providerId,
+          password: stablePassword,  // ← FIX CLEF : était conditionnel à isNewUser (toujours false ici)
+          photo: photoToAssign ? Number(photoToAssign) : null,
+        },
+      })
     }
 
-    // ── 5. Login REST pour obtenir le cookie officiel Payload (avec sid) ──────
+    // ── 6. Login REST ─────────────────────────────────────────────────────────
     const loginRes = await fetch(`${baseUrl}/api/alumni/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password: stablePassword }),
+      body: JSON.stringify({ email: targetUser.email, password: stablePassword }),
     })
 
     if (!loginRes.ok) {
-      throw new Error(`Login REST échoué (${loginRes.status})`)
+      const loginError = await loginRes.text()
+      console.error(`[OAuth/${provider}] Login REST échoué (${loginRes.status}):`, loginError)
+
+      // Si c'était une liaison depuis les settings, la session existante est encore valide
+      if (isLinkingProcess && tokenCookie) {
+        return buildAuthResponse(null, tokenCookie, '/settings?success=linked')
+      }
+
+      throw new Error(`Login REST échoué (${loginRes.status}): ${loginError}`)
     }
 
     const loginData = await loginRes.json()
     const token: string = loginData.token
     const rawSetCookie = loginRes.headers.get('set-cookie')
 
-    // ── 6. Redirection ────────────────────────────────────────────────────────
-    // Nouveau compte → page d'onboarding pour compléter le profil (statut, promo, diplôme)
-    // Compte existant → accueil directement
-    const redirectTo = isNewUser ? '/onboarding' : '/'
+    // ── 7. Redirection finale ─────────────────────────────────────────────────
+    let redirectTo = '/'
+    if (isLinkingProcess) {
+      redirectTo = '/settings?success=linked'
+    } else if (isNewUser) {
+      redirectTo = '/onboarding'
+    }
 
     return buildAuthResponse(rawSetCookie, token, redirectTo)
 
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    console.error(`[OAuth/${provider}] Erreur:`, message)
-    return NextResponse.redirect(new URL('/login?error=oauth_error', req.url))
+    console.error(`[OAuth/${provider}] Erreur fatale:`, message)
+    // FIX: Passer le message d'erreur dans l'URL pour faciliter le debug
+    const errorParam = encodeURIComponent(message.slice(0, 100))
+    return NextResponse.redirect(new URL(`/login?error=oauth_error&detail=${errorParam}`, req.url))
   }
 }
