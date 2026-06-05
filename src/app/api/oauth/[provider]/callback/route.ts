@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 
+// ─── Types ────────────────────────────────────────────────────────────────────
 interface OAuthUserData {
   email: string
   prenom: string
@@ -12,13 +13,13 @@ interface OAuthUserData {
   avatarUrl: string
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 function normalizeName(given?: string, family?: string, full?: string): { prenom: string; nom: string } {
   const parts = full?.trim().split(' ') ?? []
-  const prenom = (given?.trim() || parts[0] || 'Prénom').trim()
-  const nom = (family?.trim() || parts.slice(1).join(' ') || parts[0] || 'Nom').trim()
   return {
-    prenom: prenom || 'Prénom',
-    nom: nom || 'Nom',
+    prenom: (given?.trim() || parts[0] || 'Prénom').trim() || 'Prénom',
+    nom: (family?.trim() || parts.slice(1).join(' ') || parts[0] || 'Nom').trim() || 'Nom',
   }
 }
 
@@ -34,19 +35,14 @@ async function fetchGoogleUser(code: string, baseUrl: string): Promise<OAuthUser
       grant_type: 'authorization_code',
     }),
   })
-
   const tokenData = await tokenRes.json()
   if (!tokenData.access_token) {
-    throw new Error(`Google token exchange failed: ${tokenData.error_description ?? tokenData.error}`)
+    throw new Error(`Google token failed: ${tokenData.error_description ?? tokenData.error}`)
   }
-
-  const userRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+  const u = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
     headers: { Authorization: `Bearer ${tokenData.access_token}` },
-  })
-
-  const u = await userRes.json()
-  if (!u.email) throw new Error('Google: email manquant dans userinfo')
-
+  }).then(r => r.json())
+  if (!u.email) throw new Error('Google: email manquant')
   const { prenom, nom } = normalizeName(u.given_name, u.family_name, u.name)
   return { email: u.email, prenom, nom, providerId: u.sub, avatarUrl: u.picture || '' }
 }
@@ -63,19 +59,14 @@ async function fetchLinkedInUser(code: string, baseUrl: string): Promise<OAuthUs
       grant_type: 'authorization_code',
     }),
   })
-
   const tokenData = await tokenRes.json()
   if (!tokenData.access_token) {
-    throw new Error(`LinkedIn token exchange failed: ${tokenData.error_description ?? tokenData.error}`)
+    throw new Error(`LinkedIn token failed: ${tokenData.error_description ?? tokenData.error}`)
   }
-
-  const userRes = await fetch('https://api.linkedin.com/v2/userinfo', {
+  const u = await fetch('https://api.linkedin.com/v2/userinfo', {
     headers: { Authorization: `Bearer ${tokenData.access_token}` },
-  })
-
-  const u = await userRes.json()
-  if (!u.email) throw new Error('LinkedIn: email manquant dans userinfo')
-
+  }).then(r => r.json())
+  if (!u.email) throw new Error('LinkedIn: email manquant')
   const { prenom, nom } = normalizeName(u.given_name, u.family_name, u.name)
   return { email: u.email, prenom, nom, providerId: u.sub, avatarUrl: u.picture || '' }
 }
@@ -113,24 +104,49 @@ function buildStablePassword(providerId: string): string {
   return `OA-${providerId}-${secret}`
 }
 
-function buildAuthResponse(token: string, redirectTo: string): NextResponse {
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-<body><script>window.location.replace('${redirectTo}');</script></body></html>`
+// 🎯 Génération JWT directe — compatible Vercel (pas de fetch interne)
+// Payload CMS v3 utilise exactement ce format HS256
+async function generatePayloadJWT(
+  userId: string,
+  email: string,
+  secret: string,
+): Promise<string> {
+  const now = Math.floor(Date.now() / 1000)
 
-  const response = new NextResponse(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+  // Encodage Base64URL propre pour chaque partie
+  const toB64url = (input: Uint8Array): string =>
+    btoa(String.fromCharCode(...input))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '')
 
-  // Injection propre du cookie de session pour le client
-  response.cookies.set('payload-alumni-token', token, {
-    path: '/',
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 60 * 60 * 24 * 7, // 7 jours
-  })
+  const enc = new TextEncoder()
 
-  return response
+  const headerB64 = toB64url(enc.encode(JSON.stringify({ alg: 'HS256', typ: 'JWT' })))
+  const payloadB64 = toB64url(enc.encode(JSON.stringify({
+    id: userId,
+    collection: 'alumni',
+    email,
+    iat: now,
+    exp: now + 60 * 60 * 24 * 7, // 7 jours
+  })))
+
+  const signingInput = `${headerB64}.${payloadB64}`
+
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  )
+  const signature = await crypto.subtle.sign('HMAC', cryptoKey, enc.encode(signingInput))
+  const sigB64 = toB64url(new Uint8Array(signature))
+
+  return `${signingInput}.${sigB64}`
 }
 
+// ─── Handler principal ────────────────────────────────────────────────────────
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ provider: string }> }
@@ -139,9 +155,9 @@ export async function GET(
   const { searchParams } = new URL(req.url)
   const code = searchParams.get('code')
   const oauthError = searchParams.get('error')
-  
-  // Utilisation d'une sécurité si NEXT_PUBLIC_SERVER_URL est mal configuré au build
-  const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL || new URL(req.url).origin
+
+  // Fallback sur l'origin de la requête si NEXT_PUBLIC_SERVER_URL n'est pas défini
+  const baseUrl = (process.env.NEXT_PUBLIC_SERVER_URL || new URL(req.url).origin).replace(/\/$/, '')
 
   if (oauthError || !code) {
     return NextResponse.redirect(new URL('/login?error=auth_cancelled', req.url))
@@ -150,9 +166,8 @@ export async function GET(
   const payload = await getPayload({ config: configPromise })
 
   try {
-    // ── 1. Récupération des données utilisateur ───────────────────────────────
+    // ── 1. Données utilisateur depuis le fournisseur ──────────────────────────
     let userData: OAuthUserData
-
     if (provider === 'google') {
       userData = await fetchGoogleUser(code, baseUrl)
     } else if (provider === 'linkedin') {
@@ -165,55 +180,36 @@ export async function GET(
     const fieldToMatch = provider === 'google' ? 'subGoogle' : 'subLinkedin'
     const stablePassword = buildStablePassword(providerId)
 
-    let targetUser = null
-    let isLinkingProcess = false
-
-    // ── 2. Reconnaissance de session active ───────────────────────────────────
-    const tokenCookie = req.cookies.get('payload-alumni-token')?.value
-    if (tokenCookie) {
-      try {
-        const session = await payload.auth({ headers: req.headers }) as any
-        if (session?.user && session.collection === 'alumni') {
-          console.log(`[OAuth] Association détectée pour Alumni ID: ${session.user.id}`)
-          targetUser = await payload.findByID({ collection: 'alumni', id: session.user.id })
-          isLinkingProcess = true
-        }
-      } catch (e) {
-        console.log('[OAuth] Échec décodage session, repli sur login standard:', e)
-      }
-    }
-
-    // ── 3. Recherche du compte existant ───────────────────────────────────────
-    if (!targetUser) {
-      let userQuery = await payload.find({
+    // ── 2. Recherche du compte existant ───────────────────────────────────────
+    let userQuery = await payload.find({
+      collection: 'alumni',
+      where: { [fieldToMatch]: { equals: providerId } },
+      limit: 1,
+    })
+    if (userQuery.docs.length === 0) {
+      userQuery = await payload.find({
         collection: 'alumni',
-        where: { [fieldToMatch]: { equals: providerId } },
+        where: { email: { equals: email } },
         limit: 1,
       })
-
-      if (userQuery.docs.length === 0) {
-        userQuery = await payload.find({
-          collection: 'alumni',
-          where: { email: { equals: email } },
-          limit: 1,
-        })
-      }
-      targetUser = userQuery.docs[0] ?? null
     }
 
+    let targetUser = userQuery.docs[0] ?? null
     const isNewUser = !targetUser
 
-    // ── 4. Avatar ─────────────────────────────────────────────────────────────
+    // ── 3. Avatar ─────────────────────────────────────────────────────────────
     let savedMediaId: string | null = null
     if (avatarUrl && (!targetUser || !targetUser.photo)) {
       savedMediaId = await uploadAvatar(payload, avatarUrl, prenom, nom, providerId)
     }
 
     const photoToAssign = targetUser?.photo
-      ? (typeof targetUser.photo === 'object' ? String(targetUser.photo.id) : String(targetUser.photo))
-      : (savedMediaId ?? null)
+      ? (typeof targetUser.photo === 'object'
+          ? Number((targetUser.photo as any).id)
+          : Number(targetUser.photo))
+      : (savedMediaId ? Number(savedMediaId) : null)
 
-    // ── 5. Création ou mise à jour du compte ──────────────────────────────────
+    // ── 4. Création ou mise à jour ────────────────────────────────────────────
     if (isNewUser) {
       targetUser = await payload.create({
         collection: 'alumni',
@@ -229,45 +225,47 @@ export async function GET(
     } else {
       targetUser = await payload.update({
         collection: 'alumni',
-        id: targetUser.id,
+        id: targetUser!.id,
         overrideAccess: true,
         data: {
           [fieldToMatch]: providerId,
           password: stablePassword,
-          photo: photoToAssign ? Number(photoToAssign) : null,
+          photo: photoToAssign,
         },
       })
     }
 
-    // ── 6. Login via l'API Interne de Payload (Plus besoin de fetch API !) ───
-    const loginResult = await payload.login({
-      collection: 'alumni',
-      data: {
-        email: targetUser.email,
-        password: stablePassword,
-      },
+    // ── 5. Génération JWT sans fetch interne (Vercel-safe) ────────────────────
+    const token = await generatePayloadJWT(
+      String(targetUser.id),
+      targetUser.email,
+      payload.secret,
+    )
+
+    // ── 6. Réponse avec cookie ────────────────────────────────────────────────
+    const redirectTo = isNewUser ? '/onboarding' : '/'
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body><script>window.location.replace('${redirectTo}');</script></body></html>`
+
+    const response = new NextResponse(html, {
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
     })
 
-    if (!loginResult.token) {
-      throw new Error("Impossible de générer le token via Payload local login")
-    }
+    response.cookies.set('payload-alumni-token', token, {
+      path: '/',
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7,
+    })
 
-    const token = loginResult.token
-
-    // ── 7. Redirection finale ─────────────────────────────────────────────────
-    let redirectTo = '/'
-    if (isLinkingProcess) {
-      redirectTo = '/settings?success=linked'
-    } else if (isNewUser) {
-      redirectTo = '/onboarding'
-    }
-
-    return buildAuthResponse(token, redirectTo)
+    return response
 
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
-    console.error(`[OAuth/${provider}] Erreur fatale:`, message)
-    const errorParam = encodeURIComponent(message.slice(0, 100))
-    return NextResponse.redirect(new URL(`/login?error=oauth_error&detail=${errorParam}`, req.url))
+    console.error(`[OAuth/${provider}] Erreur:`, message)
+    return NextResponse.redirect(
+      new URL(`/login?error=oauth_error&detail=${encodeURIComponent(message.slice(0, 100))}`, req.url)
+    )
   }
 }
