@@ -35,11 +35,15 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET || '',
 })
 
+// Un adapter stable qui ne plante jamais le build Next.js, même si les clés sont vides temporairement
 const customCloudinaryAdapter = () => ({
   name: 'cloudinary-adapter',
   
-  // Upload vers Cloudinary
   async handleUpload({ file }: any) {
+    if (!cloudName) {
+      console.warn('Cloudinary non configuré en local. Upload simulé.')
+      return
+    }
     try {
       const uploadResult = await new Promise<any>((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
@@ -57,7 +61,6 @@ const customCloudinaryAdapter = () => ({
         stream.end(file.buffer)
       })
 
-      // On met à jour les métadonnées pour Payload
       file.filename = uploadResult.public_id
       file.mimeType = uploadResult.format
       file.filesize = uploadResult.bytes
@@ -67,8 +70,8 @@ const customCloudinaryAdapter = () => ({
     }
   },
 
-  // Suppression depuis Cloudinary
   async handleDelete({ filename }: any) {
+    if (!cloudName) return
     try {
       await cloudinary.uploader.destroy(filename)
     } catch (err) {
@@ -76,7 +79,6 @@ const customCloudinaryAdapter = () => ({
     }
   },
 
-  // Handler statique requis
   staticHandler() {
     return new Response('Served by Cloudinary', { status: 200 })
   },
@@ -145,13 +147,14 @@ export default buildConfig({
   }),
   sharp,
   plugins: [
-    cloudName && cloudStoragePlugin({
+    // On active le plugin de manière permanente pour qu'il soit TOUJOURS présent au build
+    cloudStoragePlugin({
       collections: {
         media: {
-          // 🎯 FIX ICI : Ajout du "as any" pour court-circuiter l'erreur de type sur l'adapter
           adapter: customCloudinaryAdapter() as any, 
-          disableLocalStorage: true,
+          disableLocalStorage: process.env.NODE_ENV === 'production', // Désactivé uniquement en prod
           generateFileURL: ({ filename }) => {
+            if (!cloudName) return `/api/media/file/${filename}` // Fallback local si pas de clé
             return cloudinary.url(filename, {
               secure: true,
               fetch_format: 'auto',
@@ -161,5 +164,5 @@ export default buildConfig({
         },
       },
     }),
-  ].filter(Boolean) as any,
+  ],
 })
