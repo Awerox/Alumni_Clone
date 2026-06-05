@@ -1,5 +1,5 @@
 'use client'
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 
@@ -61,7 +61,7 @@ function PasswordInput({
   )
 }
 
-export default function LoginPage() {
+function LoginContent() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(false)
@@ -77,17 +77,19 @@ export default function LoginPage() {
   const redirectTo = sanitizeRedirect(searchParams.get('redirect'))
   const message = searchParams.get('message')
 
-  // Construction des URLs OAuth basées sur les variables d'environnement publiques et sécurisées
+  // 🎯 DYNAMISATION DES REDIRECTIONS : S'adapte automatiquement entre localhost et Vercel
+  const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3000'
+
   const loginWithGoogleUrl = `https://accounts.google.com/o/oauth2/v2/auth?` + new URLSearchParams({
     client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '',
-    redirect_uri: 'http://localhost:3000/api/oauth/google/callback',
+    redirect_uri: `${baseUrl}/api/oauth/google/callback`,
     response_type: 'code',
     scope: 'openid email profile',
   }).toString()
 
   const loginWithLinkedinUrl = `https://www.linkedin.com/oauth/v2/authorization?` + new URLSearchParams({
     client_id: process.env.NEXT_PUBLIC_LINKEDIN_CLIENT_ID || '',
-    redirect_uri: 'http://localhost:3000/api/oauth/linkedin/callback',
+    redirect_uri: `${baseUrl}/api/oauth/linkedin/callback`,
     response_type: 'code',
     scope: 'openid profile email',
   }).toString()
@@ -293,5 +295,14 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+// ─── 🛡️ EXPORT GLOBAL ENVELOPPÉ DANS UN PÉRIMÈTRE DE SUSPENSE (OBLIGATOIRE POUR VERCEL PROD BUILD) ───
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center font-bold text-enc animate-pulse uppercase">Chargement de l'environnement...</div>}>
+      <LoginContent />
+    </Suspense>
   )
 }
