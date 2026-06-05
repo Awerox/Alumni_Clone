@@ -66,8 +66,12 @@ function LoginContent() {
   const message = searchParams.get('message')
   const rawRedirect = searchParams.get('redirect')
 
-  const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3000'
-  const redirectUri = `${baseUrl}/api/oauth/google/callback`
+  // Récupération dynamique de l'URL au runtime client
+  const getBaseUrl = () => {
+    if (process.env.NEXT_PUBLIC_SERVER_URL) return process.env.NEXT_PUBLIC_SERVER_URL
+    if (typeof window !== 'undefined') return window.location.origin
+    return 'http://localhost:3000'
+  }
 
   let redirectTo = '/'
   if (rawRedirect) {
@@ -83,26 +87,41 @@ function LoginContent() {
     }
   }
 
-  const loginWithGoogleUrl = `https://accounts.google.com/o/oauth2/v2/auth?` + new URLSearchParams({
-    client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '',
-    redirect_uri: `${baseUrl}/api/oauth/google/callback`,
-    response_type: 'code',
-    scope: 'openid email profile',
-  }).toString()
+  // 🎯 GESTIONNAIRES DE CLICS DYNAMIQUES (Calculé à la milliseconde près lors du clic)
+  const handleGoogleLogin = (e: React.MouseEvent) => {
+    e.preventDefault()
+    if (isLocked) return
+    
+    const baseUrl = getBaseUrl()
+    const url = `https://accounts.google.com/o/oauth2/v2/auth?` + new URLSearchParams({
+      client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '',
+      redirect_uri: `${baseUrl}/api/oauth/google/callback`,
+      response_type: 'code',
+      scope: 'openid email profile',
+    }).toString()
+    
+    window.location.href = url
+  }
 
-  const loginWithLinkedinUrl = `https://www.linkedin.com/oauth/v2/authorization?` + new URLSearchParams({
-    client_id: process.env.NEXT_PUBLIC_LINKEDIN_CLIENT_ID || '',
-    redirect_uri: `${baseUrl}/api/oauth/linkedin/callback`,
-    response_type: 'code',
-    scope: 'openid profile email',
-  }).toString()
+  const handleLinkedinLogin = (e: React.MouseEvent) => {
+    e.preventDefault()
+    if (isLocked) return
+    
+    const baseUrl = getBaseUrl()
+    const url = `https://www.linkedin.com/oauth/v2/authorization?` + new URLSearchParams({
+      client_id: process.env.NEXT_PUBLIC_LINKEDIN_CLIENT_ID || '',
+      redirect_uri: `${baseUrl}/api/oauth/linkedin/callback`,
+      response_type: 'code',
+      scope: 'openid profile email',
+    }).toString()
+    
+    window.location.href = url
+  }
 
-  // Affiche le message de succès post-inscription
   useEffect(() => {
     if (message) setSuccessMsg(message)
   }, [message])
 
-  // Compte à rebours de lockout
   useEffect(() => {
     if (!lockoutUntil) return
     const interval = setInterval(() => {
@@ -163,9 +182,7 @@ function LoginContent() {
             E
           </div>
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Accédez à votre réseau</h1>
-          <p className="mt-2 text-sm text-gray-600">
-            Connectez-vous pour retrouver vos anciens camarades.
-          </p>
+          <p className="mt-2 text-sm text-gray-600">Connectez-vous pour retrouver vos anciens camarades.</p>
         </div>
 
         {successMsg && (
@@ -203,24 +220,33 @@ function LoginContent() {
           </button>
         </form>
 
-        {/* 🔘 SÉPARATEUR INTERMÉDIAIRE POUR L'ACCÈS SOCIAL */}
         <div className="relative flex py-2 items-center text-gray-300">
           <div className="flex-grow border-t border-gray-200/70"></div>
           <span className="flex-shrink mx-3 text-[9px] font-black uppercase text-gray-400 select-none">Ou continuer avec</span>
           <div className="flex-grow border-t border-gray-200/70"></div>
         </div>
 
-        {/* 🤝 BOUTONS DE CONNEXION GOOGLE & LINKEDIN */}
+        {/* 🤝 BOUTONS SÉCURISÉS AVEC APPELS DYNAMIQUES */}
         <div className="grid grid-cols-2 gap-3 text-xs font-bold text-gray-700">
-          <a href={isLocked ? '#' : loginWithGoogleUrl} onClick={(e) => isLocked && e.preventDefault()} className={`flex items-center justify-center gap-2 py-3 border border-gray-200 rounded-xl bg-white hover:bg-gray-50 transition-colors shadow-2xs ${isLocked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}>
+          <button 
+            type="button"
+            onClick={handleGoogleLogin} 
+            disabled={isLocked}
+            className={`flex items-center justify-center gap-2 py-3 border border-gray-200 rounded-xl bg-white hover:bg-gray-50 transition-colors shadow-2xs ${isLocked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+          >
             <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4 select-none" alt="" />
             <span>Google</span>
-          </a>
+          </button>
 
-          <a href={isLocked ? '#' : loginWithLinkedinUrl} onClick={(e) => isLocked && e.preventDefault()} className={`flex items-center justify-center gap-2 py-3 border border-gray-200 rounded-xl bg-white hover:bg-gray-50 transition-colors shadow-2xs ${isLocked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}>
+          <button 
+            type="button"
+            onClick={handleLinkedinLogin} 
+            disabled={isLocked}
+            className={`flex items-center justify-center gap-2 py-3 border border-gray-200 rounded-xl bg-white hover:bg-gray-50 transition-colors shadow-2xs ${isLocked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+          >
             <img src="https://www.svgrepo.com/show/475661/linkedin-color.svg" className="w-4 h-4 select-none" alt="" />
             <span>LinkedIn</span>
-          </a>
+          </button>
         </div>
 
         <p className="text-center text-xs font-medium text-gray-500 pt-2">
@@ -232,7 +258,6 @@ function LoginContent() {
   )
 }
 
-// ─── 🛡️ EXPORT GLOBAL SOUS PROTÉGÉ PAR LE BLOC SUSPENSE ───
 export default function LoginPage() {
   return (
     <Suspense fallback={<div className="min-h-screen flex items-center justify-center font-bold text-enc animate-pulse uppercase">Chargement de l'environnement...</div>}>
