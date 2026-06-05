@@ -6,18 +6,6 @@ import { useSearchParams, useRouter } from 'next/navigation'
 const MAX_ATTEMPTS = 5
 const LOCKOUT_SECONDS = 30
 
-// Valide que la redirect est un chemin interne (jamais une URL externe)
-function sanitizeRedirect(url: string | null): string {
-  if (!url) return '/'
-  try {
-    const parsed = new URL(url, window.location.origin)
-    if (parsed.origin !== window.location.origin) return '/'
-    return parsed.pathname + parsed.search
-  } catch {
-    return url.startsWith('/') ? url : '/'
-  }
-}
-
 function PasswordInput({
   value,
   onChange,
@@ -74,11 +62,26 @@ function LoginContent() {
 
   const searchParams = useSearchParams()
   const router = useRouter()
-  const redirectTo = sanitizeRedirect(searchParams.get('redirect'))
+  
   const message = searchParams.get('message')
+  const rawRedirect = searchParams.get('redirect')
 
-  // 🎯 DYNAMISATION DES REDIRECTIONS : S'adapte automatiquement entre localhost et Vercel
+  // 🎯 CALCUL ENTIÈREMENT DYNAMIQUE DANS LE BLOC DE SUSPENSE
   const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3000'
+
+  let redirectTo = '/'
+  if (rawRedirect) {
+    try {
+      if (typeof window !== 'undefined') {
+        const parsed = new URL(rawRedirect, window.location.origin)
+        if (parsed.origin === window.location.origin) {
+          redirectTo = parsed.pathname + parsed.search
+        }
+      }
+    } catch {
+      redirectTo = rawRedirect.startsWith('/') ? rawRedirect : '/'
+    }
+  }
 
   const loginWithGoogleUrl = `https://accounts.google.com/o/oauth2/v2/auth?` + new URLSearchParams({
     client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '',
@@ -132,12 +135,6 @@ function LoginContent() {
         body: JSON.stringify({ email, password, rememberMe }),
       })
 
-      const contentType = res.headers.get('content-type')
-      let data: any = {}
-      if (contentType?.includes('application/json')) {
-        data = await res.json()
-      }
-
       if (res.ok) {
         window.location.href = redirectTo
       } else {
@@ -146,13 +143,9 @@ function LoginContent() {
 
         if (newAttempts >= MAX_ATTEMPTS) {
           setLockoutUntil(Date.now() + LOCKOUT_SECONDS * 1000)
-          setError(
-            `Trop de tentatives. Veuillez attendre ${LOCKOUT_SECONDS} secondes avant de réessayer.`,
-          )
+          setError(`Trop de tentatives. Veuillez attendre ${LOCKOUT_SECONDS} secondes avant de réessayer.`)
         } else {
-          setError(
-            `Identifiants incorrects. ${MAX_ATTEMPTS - newAttempts} tentative(s) restante(s).`,
-          )
+          setError(`Identifiants incorrects. ${MAX_ATTEMPTS - newAttempts} tentative(s) restante(s).`)
         }
       }
     } catch {
@@ -176,86 +169,37 @@ function LoginContent() {
         </div>
 
         {successMsg && (
-          <div
-            role="alert"
-            className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 px-4 py-3 rounded-xl text-sm font-medium"
-          >
+          <div role="alert" className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 px-4 py-3 rounded-xl text-sm font-medium">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="flex-shrink-0"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
             {successMsg}
           </div>
         )}
 
         <form className="space-y-4" onSubmit={handleLogin} noValidate>
-          {error && (
-            <p
-              role="alert"
-              className="text-red-600 text-xs font-bold text-center bg-red-50 py-2.5 px-4 rounded-xl border border-red-100"
-            >
-              {error}
-            </p>
-          )}
+          {error && <p role="alert" className="text-red-600 text-xs font-bold text-center bg-red-50 py-2.5 px-4 rounded-xl border border-red-100">{error}</p>}
 
           <div className="space-y-4">
             <div>
-              <label
-                htmlFor="email"
-                className="block text-xs font-bold uppercase text-gray-500 tracking-wider pl-0.5"
-              >
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                required
-                disabled={isSubmitting || isLocked}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoComplete="email"
-                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-enc/20 focus:border-enc outline-none transition-all disabled:opacity-50 text-sm font-medium"
-                placeholder="votre@email.com"
-              />
+              <label htmlFor="email" className="block text-xs font-bold uppercase text-gray-500 tracking-wider pl-0.5">Email</label>
+              <input id="email" type="email" required disabled={isSubmitting || isLocked} value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-enc/20 focus:border-enc outline-none transition-all disabled:opacity-50 text-sm font-medium" placeholder="votre@email.com" />
             </div>
 
             <div>
-              <label
-                htmlFor="password"
-                className="block text-xs font-bold uppercase text-gray-500 tracking-wider pl-0.5"
-              >
-                Mot de passe
-              </label>
-              <PasswordInput
-                value={password}
-                onChange={setPassword}
-                disabled={isSubmitting || isLocked}
-              />
+              <label htmlFor="password" className="block text-xs font-bold uppercase text-gray-500 tracking-wider pl-0.5">Mot de passe</label>
+              <PasswordInput value={password} onChange={setPassword} disabled={isSubmitting || isLocked} />
             </div>
           </div>
 
           <div className="flex items-center justify-between">
             <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300 text-enc focus:ring-enc"
-              />
+              <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-enc focus:ring-enc" />
               <span className="text-xs font-medium text-gray-600">Se souvenir de moi</span>
             </label>
-            <Link href="/forgot" className="text-xs font-bold text-enc hover:underline">
-              Mot de passe oublié ?
-            </Link>
+            <Link href="/forgot" className="text-xs font-bold text-enc hover:underline">Mot de passe oublié ?</Link>
           </div>
 
-          <button
-            type="submit"
-            disabled={isSubmitting || isLocked}
-            className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-md text-xs font-black uppercase tracking-widest text-white bg-enc hover:brightness-110 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isLocked
-              ? `Réessayez dans ${countdown}s`
-              : isSubmitting
-              ? 'Connexion en cours...'
-              : 'Se connecter'}
+          <button type="submit" disabled={isSubmitting || isLocked} className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-md text-xs font-black uppercase tracking-widest text-white bg-enc hover:brightness-110 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed">
+            {isLocked ? `Réessayez dans ${countdown}s` : isSubmitting ? 'Connexion en cours...' : 'Se connecter'}
           </button>
         </form>
 
@@ -268,20 +212,12 @@ function LoginContent() {
 
         {/* 🤝 BOUTONS DE CONNEXION GOOGLE & LINKEDIN */}
         <div className="grid grid-cols-2 gap-3 text-xs font-bold text-gray-700">
-          <a
-            href={isLocked ? '#' : loginWithGoogleUrl}
-            onClick={(e) => isLocked && e.preventDefault()}
-            className={`flex items-center justify-center gap-2 py-3 border border-gray-200 rounded-xl bg-white hover:bg-gray-50 transition-colors shadow-2xs ${isLocked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
-          >
+          <a href={isLocked ? '#' : loginWithGoogleUrl} onClick={(e) => isLocked && e.preventDefault()} className={`flex items-center justify-center gap-2 py-3 border border-gray-200 rounded-xl bg-white hover:bg-gray-50 transition-colors shadow-2xs ${isLocked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}>
             <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4 select-none" alt="" />
             <span>Google</span>
           </a>
 
-          <a
-            href={isLocked ? '#' : loginWithLinkedinUrl}
-            onClick={(e) => isLocked && e.preventDefault()}
-            className={`flex items-center justify-center gap-2 py-3 border border-gray-200 rounded-xl bg-white hover:bg-gray-50 transition-colors shadow-2xs ${isLocked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
-          >
+          <a href={isLocked ? '#' : loginWithLinkedinUrl} onClick={(e) => isLocked && e.preventDefault()} className={`flex items-center justify-center gap-2 py-3 border border-gray-200 rounded-xl bg-white hover:bg-gray-50 transition-colors shadow-2xs ${isLocked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}>
             <img src="https://www.svgrepo.com/show/475661/linkedin-color.svg" className="w-4 h-4 select-none" alt="" />
             <span>LinkedIn</span>
           </a>
@@ -289,16 +225,14 @@ function LoginContent() {
 
         <p className="text-center text-xs font-medium text-gray-500 pt-2">
           Pas encore de compte ?{' '}
-          <Link href="/new" className="font-black text-enc hover:underline">
-            S'inscrire
-          </Link>
+          <Link href="/new" className="font-black text-enc hover:underline">S'inscrire</Link>
         </p>
       </div>
     </div>
   )
 }
 
-// ─── 🛡️ EXPORT GLOBAL ENVELOPPÉ DANS UN PÉRIMÈTRE DE SUSPENSE (OBLIGATOIRE POUR VERCEL PROD BUILD) ───
+// ─── 🛡️ EXPORT GLOBAL SOUS PROTÉGÉ PAR LE BLOC SUSPENSE ───
 export default function LoginPage() {
   return (
     <Suspense fallback={<div className="min-h-screen flex items-center justify-center font-bold text-enc animate-pulse uppercase">Chargement de l'environnement...</div>}>
