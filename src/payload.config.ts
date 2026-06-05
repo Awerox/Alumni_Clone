@@ -89,21 +89,15 @@ export default buildConfig({
   }),
   sharp,
   plugins: [
-    // 🎯 FIX CRASH : On n'exécute l'instanciation QUE si les variables sont validées.
-    // Sinon, on passe un tableau vide, ce qui évite l'erreur d'initialisation au build.
-    ...(isCloudinaryReady 
-      ? [
-          (cloudinaryStorage as any)({
-            collections: {
-              media: true,
-            },
-            config: {
-              cloud_name: cloudName,
-              api_key: apiKey,
-              api_secret: apiSecret,
-            },
-          })
-        ]
-      : [])
-  ],
+  cloudinaryStorage({
+    cloudConfig: {
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      api_secret: process.env.CLOUDINARY_API_SECRET,
+    },
+    collections: {
+      media: true,
+    },
+  }),
+],
 })

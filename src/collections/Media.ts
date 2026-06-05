@@ -5,6 +5,7 @@ export const Media: CollectionConfig = {
   slug: 'media',
   upload: {
     staticDir: path.resolve(process.cwd(), 'media'),
+    disableLocalStorage: true, // ✅ Ajouté : Cloudinary gère le stockage
   },
   access: {
     read: () => true,
@@ -21,3 +22,5 @@ export const Media: CollectionConfig = {
     },
   ],
 }
+
+export default Media
