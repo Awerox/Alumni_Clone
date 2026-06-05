@@ -3,8 +3,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
+import { sign } from 'jsonwebtoken'
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 interface OAuthUserData {
   email: string
   prenom: string
@@ -13,9 +13,7 @@ interface OAuthUserData {
   avatarUrl: string
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function normalizeName(given?: string, family?: string, full?: string): { prenom: string; nom: string } {
+function normalizeName(given?: string, family?: string, full?: string) {
   const parts = full?.trim().split(' ') ?? []
   return {
     prenom: (given?.trim() || parts[0] || 'Prénom').trim() || 'Prénom',
@@ -36,9 +34,7 @@ async function fetchGoogleUser(code: string, baseUrl: string): Promise<OAuthUser
     }),
   })
   const tokenData = await tokenRes.json()
-  if (!tokenData.access_token) {
-    throw new Error(`Google token failed: ${tokenData.error_description ?? tokenData.error}`)
-  }
+  if (!tokenData.access_token) throw new Error(`Google token failed: ${tokenData.error}`)
   const u = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
     headers: { Authorization: `Bearer ${tokenData.access_token}` },
   }).then(r => r.json())
@@ -60,9 +56,7 @@ async function fetchLinkedInUser(code: string, baseUrl: string): Promise<OAuthUs
     }),
   })
   const tokenData = await tokenRes.json()
-  if (!tokenData.access_token) {
-    throw new Error(`LinkedIn token failed: ${tokenData.error_description ?? tokenData.error}`)
-  }
+  if (!tokenData.access_token) throw new Error(`LinkedIn token failed: ${tokenData.error}`)
   const u = await fetch('https://api.linkedin.com/v2/userinfo', {
     headers: { Authorization: `Bearer ${tokenData.access_token}` },
   }).then(r => r.json())
@@ -86,67 +80,16 @@ async function uploadAvatar(
       collection: 'media',
       overrideAccess: true,
       data: { alt: `Photo de profil de ${prenom} ${nom}` },
-      file: {
-        data: buffer,
-        name: `oauth-avatar-${providerId}.jpg`,
-        mimetype: 'image/jpeg',
-        size: buffer.length,
-      },
+      file: { data: buffer, name: `oauth-avatar-${providerId}.jpg`, mimetype: 'image/jpeg', size: buffer.length },
     })
     return String(uploaded.id)
-  } catch {
-    return null
-  }
+  } catch { return null }
 }
 
 function buildStablePassword(providerId: string): string {
-  const secret = process.env.PAYLOAD_SECRET?.slice(0, 8) ?? 'fallback'
-  return `OA-${providerId}-${secret}`
+  return `OA-${providerId}-${process.env.PAYLOAD_SECRET?.slice(0, 8) ?? 'fallback'}`
 }
 
-// 🎯 Génération JWT directe — compatible Vercel (pas de fetch interne)
-// Payload CMS v3 utilise exactement ce format HS256
-async function generatePayloadJWT(
-  userId: string,
-  email: string,
-  secret: string,
-): Promise<string> {
-  const now = Math.floor(Date.now() / 1000)
-
-  // Encodage Base64URL propre pour chaque partie
-  const toB64url = (input: Uint8Array): string =>
-    btoa(String.fromCharCode(...input))
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=/g, '')
-
-  const enc = new TextEncoder()
-
-  const headerB64 = toB64url(enc.encode(JSON.stringify({ alg: 'HS256', typ: 'JWT' })))
-  const payloadB64 = toB64url(enc.encode(JSON.stringify({
-    id: userId,
-    collection: 'alumni',
-    email,
-    iat: now,
-    exp: now + 60 * 60 * 24 * 7, // 7 jours
-  })))
-
-  const signingInput = `${headerB64}.${payloadB64}`
-
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw',
-    enc.encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  )
-  const signature = await crypto.subtle.sign('HMAC', cryptoKey, enc.encode(signingInput))
-  const sigB64 = toB64url(new Uint8Array(signature))
-
-  return `${signingInput}.${sigB64}`
-}
-
-// ─── Handler principal ────────────────────────────────────────────────────────
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ provider: string }> }
@@ -155,8 +98,6 @@ export async function GET(
   const { searchParams } = new URL(req.url)
   const code = searchParams.get('code')
   const oauthError = searchParams.get('error')
-
-  // Fallback sur l'origin de la requête si NEXT_PUBLIC_SERVER_URL n'est pas défini
   const baseUrl = (process.env.NEXT_PUBLIC_SERVER_URL || new URL(req.url).origin).replace(/\/$/, '')
 
   if (oauthError || !code) {
@@ -166,7 +107,7 @@ export async function GET(
   const payload = await getPayload({ config: configPromise })
 
   try {
-    // ── 1. Données utilisateur depuis le fournisseur ──────────────────────────
+    // ── 1. Données fournisseur ────────────────────────────────────────────────
     let userData: OAuthUserData
     if (provider === 'google') {
       userData = await fetchGoogleUser(code, baseUrl)
@@ -180,7 +121,7 @@ export async function GET(
     const fieldToMatch = provider === 'google' ? 'subGoogle' : 'subLinkedin'
     const stablePassword = buildStablePassword(providerId)
 
-    // ── 2. Recherche du compte existant ───────────────────────────────────────
+    // ── 2. Recherche du compte ────────────────────────────────────────────────
     let userQuery = await payload.find({
       collection: 'alumni',
       where: { [fieldToMatch]: { equals: providerId } },
@@ -235,12 +176,23 @@ export async function GET(
       })
     }
 
-    // ── 5. Génération JWT sans fetch interne (Vercel-safe) ────────────────────
-    const token = await generatePayloadJWT(
-      String(targetUser.id),
-      targetUser.email,
-      payload.secret,
+    // ── 5. Génération JWT avec jsonwebtoken — même lib que Payload utilise ────
+    // Payload v3 signe ses tokens avec jsonwebtoken HS256
+    // On reproduit exactement le même appel que Payload fait en interne
+    const secret = payload.secret
+    const token = sign(
+      {
+        id: String(targetUser.id),
+        collection: 'alumni',
+        email: targetUser.email,
+      },
+      secret,
+      {
+        expiresIn: '7d',
+      },
     )
+
+    console.log(`[OAuth/${provider}] ✅ Token généré pour id=${targetUser.id}`)
 
     // ── 6. Réponse avec cookie ────────────────────────────────────────────────
     const redirectTo = isNewUser ? '/onboarding' : '/'
