@@ -25,9 +25,8 @@ import { PublicMessages } from './collections/PublicMessages'
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
-// ─── ☁️ CONFIGURATION ET ADAPTER PERSONNALISÉ CLOUDINARY ───────────────────
+// ─── ☁️ CONFIGURATION CLOUDINARY ───────────────────────────────────────────
 
-// Harmonisation du nom de la variable pour Vercel / Cloudinary
 const cloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_NAME || ''
 
 cloudinary.config({
@@ -36,7 +35,7 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET || '',
 })
 
-const customCloudinaryAdapter = {
+const customCloudinaryAdapter = () => ({
   name: 'cloudinary-adapter',
   
   // Upload vers Cloudinary
@@ -46,7 +45,7 @@ const customCloudinaryAdapter = {
         const stream = cloudinary.uploader.upload_stream(
           {
             resource_type: 'auto',
-            folder: 'media', // Crée ou utilise le dossier "media" sur Cloudinary
+            folder: 'media',
             overwrite: false,
             use_filename: true,
           },
@@ -77,11 +76,11 @@ const customCloudinaryAdapter = {
     }
   },
 
-  // Handler statique (Requis par l'interface d'adapter de Payload)
+  // Handler statique requis
   staticHandler() {
     return new Response('Served by Cloudinary', { status: 200 })
   },
-}
+})
 
 // ─── 🏗️ CONFIGURATION GÉNÉRALE PAYLOAD v3 ───────────────────────────────────
 
@@ -100,7 +99,7 @@ export default buildConfig({
       ...Alumni,
       auth: {
         ...(typeof Alumni.auth === 'object' ? Alumni.auth : {}),
-        tokenExpiration: 60 * 60 * 24 * 7,  // Session active pendant 7 jours
+        tokenExpiration: 60 * 60 * 24 * 7,
         cookieName: 'payload-alumni-token',
         cookies: {
           secure: process.env.NODE_ENV === 'production',
@@ -146,14 +145,13 @@ export default buildConfig({
   }),
   sharp,
   plugins: [
-    // L'adapter cloud ne s'active en production que si les clés Cloudinary sont renseignées
     cloudName && cloudStoragePlugin({
       collections: {
         media: {
-          adapter: customCloudinaryAdapter as any,
-          disableLocalStorage: true, // Bloque l'écriture locale (impératif pour le Read-Only de Vercel)
+          // 🎯 FIX ICI : Ajout du "as any" pour court-circuiter l'erreur de type sur l'adapter
+          adapter: customCloudinaryAdapter() as any, 
+          disableLocalStorage: true,
           generateFileURL: ({ filename }) => {
-            // Utilise l'outil de génération d'URL natif du SDK Cloudinary
             return cloudinary.url(filename, {
               secure: true,
               fetch_format: 'auto',
