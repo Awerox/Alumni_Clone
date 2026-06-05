@@ -113,23 +113,20 @@ function buildStablePassword(providerId: string): string {
   return `OA-${providerId}-${secret}`
 }
 
-function buildAuthResponse(rawSetCookie: string | null, token: string, redirectTo: string): NextResponse {
+function buildAuthResponse(token: string, redirectTo: string): NextResponse {
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
 <body><script>window.location.replace('${redirectTo}');</script></body></html>`
 
   const response = new NextResponse(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
 
-  if (rawSetCookie) {
-    response.headers.append('set-cookie', rawSetCookie)
-  } else {
-    response.cookies.set('payload-alumni-token', token, {
-      path: '/',
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7,
-    })
-  }
+  // Injection propre du cookie de session pour le client
+  response.cookies.set('payload-alumni-token', token, {
+    path: '/',
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 60 * 60 * 24 * 7, // 7 jours
+  })
 
   return response
 }
@@ -142,7 +139,9 @@ export async function GET(
   const { searchParams } = new URL(req.url)
   const code = searchParams.get('code')
   const oauthError = searchParams.get('error')
-  const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL!
+  
+  // Utilisation d'une sécurité si NEXT_PUBLIC_SERVER_URL est mal configuré au build
+  const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL || new URL(req.url).origin
 
   if (oauthError || !code) {
     return NextResponse.redirect(new URL('/login?error=auth_cancelled', req.url))
@@ -228,42 +227,32 @@ export async function GET(
         },
       })
     } else {
-      // FIX: Toujours mettre à jour le mot de passe avec stablePassword pour garantir
-      // que le Login REST fonctionnera, même si le compte a été créé manuellement.
       targetUser = await payload.update({
         collection: 'alumni',
         id: targetUser.id,
         overrideAccess: true,
         data: {
           [fieldToMatch]: providerId,
-          password: stablePassword,  // ← FIX CLEF : était conditionnel à isNewUser (toujours false ici)
+          password: stablePassword,
           photo: photoToAssign ? Number(photoToAssign) : null,
         },
       })
     }
 
-    // ── 6. Login REST ─────────────────────────────────────────────────────────
-    const loginRes = await fetch(`${baseUrl}/api/alumni/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: targetUser.email, password: stablePassword }),
+    // ── 6. Login via l'API Interne de Payload (Plus besoin de fetch API !) ───
+    const loginResult = await payload.login({
+      collection: 'alumni',
+      data: {
+        email: targetUser.email,
+        password: stablePassword,
+      },
     })
 
-    if (!loginRes.ok) {
-      const loginError = await loginRes.text()
-      console.error(`[OAuth/${provider}] Login REST échoué (${loginRes.status}):`, loginError)
-
-      // Si c'était une liaison depuis les settings, la session existante est encore valide
-      if (isLinkingProcess && tokenCookie) {
-        return buildAuthResponse(null, tokenCookie, '/settings?success=linked')
-      }
-
-      throw new Error(`Login REST échoué (${loginRes.status}): ${loginError}`)
+    if (!loginResult.token) {
+      throw new Error("Impossible de générer le token via Payload local login")
     }
 
-    const loginData = await loginRes.json()
-    const token: string = loginData.token
-    const rawSetCookie = loginRes.headers.get('set-cookie')
+    const token = loginResult.token
 
     // ── 7. Redirection finale ─────────────────────────────────────────────────
     let redirectTo = '/'
@@ -273,12 +262,11 @@ export async function GET(
       redirectTo = '/onboarding'
     }
 
-    return buildAuthResponse(rawSetCookie, token, redirectTo)
+    return buildAuthResponse(token, redirectTo)
 
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error(`[OAuth/${provider}] Erreur fatale:`, message)
-    // FIX: Passer le message d'erreur dans l'URL pour faciliter le debug
     const errorParam = encodeURIComponent(message.slice(0, 100))
     return NextResponse.redirect(new URL(`/login?error=oauth_error&detail=${errorParam}`, req.url))
   }
