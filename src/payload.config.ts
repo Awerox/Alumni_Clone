@@ -4,7 +4,7 @@ import path from 'path'
 import { buildConfig } from 'payload'
 import { fileURLToPath } from 'url'
 import sharp from 'sharp'
-import { cloudinaryStorage } from 'payload-storage-cloudinary' // 🎯 L'adaptateur natif et moderne de la v3
+import { cloudinaryStorage } from 'payload-storage-cloudinary'
 
 // Import de tes collections d'origine
 import { Alumni } from './collections/Alumni'
@@ -24,6 +24,13 @@ import { PublicMessages } from './collections/PublicMessages'
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
+// 🎯 SÉCURISATION DU BUILD : On vérifie si TOUTES les clés sont présentes
+const cloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_NAME
+const apiKey = process.env.CLOUDINARY_API_KEY
+const apiSecret = process.env.CLOUDINARY_API_SECRET
+
+const isCloudinaryReady = Boolean(cloudName && apiKey && apiSecret)
+
 export default buildConfig({
   admin: {
     user: Users.slug,
@@ -33,8 +40,6 @@ export default buildConfig({
   },
   collections: [
     Users,
-    
-    // 🎯 ENRICHISSEMENT DE LA COLLECTION ALUMNI
     {
       ...Alumni,
       auth: {
@@ -46,7 +51,6 @@ export default buildConfig({
           sameSite: 'Lax',
         },
       } as any,
-      
       fields: [
         ...(Alumni.fields || []),
         {
@@ -85,16 +89,21 @@ export default buildConfig({
   }),
   sharp,
   plugins: [
-    // 🎯 INITIALISATION SÉCURISÉE DU COUPLAGE CLOUDINARY
-    (cloudinaryStorage as any)({
-      collections: {
-        media: true, // Associe l'upload cloud à la collection "Media"
-      },
-      config: {
-        cloud_name: process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_NAME || '',
-        api_key: process.env.CLOUDINARY_API_KEY || '',
-        api_secret: process.env.CLOUDINARY_API_SECRET || '',
-      },
-    }),
+    // 🎯 FIX CRASH : On n'exécute l'instanciation QUE si les variables sont validées.
+    // Sinon, on passe un tableau vide, ce qui évite l'erreur d'initialisation au build.
+    ...(isCloudinaryReady 
+      ? [
+          (cloudinaryStorage as any)({
+            collections: {
+              media: true,
+            },
+            config: {
+              cloud_name: cloudName,
+              api_key: apiKey,
+              api_secret: apiSecret,
+            },
+          })
+        ]
+      : [])
   ],
 })
