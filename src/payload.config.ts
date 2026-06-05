@@ -4,8 +4,7 @@ import path from 'path'
 import { buildConfig } from 'payload'
 import { fileURLToPath } from 'url'
 import sharp from 'sharp'
-import { v2 as cloudinary } from 'cloudinary'
-import { cloudStoragePlugin } from '@payloadcms/plugin-cloud-storage'
+import { cloudinaryStorage } from 'payload-storage-cloudinary' // 🎯 L'adaptateur natif et moderne de la v3
 
 // Import de tes collections d'origine
 import { Alumni } from './collections/Alumni'
@@ -25,67 +24,6 @@ import { PublicMessages } from './collections/PublicMessages'
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
-// ─── ☁️ CONFIGURATION CLOUDINARY ───────────────────────────────────────────
-
-const cloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_NAME || ''
-
-cloudinary.config({
-  cloud_name: cloudName,
-  api_key: process.env.CLOUDINARY_API_KEY || '',
-  api_secret: process.env.CLOUDINARY_API_SECRET || '',
-})
-
-// Un adapter stable qui ne plante jamais le build Next.js, même si les clés sont vides temporairement
-const customCloudinaryAdapter = () => ({
-  name: 'cloudinary-adapter',
-  
-  async handleUpload({ file }: any) {
-    if (!cloudName) {
-      console.warn('Cloudinary non configuré en local. Upload simulé.')
-      return
-    }
-    try {
-      const uploadResult = await new Promise<any>((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          {
-            resource_type: 'auto',
-            folder: 'media',
-            overwrite: false,
-            use_filename: true,
-          },
-          (error, result) => {
-            if (error || !result) return reject(error ?? new Error('Pas de résultat Cloudinary'))
-            resolve(result)
-          },
-        )
-        stream.end(file.buffer)
-      })
-
-      file.filename = uploadResult.public_id
-      file.mimeType = uploadResult.format
-      file.filesize = uploadResult.bytes
-    } catch (err) {
-      console.error('Cloudinary upload error:', err)
-      throw err
-    }
-  },
-
-  async handleDelete({ filename }: any) {
-    if (!cloudName) return
-    try {
-      await cloudinary.uploader.destroy(filename)
-    } catch (err) {
-      console.error('Cloudinary delete error:', err)
-    }
-  },
-
-  staticHandler() {
-    return new Response('Served by Cloudinary', { status: 200 })
-  },
-})
-
-// ─── 🏗️ CONFIGURATION GÉNÉRALE PAYLOAD v3 ───────────────────────────────────
-
 export default buildConfig({
   admin: {
     user: Users.slug,
@@ -96,7 +34,7 @@ export default buildConfig({
   collections: [
     Users,
     
-    // 🎯 RECONNAISSANCE & ENRICHISSEMENT DIRECT DE LA COLLECTION ALUMNI
+    // 🎯 ENRICHISSEMENT DE LA COLLECTION ALUMNI
     {
       ...Alumni,
       auth: {
@@ -147,21 +85,15 @@ export default buildConfig({
   }),
   sharp,
   plugins: [
-    // On active le plugin de manière permanente pour qu'il soit TOUJOURS présent au build
-    cloudStoragePlugin({
+    // 🎯 INITIALISATION SÉCURISÉE DU COUPLAGE CLOUDINARY
+    (cloudinaryStorage as any)({
       collections: {
-        media: {
-          adapter: customCloudinaryAdapter() as any, 
-          disableLocalStorage: process.env.NODE_ENV === 'production', // Désactivé uniquement en prod
-          generateFileURL: ({ filename }) => {
-            if (!cloudName) return `/api/media/file/${filename}` // Fallback local si pas de clé
-            return cloudinary.url(filename, {
-              secure: true,
-              fetch_format: 'auto',
-              quality: 'auto',
-            })
-          },
-        },
+        media: true, // Associe l'upload cloud à la collection "Media"
+      },
+      config: {
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_NAME || '',
+        api_key: process.env.CLOUDINARY_API_KEY || '',
+        api_secret: process.env.CLOUDINARY_API_SECRET || '',
       },
     }),
   ],
