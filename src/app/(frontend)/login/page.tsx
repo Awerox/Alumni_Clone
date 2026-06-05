@@ -66,8 +66,8 @@ function LoginContent() {
   const message = searchParams.get('message')
   const rawRedirect = searchParams.get('redirect')
 
-  // 🎯 CALCUL ENTIÈREMENT DYNAMIQUE DANS LE BLOC DE SUSPENSE
   const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3000'
+  const redirectUri = `${baseUrl}/api/oauth/google/callback`
 
   let redirectTo = '/'
   if (rawRedirect) {
