@@ -46,19 +46,19 @@ const Navbar = () => {
   }, [])
 
   const handleLogout = async () => {
-    try {
-      const res = await fetch('/api/alumni/logout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      })
-      if (res.ok) {
-        setUser(null)
-        window.location.href = '/'
-      }
-    } catch (err) {
-      console.error('Erreur lors de la déconnexion', err)
-    }
+  try {
+    await fetch('/api/alumni/logout', {
+      method: 'POST',
+      credentials: 'include', // ✅ AJOUT : envoie les cookies pour que le serveur sache lequel supprimer
+      headers: { 'Content-Type': 'application/json' },
+    })
+  } catch (err) {
+    console.error('Erreur lors de la déconnexion', err)
+  } finally {
+    setUser(null) // ✅ Vide le state immédiatement
+    window.location.href = '/login' // ✅ Redirige vers login, pas vers / (évite la confusion)
   }
+}
 
   // Structure des liens mise à jour avec les sous-menus demandés
   const navLinks = [
