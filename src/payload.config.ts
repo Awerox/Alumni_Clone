@@ -43,14 +43,13 @@ export default buildConfig({
     {
       ...Alumni,
       auth: {
-        ...(typeof Alumni.auth === 'object' ? Alumni.auth : {}),
-        tokenExpiration: 60 * 60 * 24 * 7,
-        cookieName: 'payload-alumni-token',
-        cookies: {
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'Lax',
-        },
-      } as any,
+  tokenExpiration: 60 * 60 * 24 * 7,
+  cookieName: 'payload-alumni-token', // ✅ déjà bon
+  cookies: {
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'Lax',
+  },
+} as any,
       fields: [
         ...(Alumni.fields || []),
         {
