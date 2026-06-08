@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 export function middleware(req: NextRequest) {
-  const response = NextResponse.next()
+  // ⚠️ Ne pas interférer avec les uploads multipart
+  const contentType = req.headers.get('content-type') || ''
+  if (contentType.includes('multipart/form-data')) {
+    return NextResponse.next()
+  }
 
+  const response = NextResponse.next()
   const alumniToken = req.cookies.get('payload-alumni-token')?.value
   const nativeToken = req.cookies.get('payload-token')?.value
 
-  // Copie le token OAuth vers le cookie natif Payload si absent
   if (alumniToken && !nativeToken) {
     response.cookies.set('payload-token', alumniToken, {
       path: '/',

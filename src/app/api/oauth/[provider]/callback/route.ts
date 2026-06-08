@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { sign } from 'jsonwebtoken'
+import { createHash } from 'crypto'
 
 interface OAuthUserData {
   email: string
@@ -189,14 +190,16 @@ export async function GET(
     }
 
     // ── 5. Génération JWT ─────────────────────────────────────────────────────
-    const secret = payload.secret
+    const rawSecret = payload.secret
+    const derivedSecret = createHash('sha256').update(rawSecret).digest('hex').slice(0, 32)
+
     const token = sign(
       {
         id: String(targetUser.id),
         collection: 'alumni',
         email: targetUser.email,
       },
-      secret,
+      derivedSecret, // ✅ Secret dérivé, identique à celui que Payload utilise
       { expiresIn: '7d' },
     )
 
