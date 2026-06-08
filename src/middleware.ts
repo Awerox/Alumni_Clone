@@ -4,11 +4,10 @@ export function middleware(req: NextRequest) {
   const response = NextResponse.next()
 
   const alumniToken = req.cookies.get('payload-alumni-token')?.value
+  const nativeToken = req.cookies.get('payload-token')?.value
 
-  // Si on a notre cookie OAuth mais pas le cookie natif Payload,
-  // on le copie sous le nom que Payload attend
-  if (alumniToken && !req.cookies.get('payload-token')?.value) {
-    // Payload lit le cookie nommé d'après le slug de la collection
+  // Copie le token OAuth vers le cookie natif Payload si absent
+  if (alumniToken && !nativeToken) {
     response.cookies.set('payload-token', alumniToken, {
       path: '/',
       httpOnly: true,
