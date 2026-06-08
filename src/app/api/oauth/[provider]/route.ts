@@ -9,7 +9,10 @@ export async function GET(
   { params }: { params: Promise<{ provider: string }> }
 ) {
   const { provider } = await params
-  const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL!
+
+  // 🎯 SÉCURITÉ ABSOLUE : Si la variable d'environnement est absente ou indéfinie, 
+  // on extrait dynamiquement l'origine de l'URL de la requête en cours (ex: https://alumni-clone.vercel.app)
+  const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL || new URL(req.url).origin
 
   if (provider === 'google') {
     const authParams = new URLSearchParams({
