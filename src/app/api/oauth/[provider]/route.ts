@@ -1,7 +1,4 @@
 // app/api/oauth/[provider]/route.ts
-// Gère : GET /api/oauth/google  et  GET /api/oauth/linkedin
-// Redirige l'utilisateur vers la page de connexion du fournisseur
-
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
@@ -10,9 +7,11 @@ export async function GET(
 ) {
   const { provider } = await params
 
-  // 🎯 SÉCURITÉ ABSOLUE : Si la variable d'environnement est absente ou indéfinie, 
-  // on extrait dynamiquement l'origine de l'URL de la requête en cours (ex: https://alumni-clone.vercel.app)
-  const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL || new URL(req.url).origin
+  // 🎯 ALIGNEMENT STRICT AVEC GOOGLE CLOUD
+  // Si on tourne sur Vercel en prod, on force l'URL exacte validée chez Google. Sinon, localhost.
+  const baseUrl = process.env.NODE_ENV === 'production'
+    ? 'https://alumni-clone.vercel.app'
+    : 'http://localhost:3000'
 
   if (provider === 'google') {
     const authParams = new URLSearchParams({
