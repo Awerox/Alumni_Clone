@@ -62,11 +62,10 @@ function LoginContent() {
 
   const searchParams = useSearchParams()
   const router = useRouter()
-  
+
   const message = searchParams.get('message')
   const rawRedirect = searchParams.get('redirect')
 
-  // Récupération dynamique de l'URL au runtime client
   const getBaseUrl = () => {
     if (process.env.NEXT_PUBLIC_SERVER_URL) return process.env.NEXT_PUBLIC_SERVER_URL
     if (typeof window !== 'undefined') return window.location.origin
@@ -87,11 +86,10 @@ function LoginContent() {
     }
   }
 
-  // 🎯 GESTIONNAIRES DE CLICS DYNAMIQUES (Calculé à la milliseconde près lors du clic)
-  const handleGoogleLogin = (e: React.MouseEvent) => {
-    e.preventDefault()
+  // FIX : les handlers OAuth construisent l'URL et naviguent directement,
+  // sans passer par le form — ils sont désormais en dehors du <form>.
+  const handleGoogleLogin = () => {
     if (isLocked) return
-    
     const baseUrl = getBaseUrl()
     const url = `https://accounts.google.com/o/oauth2/v2/auth?` + new URLSearchParams({
       client_id: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '',
@@ -99,14 +97,11 @@ function LoginContent() {
       response_type: 'code',
       scope: 'openid email profile',
     }).toString()
-    
     window.location.href = url
   }
 
-  const handleLinkedinLogin = (e: React.MouseEvent) => {
-    e.preventDefault()
+  const handleLinkedinLogin = () => {
     if (isLocked) return
-    
     const baseUrl = getBaseUrl()
     const url = `https://www.linkedin.com/oauth/v2/authorization?` + new URLSearchParams({
       client_id: process.env.NEXT_PUBLIC_LINKEDIN_CLIENT_ID || '',
@@ -114,7 +109,6 @@ function LoginContent() {
       response_type: 'code',
       scope: 'openid profile email',
     }).toString()
-    
     window.location.href = url
   }
 
@@ -143,26 +137,22 @@ function LoginContent() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     if (isLocked) return
-
     setError('')
     setIsSubmitting(true)
-
     try {
       const res = await fetch('/api/alumni/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, rememberMe }),
       })
-
       if (res.ok) {
         window.location.href = redirectTo
       } else {
         const newAttempts = attempts + 1
         setAttempts(newAttempts)
-
         if (newAttempts >= MAX_ATTEMPTS) {
           setLockoutUntil(Date.now() + LOCKOUT_SECONDS * 1000)
-          setError(`Trop de tentatives. Veuillez attendre ${LOCKOUT_SECONDS} secondes avant de réessayer.`)
+          setError(`Trop de tentatives. Veuillez attendre ${LOCKOUT_SECONDS} secondes.`)
         } else {
           setError(`Identifiants incorrects. ${MAX_ATTEMPTS - newAttempts} tentative(s) restante(s).`)
         }
@@ -178,29 +168,41 @@ function LoginContent() {
     <div className="min-h-[80vh] flex items-center justify-center bg-gray-50 py-12 px-4">
       <div className="max-w-md w-full space-y-6 bg-white p-10 rounded-2xl shadow-xl border border-gray-100 font-sans text-left">
         <div className="text-center">
-          <div className="inline-block bg-enc p-3 rounded-lg text-white font-bold text-2xl mb-4 select-none">
-            E
-          </div>
+          <div className="inline-block bg-enc p-3 rounded-lg text-white font-bold text-2xl mb-4 select-none">E</div>
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Accédez à votre réseau</h1>
           <p className="mt-2 text-sm text-gray-600">Connectez-vous pour retrouver vos anciens camarades.</p>
         </div>
 
         {successMsg && (
           <div role="alert" className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 px-4 py-3 rounded-xl text-sm font-medium">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" className="flex-shrink-0"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
             {successMsg}
           </div>
         )}
 
+        {/* ── FORMULAIRE EMAIL/MDP — isolé, sans boutons OAuth dedans ── */}
         <form className="space-y-4" onSubmit={handleLogin} noValidate>
-          {error && <p role="alert" className="text-red-600 text-xs font-bold text-center bg-red-50 py-2.5 px-4 rounded-xl border border-red-100">{error}</p>}
+          {error && (
+            <p role="alert" className="text-red-600 text-xs font-bold text-center bg-red-50 py-2.5 px-4 rounded-xl border border-red-100">
+              {error}
+            </p>
+          )}
 
           <div className="space-y-4">
             <div>
               <label htmlFor="email" className="block text-xs font-bold uppercase text-gray-500 tracking-wider pl-0.5">Email</label>
-              <input id="email" type="email" required disabled={isSubmitting || isLocked} value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-enc/20 focus:border-enc outline-none transition-all disabled:opacity-50 text-sm font-medium" placeholder="votre@email.com" />
+              <input
+                id="email"
+                type="email"
+                required
+                disabled={isSubmitting || isLocked}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
+                className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-enc/20 focus:border-enc outline-none transition-all disabled:opacity-50 text-sm font-medium"
+                placeholder="votre@email.com"
+              />
             </div>
-
             <div>
               <label htmlFor="password" className="block text-xs font-bold uppercase text-gray-500 tracking-wider pl-0.5">Mot de passe</label>
               <PasswordInput value={password} onChange={setPassword} disabled={isSubmitting || isLocked} />
@@ -209,16 +211,28 @@ function LoginContent() {
 
           <div className="flex items-center justify-between">
             <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-enc focus:ring-enc" />
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-enc focus:ring-enc"
+              />
               <span className="text-xs font-medium text-gray-600">Se souvenir de moi</span>
             </label>
-            <Link href="/forgot" className="text-xs font-bold text-enc hover:underline">Mot de passe oublié ?</Link>
+            <Link href="/forgot" className="text-xs font-bold text-enc hover:underline">
+              Mot de passe oublié ?
+            </Link>
           </div>
 
-          <button type="submit" disabled={isSubmitting || isLocked} className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-md text-xs font-black uppercase tracking-widest text-white bg-enc hover:brightness-110 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed">
+          <button
+            type="submit"
+            disabled={isSubmitting || isLocked}
+            className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-md text-xs font-black uppercase tracking-widest text-white bg-enc hover:brightness-110 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
             {isLocked ? `Réessayez dans ${countdown}s` : isSubmitting ? 'Connexion en cours...' : 'Se connecter'}
           </button>
         </form>
+        {/* ── FIN FORMULAIRE ── */}
 
         <div className="relative flex py-2 items-center text-gray-300">
           <div className="flex-grow border-t border-gray-200/70"></div>
@@ -226,11 +240,12 @@ function LoginContent() {
           <div className="flex-grow border-t border-gray-200/70"></div>
         </div>
 
-        {/* 🤝 BOUTONS SÉCURISÉS AVEC APPELS DYNAMIQUES */}
+        {/* FIX : boutons OAuth complètement en dehors du <form>, plus de risque
+            de soumettre le formulaire ou de déclencher une navigation parasite */}
         <div className="grid grid-cols-2 gap-3 text-xs font-bold text-gray-700">
-          <button 
+          <button
             type="button"
-            onClick={handleGoogleLogin} 
+            onClick={handleGoogleLogin}
             disabled={isLocked}
             className={`flex items-center justify-center gap-2 py-3 border border-gray-200 rounded-xl bg-white hover:bg-gray-50 transition-colors shadow-2xs ${isLocked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
           >
@@ -238,9 +253,9 @@ function LoginContent() {
             <span>Google</span>
           </button>
 
-          <button 
+          <button
             type="button"
-            onClick={handleLinkedinLogin} 
+            onClick={handleLinkedinLogin}
             disabled={isLocked}
             className={`flex items-center justify-center gap-2 py-3 border border-gray-200 rounded-xl bg-white hover:bg-gray-50 transition-colors shadow-2xs ${isLocked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
           >

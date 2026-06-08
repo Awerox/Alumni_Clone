@@ -138,6 +138,13 @@ export async function GET(
     let targetUser = userQuery.docs[0] ?? null
     const isNewUser = !targetUser
 
+    // FIX : Un compte existant est considéré "OAuth natif" uniquement s'il a déjà
+    // un subGoogle ou subLinkedin. S'il n'en a pas, c'est un compte manuel —
+    // on ne touche pas à son mot de passe.
+    const isOAuthNativeAccount = targetUser
+      ? Boolean((targetUser as any).subGoogle || (targetUser as any).subLinkedin)
+      : false
+
     // ── 3. Avatar ─────────────────────────────────────────────────────────────
     let savedMediaId: string | null = null
     if (avatarUrl && (!targetUser || !targetUser.photo)) {
@@ -170,15 +177,18 @@ export async function GET(
         overrideAccess: true,
         data: {
           [fieldToMatch]: providerId,
-          password: stablePassword,
+          // FIX CLÉ : on n'écrase le mot de passe que si le compte est
+          // déjà un compte OAuth natif (jamais créé manuellement).
+          // Pour un premier lien OAuth sur un compte manuel, on laisse
+          // son mot de passe intact — il pourra toujours se connecter
+          // avec ses identifiants d'origine.
+          ...(isOAuthNativeAccount ? { password: stablePassword } : {}),
           photo: photoToAssign,
         },
       })
     }
 
-    // ── 5. Génération JWT avec jsonwebtoken — même lib que Payload utilise ────
-    // Payload v3 signe ses tokens avec jsonwebtoken HS256
-    // On reproduit exactement le même appel que Payload fait en interne
+    // ── 5. Génération JWT ─────────────────────────────────────────────────────
     const secret = payload.secret
     const token = sign(
       {
@@ -187,9 +197,7 @@ export async function GET(
         email: targetUser.email,
       },
       secret,
-      {
-        expiresIn: '7d',
-      },
+      { expiresIn: '7d' },
     )
 
     console.log(`[OAuth/${provider}] ✅ Token généré pour id=${targetUser.id}`)
