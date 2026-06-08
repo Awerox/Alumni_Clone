@@ -204,20 +204,18 @@ export async function GET(
 
     // ── 6. Réponse avec cookie ────────────────────────────────────────────────
     const redirectTo = isNewUser ? '/onboarding' : '/'
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
-<body><script>window.location.replace('${redirectTo}');</script></body></html>`
+    const redirectUrl = new URL(redirectTo, baseUrl)
+const response = NextResponse.redirect(redirectUrl)
 
-    const response = new NextResponse(html, {
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
-    })
+response.cookies.set('payload-alumni-token', token, {
+  path: '/',
+  httpOnly: true,
+  secure: true, // toujours true sur Vercel (HTTPS)
+  sameSite: 'lax',
+  maxAge: 60 * 60 * 24 * 7,
+})
 
-    response.cookies.set('payload-alumni-token', token, {
-      path: '/',
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7,
-    })
+return response
 
     return response
 
