@@ -1,6 +1,9 @@
-import { NextResponse } from 'next/server'
+// app/api/chat/stream/route.ts
+
+import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
+import { verify } from 'jsonwebtoken'
 
 type ClientConnection = {
   id: string
@@ -12,8 +15,67 @@ type ClientConnection = {
 
 let activeClients: ClientConnection[] = []
 
+// ─── Constantes de modération ─────────────────────────────────────────────────
+const MAX_MESSAGE_LENGTH = 500
+
+// Liste de mots interdits (insensible à la casse, partielle)
+const BANNED_WORDS = [
+  'connard', 'connasse', 'pute', 'putain', 'merde', 'salope', 'enculé',
+  'enculer', 'fdp', 'ntm', 'nique', 'niquer', 'batard', 'bâtard',
+  'pd', 'pédé', 'tapette', 'attardé', 'mongol', 'fils de pute',
+  'va te faire', 'ferme ta gueule', 'ta gueule', 'baise', 'baiser',
+  'meurtre', 'tuer', 'je vais te', 'suicide',
+]
+
+function containsBannedWord(text: string): { banned: boolean; word?: string } {
+  const lower = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  for (const word of BANNED_WORDS) {
+    const normalizedWord = word.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    if (lower.includes(normalizedWord)) {
+      return { banned: true, word }
+    }
+  }
+  return { banned: false }
+}
+
+function validateMessage(text: string): { valid: boolean; error?: string } {
+  if (!text || !text.trim()) {
+    return { valid: false, error: 'Le message ne peut pas être vide.' }
+  }
+  if (text.trim().length > MAX_MESSAGE_LENGTH) {
+    return { valid: false, error: `Message trop long (max ${MAX_MESSAGE_LENGTH} caractères).` }
+  }
+  const { banned, word } = containsBannedWord(text)
+  if (banned) {
+    return { valid: false, error: `Message refusé : contenu inapproprié.` }
+  }
+  return { valid: true }
+}
+
+// ─── Vérification du token JWT ────────────────────────────────────────────────
+async function getUserFromToken(req: NextRequest | Request, secret: string): Promise<any | null> {
+  const cookieHeader = req.headers.get('cookie') || ''
+  const cookies = Object.fromEntries(
+    cookieHeader.split(';').map(c => {
+      const [k, ...v] = c.trim().split('=')
+      return [k, v.join('=')]
+    })
+  )
+
+  const token = cookies['payload-alumni-token'] || cookies['payload-token']
+  if (!token) return null
+
+  try {
+    const decoded = verify(token, secret) as any
+    if (decoded?.collection === 'alumni' && decoded?.id) return decoded
+    return null
+  } catch {
+    return null
+  }
+}
+
+// ─── SSE : connexion en écoute ─────────────────────────────────────────────────
 export async function GET(req: Request) {
-  const payload = await getPayload({ config: configPromise })
   const { searchParams } = new URL(req.url)
   const userId = searchParams.get('userId')
   const userName = searchParams.get('name') || 'Anonyme'
@@ -36,8 +98,6 @@ export async function GET(req: Request) {
         controller,
       }
       activeClients.push(newClient)
-
-      // Diffuse la liste complète avec les ids pour que le front puisse identifier les destinataires
       broadcastPresence()
 
       const interval = setInterval(() => {
@@ -65,7 +125,96 @@ export async function GET(req: Request) {
   })
 }
 
-// Diffuse la présence avec les objets complets (id, name, prenom, nom)
+// ─── POST : envoi d'un message ────────────────────────────────────────────────
+export async function POST(req: NextRequest) {
+  const payload = await getPayload({ config: configPromise })
+
+  try {
+    const body = await req.json()
+    const { type, text } = body
+
+    // ── Vérification authentification pour msg-public et msg-prive ────────────
+    if (type === 'msg-public' || type === 'msg-prive') {
+      const user = await getUserFromToken(req, payload.secret)
+
+      if (!user) {
+        return NextResponse.json(
+          { error: 'Vous devez être connecté pour envoyer un message.' },
+          { status: 401 }
+        )
+      }
+
+      // ── Validation du contenu ────────────────────────────────────────────────
+      const validation = validateMessage(text)
+      if (!validation.valid) {
+        return NextResponse.json(
+          { error: validation.error },
+          { status: 400 }
+        )
+      }
+
+      // ── Vérification cohérence : l'expéditeur doit correspondre au token ────
+      if (type === 'msg-prive') {
+        if (String(body.from) !== String(user.id)) {
+          return NextResponse.json(
+            { error: 'Expéditeur invalide.' },
+            { status: 403 }
+          )
+        }
+      }
+
+      if (type === 'msg-public') {
+        if (body.from && String(body.from) !== String(user.id)) {
+          return NextResponse.json(
+            { error: 'Expéditeur invalide.' },
+            { status: 403 }
+          )
+        }
+      }
+    }
+
+    // ── Sauvegarde BDD pour les messages publics ──────────────────────────────
+    if (type === 'msg-public') {
+      try {
+        await (payload.create as any)({
+          collection: 'public-messages',
+          data: {
+            user: body.user,
+            text: body.text,
+            time: body.time,
+            from: body.from || undefined,
+          },
+        })
+      } catch (dbErr) {
+        console.error('[SSE] Erreur écriture message public:', dbErr)
+      }
+    }
+
+    // ── Distribution SSE ──────────────────────────────────────────────────────
+    const encodedData = new TextEncoder().encode(`data: ${JSON.stringify(body)}\n\n`)
+
+    activeClients.forEach((client) => {
+      try {
+        if (type === 'msg-prive') {
+          if (client.id === body.to || client.id === body.from) {
+            client.controller.enqueue(encodedData)
+          }
+        } else {
+          client.controller.enqueue(encodedData)
+        }
+      } catch {
+        // Client déconnecté silencieusement
+      }
+    })
+
+    return NextResponse.json({ success: true })
+
+  } catch (err: any) {
+    console.error('[SSE] Erreur POST:', err)
+    return NextResponse.json({ error: err.message }, { status: 500 })
+  }
+}
+
 function broadcastPresence() {
   const users = activeClients.map((c) => ({
     id: c.id,
@@ -81,60 +230,6 @@ function broadcast(data: any) {
   activeClients.forEach((client) => {
     try {
       client.controller.enqueue(encodedData)
-    } catch {
-      // Client déconnecté
-    }
+    } catch {}
   })
-}
-
-export async function POST(req: Request) {
-  const payload = await getPayload({ config: configPromise })
-
-  try {
-    const body = await req.json()
-
-    // 🎯 Sauvegarde persistante en BDD si le message est destiné au Chat Public
-    if (body.type === 'msg-public') {
-      try {
-        // En utilisant (payload.create as any), on coupe l'erreur TypeScript
-        // et Payload fera l'insertion normalement en tâche de fond !
-        await (payload.create as any)({
-          collection: 'public-messages',
-          data: {
-            user: body.user,
-            text: body.text,
-            time: body.time,
-            from: body.from || undefined, // 🎯 FIX : On stocke l'ID "from" de l'émetteur pour la persistance au F5
-          },
-        })
-      } catch (dbErr) {
-        console.error("Erreur d'écriture du message public dans Payload:", dbErr)
-      }
-    }
-
-    // Encodage des données du message reçu pour la distribution en direct
-    const encodedData = new TextEncoder().encode(`data: ${JSON.stringify(body)}\n\n`)
-
-    // Distribution sélective ou globale aux clients connectés
-    activeClients.forEach((client) => {
-      try {
-        if (body.type === 'msg-prive') {
-          // Si message privé, distribuer uniquement aux deux participants concernés
-          if (client.id === body.to || client.id === body.from) {
-            client.controller.enqueue(encodedData)
-          }
-        } else {
-          // Si message public, distribuer à tout le monde (même si l'utilisateur est le seul en ligne)
-          client.controller.enqueue(encodedData)
-        }
-      } catch (streamErr) {
-        // Nettoyage silencieux si un contrôleur de flux a expiré
-      }
-    })
-
-    return NextResponse.json({ success: true })
-  } catch (err: any) {
-    console.error("Erreur au sein du point d'accès SSE Stream:", err)
-    return NextResponse.json({ error: err.message }, { status: 500 })
-  }
 }

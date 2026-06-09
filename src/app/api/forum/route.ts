@@ -1,12 +1,24 @@
-import { NextResponse } from 'next/server'
+// app/api/forum/route.ts
+import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
-import { headers } from 'next/headers'
+import { verify } from 'jsonwebtoken'
 
-export async function POST(req: Request) {
+async function getUserFromToken(req: NextRequest, secret: string): Promise<any | null> {
+  const token =
+    req.cookies.get('payload-alumni-token')?.value ||
+    req.cookies.get('payload-token')?.value
+  if (!token) return null
+  try {
+    const decoded = verify(token, secret) as any
+    if (decoded?.collection === 'alumni' && decoded?.id) return decoded
+    return null
+  } catch { return null }
+}
+
+export async function POST(req: NextRequest) {
   const payload = await getPayload({ config: configPromise })
-  const headersList = await headers()
-  const { user } = await payload.auth({ headers: headersList as any })
+  const user = await getUserFromToken(req, payload.secret)
 
   if (!user) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
@@ -15,10 +27,10 @@ export async function POST(req: Request) {
   try {
     const { discussionId, message } = await req.json()
 
-    // 🎯 CORRECTION : On passe par un typage "any" sur l'appel ou une assertion pour contourner le blocage du générateur d'enums
-    const current: any = await (payload.findByID as any)({
+    const current: any = await payload.findByID({
       collection: 'discussions',
       id: discussionId,
+      overrideAccess: true,
     })
 
     if (!current) {
@@ -27,24 +39,21 @@ export async function POST(req: Request) {
 
     const existants = current.commentaires || []
 
-    // 🎯 CORRECTION : Surcharge du type d'appel de mise à jour pour contourner l'erreur de signature de méthode
-    const updated = await (payload.update as any)({
+    const updated = await payload.update({
       collection: 'discussions',
       id: discussionId,
+      overrideAccess: true,
       data: {
         commentaires: [
           ...existants,
-          {
-            auteur: user.id,
-            message: message,
-          },
+          { auteur: user.id, message },
         ],
       },
     })
 
     return NextResponse.json({ success: true, discussion: updated })
   } catch (err: any) {
-    console.error("Erreur lors de l'ajout du commentaire:", err)
+    console.error('[POST /api/forum]', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }

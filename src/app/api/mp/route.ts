@@ -1,13 +1,25 @@
-import { NextResponse } from 'next/server'
+// app/api/mp/route.ts
+import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
-import { headers } from 'next/headers'
+import { verify } from 'jsonwebtoken'
 
-// GET /api/mp?with=<alumniId> — charge l'historique entre moi et un autre alumni
-export async function GET(req: Request) {
+async function getUserFromToken(req: NextRequest, secret: string): Promise<any | null> {
+  const token =
+    req.cookies.get('payload-alumni-token')?.value ||
+    req.cookies.get('payload-token')?.value
+  if (!token) return null
+  try {
+    const decoded = verify(token, secret) as any
+    if (decoded?.collection === 'alumni' && decoded?.id) return decoded
+    return null
+  } catch { return null }
+}
+
+// GET /api/mp?with=<alumniId>
+export async function GET(req: NextRequest) {
   const payload = await getPayload({ config: configPromise })
-  const headersList = await headers()
-  const { user } = await payload.auth({ headers: headersList as any })
+  const user = await getUserFromToken(req, payload.secret)
 
   if (!user) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
@@ -26,6 +38,7 @@ export async function GET(req: Request) {
   try {
     const result = await payload.find({
       collection: 'direct-messages',
+      overrideAccess: true,
       where: {
         or: [
           { and: [{ from: { equals: myId } }, { to: { equals: otherId } }] },
@@ -34,21 +47,20 @@ export async function GET(req: Request) {
       },
       sort: 'createdAt',
       limit: 100,
-      depth: 1, // Pour populated from/to avec prenom/nom
+      depth: 1,
     })
 
     return NextResponse.json({ docs: result.docs })
   } catch (err: any) {
-    console.error('Erreur chargement MP:', err)
+    console.error('[GET /api/mp]', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
 
-// POST /api/mp — envoyer un message
-export async function POST(req: Request) {
+// POST /api/mp
+export async function POST(req: NextRequest) {
   const payload = await getPayload({ config: configPromise })
-  const headersList = await headers()
-  const { user } = await payload.auth({ headers: headersList as any })
+  const user = await getUserFromToken(req, payload.secret)
 
   if (!user) {
     return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
@@ -57,29 +69,18 @@ export async function POST(req: Request) {
   try {
     const { to, message, fileId, fileUrl, fileName } = await req.json()
 
-    if (!to) {
-      return NextResponse.json({ error: 'Destinataire manquant' }, { status: 400 })
-    }
-    if (!message && !fileId) {
-      return NextResponse.json({ error: 'Message ou fichier requis' }, { status: 400 })
-    }
+    if (!to) return NextResponse.json({ error: 'Destinataire manquant' }, { status: 400 })
+    if (!message && !fileId) return NextResponse.json({ error: 'Message ou fichier requis' }, { status: 400 })
 
     const fromId = Number(user.id)
     const toId = Number(to)
 
-    // Vérifier que le destinataire existe
-    const toAlumni = await payload.findByID({
-      collection: 'alumni',
-      id: toId,
-    }).catch(() => null)
+    const toAlumni = await payload.findByID({ collection: 'alumni', id: toId }).catch(() => null)
+    if (!toAlumni) return NextResponse.json({ error: `Destinataire introuvable` }, { status: 400 })
 
-    if (!toAlumni) {
-      return NextResponse.json({ error: `Destinataire introuvable (id: ${toId})` }, { status: 400 })
-    }
-
-    // Créer le message en BDD
-    const savedMsg = await (payload.create as any)({
+    const savedMsg = await payload.create({
       collection: 'direct-messages',
+      overrideAccess: true,
       data: {
         from: fromId,
         to: toId,
@@ -88,9 +89,10 @@ export async function POST(req: Request) {
       },
     })
 
-    const alumniUser = user as any
-    const displayPrenom = alumniUser.prenom || 'Membre'
-    const displayNom = alumniUser.nom || 'ENC'
+    // Récupérer le vrai prenom/nom depuis la base
+    const alumniUser = await payload.findByID({ collection: 'alumni', id: fromId }).catch(() => null)
+    const displayPrenom = (alumniUser as any)?.prenom || 'Membre'
+    const displayNom = (alumniUser as any)?.nom || 'ENC'
 
     // Notification SSE temps réel
     const streamUrl = `${new URL(req.url).origin}/api/chat/stream`
@@ -102,6 +104,8 @@ export async function POST(req: Request) {
         from: String(fromId),
         to: String(toId),
         user: `${displayPrenom} ${displayNom}`,
+        fromPrenom: displayPrenom,
+        fromNom: displayNom,
         text: message || '',
         fileUrl: fileUrl || null,
         fileName: fileName || null,
@@ -111,7 +115,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, doc: savedMsg })
   } catch (err: any) {
-    console.error("Erreur d'envoi du message privé:", err)
+    console.error('[POST /api/mp]', err)
     return NextResponse.json({ error: err.message, details: err?.data }, { status: 500 })
   }
 }
