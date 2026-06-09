@@ -85,10 +85,14 @@ export default function PublishBox({
         formData.append('alt', `Image de ${userPrenom} ${userNom}`)
 
         const uploadRes = await fetch('/api/media', {
-          method: 'POST',
-          body: formData,
-          credentials: 'include',
-        })
+  method: 'POST',
+  body: formData,
+  credentials: 'include',
+})
+
+console.log('Upload status:', uploadRes.status)
+const uploadDebug = await uploadRes.clone().json().catch(() => 'non-json')
+console.log('Upload data:', JSON.stringify(uploadDebug))
 
         if (!uploadRes.ok) {
           throw new Error("Échec de l'upload de l'image")
