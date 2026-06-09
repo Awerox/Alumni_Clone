@@ -30,7 +30,7 @@ export default async function FeedPage({ searchParams }: PageProps) {
   const filterType = resolvedSearchParams.filterType || 'all'
 
   const [postsRes, offresRes, articlesRes] = await Promise.all([
-    payload.find({ collection: 'posts', limit: 30, sort: '-createdAt' }),
+    payload.find({ collection: 'posts', limit: 30, sort: '-createdAt', depth: 1 }),
     payload.find({ collection: 'offres', limit: 30, sort: '-createdAt' }),
     payload.find({ collection: 'articles', where: { statut: { equals: 'publie' } }, limit: 30, sort: '-createdAt' }),
   ])
@@ -97,7 +97,10 @@ export default async function FeedPage({ searchParams }: PageProps) {
                 )
               }
 
-              if (item.typeItem === 'post') {
+                if (item.typeItem === 'post') {
+                const postImageUrl = item.image && typeof item.image === 'object'
+                  ? item.image.url
+                  : null
                 return (
                   <div key={item.id} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-2xs space-y-3">
                     <div className="flex items-center gap-3">
@@ -109,10 +112,18 @@ export default async function FeedPage({ searchParams }: PageProps) {
                         <p className="text-[9px] text-gray-400 font-bold">{dateText}</p>
                       </div>
                     </div>
-                    <p className="text-xs font-medium text-gray-600 leading-relaxed whitespace-pre-wrap">{item.contenu}</p>
+                    {item.contenu && (
+                      <p className="text-xs font-medium text-gray-600 leading-relaxed whitespace-pre-wrap">{item.contenu}</p>
+                    )}
+                    {postImageUrl && (
+                      <div className="rounded-xl overflow-hidden border border-gray-100">
+                        <img src={postImageUrl} alt="Image du post" className="w-full max-h-80 object-cover" />
+                      </div>
+                    )}
                   </div>
                 )
               }
+
 
               const coverUrl = item.couverture && typeof item.couverture === 'object' ? item.couverture.url : null
               return (
