@@ -163,7 +163,7 @@ export default async function HomePage() {
           <div className="flex flex-col lg:flex-row items-center gap-12">
             <div className="lg:w-2/5 flex flex-col items-center text-center space-y-6">
               <div className="w-full max-w-sm">
-                <img src="https://www.prepad1.fr/wp-content/uploads/2020/04/logo-ENC-Bessi%C3%A8res-scaled-e1586368642978.jpg" alt="ENC Bessières"
+                <img src="https://www.enc-bessieres.org/wp-content/uploads/2025/01/cropped-enc5122_ico.jpg" alt="ENC Bessières"
                   className="w-full h-auto rounded-3xl object-cover shadow-2xs" />
               </div>
               <div className="flex flex-col sm:flex-row lg:flex-col gap-3 w-full max-w-xs font-black uppercase text-[10px] tracking-widest">
@@ -242,7 +242,7 @@ export default async function HomePage() {
               </Link>
             </div>
             <div className="md:w-2/3 w-full">
-              <img src="https://www.enc-bessieres.org/anglais/" alt="Mentorat"
+              <img src="https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&q=80&w=1000" alt="Mentorat"
                 className="w-full h-64 md:h-80 object-cover rounded-3xl shadow-md transform hover:scale-[1.01] transition-transform duration-500" />
             </div>
           </div>
