@@ -8,7 +8,7 @@ import ActivityFeed from '@/components/ActivityFeed'
 import {
   FadeUp, FadeLeft, FadeRight,
   StaggerContainer, StaggerItem,
-  AnimatedCard, BounceIn, AnimatedTitle,
+  AnimatedTitle,
 } from '@/components/AnimatedSection'
 
 export const dynamic = 'force-dynamic'
@@ -54,6 +54,7 @@ export default async function HomePage() {
       {/* ── SECTION 1 : HERO ─────────────────────────────────────────────── */}
       <section className="bg-white border-b border-gray-100 py-12 overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center gap-12">
+          {/* Texte — animé depuis la gauche */}
           <FadeLeft className="md:w-1/2 space-y-6">
             <h1 className="text-4xl font-black text-enc leading-tight tracking-tight">Bonjour !</h1>
             <p className="text-gray-600 text-base leading-relaxed font-medium">
@@ -65,9 +66,8 @@ export default async function HomePage() {
               En savoir plus
             </Link>
           </FadeLeft>
-          <div className="md:w-1/2">
-  <HeroSlider />
-</div>
+          {/* Slider — PAS de wrapper, il a déjà md:w-1/2 en interne */}
+          <HeroSlider />
         </div>
       </section>
 
