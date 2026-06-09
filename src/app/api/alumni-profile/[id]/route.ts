@@ -1,43 +1,21 @@
-// app/api/alumni/[id]/route.ts
+// app/api/alumni-profile/[id]/route.ts
+// Route frontend uniquement — ne bloque plus les routes natives Payload
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { verify } from 'jsonwebtoken'
 
-interface DecodedToken {
-  id: string
-  collection: string
-}
-
-// Vérifie le token alumni OU admin (Users)
-async function getAuthContext(req: NextRequest, secret: string): Promise<{
-  userId: string | null
-  isAdmin: boolean
-}> {
+async function getCurrentUserId(req: NextRequest, secret: string): Promise<string | null> {
   const token =
     req.cookies.get('payload-alumni-token')?.value ||
     req.cookies.get('payload-token')?.value
-
-  if (!token) return { userId: null, isAdmin: false }
-
+  if (!token) return null
   try {
-    const decoded = verify(token, secret) as DecodedToken
-
-    // Token alumni (connexion frontend)
-    if (decoded?.collection === 'alumni' && decoded?.id) {
-      return { userId: String(decoded.id), isAdmin: false }
-    }
-
-    // Token admin Payload (connexion /admin)
-    if (decoded?.collection === 'users' && decoded?.id) {
-      return { userId: String(decoded.id), isAdmin: true }
-    }
-
-    return { userId: null, isAdmin: false }
-  } catch {
-    return { userId: null, isAdmin: false }
-  }
+    const decoded = verify(token, secret) as any
+    if (decoded?.collection === 'alumni' && decoded?.id) return String(decoded.id)
+    return null
+  } catch { return null }
 }
 
 export async function PATCH(
@@ -47,22 +25,19 @@ export async function PATCH(
   try {
     const { id } = await params
     const payload = await getPayload({ config: configPromise })
-    const { userId, isAdmin } = await getAuthContext(req, payload.secret)
+    const currentUserId = await getCurrentUserId(req, payload.secret)
 
-    if (!userId) {
+    if (!currentUserId) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
     }
 
-    // Un utilisateur ne peut modifier que son propre profil
-    // sauf si c'est un admin
-    if (!isAdmin && String(userId) !== String(id)) {
+    if (String(currentUserId) !== String(id)) {
       return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
     }
 
     const body = await req.json()
 
-    // Champs autorisés pour un utilisateur normal
-    const userAllowedFields = [
+    const allowedFields = [
       'prenom', 'nom', 'nomNaissance', 'telephone', 'ville',
       'dateNaissance', 'civilite', 'bio', 'poste', 'entreprise',
       'diplome', 'promotion', 'secteur', 'searchOpportunities',
@@ -72,27 +47,16 @@ export async function PATCH(
       'notifLastEvents', 'notifMassMessages', 'notifGroupInvites',
       'mentoratRole', 'mentoratActive', 'photo', 'avatar',
       'linkedin', 'instagram', 'socialLinks', 'experiences',
-      'formations', 'interets', 'latitude', 'longitude',
+      'formations', 'interets', 'subGoogle', 'subLinkedin',
     ]
-
-    // L'admin peut tout modifier (password inclus)
-    const adminAllowedFields = [
-      ...userAllowedFields,
-      'password', 'email', 'statut', 'isMentor',
-      'subGoogle', 'subLinkedin',
-    ]
-
-    const allowedFields = isAdmin ? adminAllowedFields : userAllowedFields
 
     const sanitized: Record<string, any> = {}
     for (const field of allowedFields) {
-      if (field in body) {
-        sanitized[field] = body[field]
-      }
+      if (field in body) sanitized[field] = body[field]
     }
 
     if (Object.keys(sanitized).length === 0) {
-      return NextResponse.json({ error: 'Aucun champ valide à mettre à jour' }, { status: 400 })
+      return NextResponse.json({ error: 'Aucun champ valide' }, { status: 400 })
     }
 
     const updated = await payload.update({
@@ -104,7 +68,7 @@ export async function PATCH(
 
     return NextResponse.json({ doc: updated })
   } catch (err) {
-    console.error('[PATCH /api/alumni/[id]]', err)
+    console.error('[PATCH /api/alumni-profile/[id]]', err)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
@@ -116,20 +80,11 @@ export async function GET(
   try {
     const { id } = await params
     const payload = await getPayload({ config: configPromise })
-
-    const user = await payload.findByID({
-      collection: 'alumni',
-      id,
-      depth: 1,
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: 'Utilisateur introuvable' }, { status: 404 })
-    }
-
+    const user = await payload.findByID({ collection: 'alumni', id, depth: 1 })
+    if (!user) return NextResponse.json({ error: 'Introuvable' }, { status: 404 })
     return NextResponse.json(user)
   } catch (err) {
-    console.error('[GET /api/alumni/[id]]', err)
+    console.error('[GET /api/alumni-profile/[id]]', err)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }

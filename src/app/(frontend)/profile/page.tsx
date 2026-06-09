@@ -456,7 +456,7 @@ export default function ProfilePage() {
       if (!validateDates(typeValidation, arr[arr.length - 1])) return
     }
     try {
-      const res = await fetch(`/api/alumni/${user.id}?depth=1`, {
+      const res = await fetch(`/api/alumni-profile/${user.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedFields),

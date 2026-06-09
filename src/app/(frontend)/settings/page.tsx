@@ -1,466 +1,168 @@
-'use client'
-import React, { useEffect, useState, useRef, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+// app/feed/page.tsx
+import React from 'react'
+import Link from 'next/link'
+import { getAuthUser } from '@/lib/auth'
+import PublishBox from '@/components/PublishBox'
 
-function SettingsContent() {
-  const [user, setUser] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState('profile')
-  const [isSaving, setIsSaving] = useState(false)
-  const [uploadingAvatar, setUploadingAvatar] = useState(false)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [showDeleteModal, setShowDeleteModal] = useState(false)
-  
-  const [showCropModal, setShowCropModal] = useState(false)
-  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
-  const [previewImageSrc, setPreviewImageSrc] = useState<string>('')
-  const [zoomScale, setZoomScale] = useState<number>(1)
+export const dynamic = 'force-dynamic'
 
-  const [formData, setFormData] = useState<any>({})
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  const baseUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3000'
-  const googleLinkUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ''}&redirect_uri=${encodeURIComponent(baseUrl + '/api/oauth/google/callback')}&response_type=code&scope=${encodeURIComponent('email profile openid')}`
-  const linkedinLinkUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${process.env.NEXT_PUBLIC_LINKEDIN_CLIENT_ID || ''}&redirect_uri=${encodeURIComponent(baseUrl + '/api/oauth/linkedin/callback')}&scope=${encodeURIComponent('openid profile email')}`
-
-  const fetchSettings = async () => {
-    try {
-      const res = await fetch('/api/alumni/me', { credentials: 'include' })
-      if (!res.ok) { router.push('/login'); return; }
-      const data = await res.json()
-      if (data && data.user) {
-        setUser(data.user)
-        setFormData({
-          prenom: data.user.prenom || '',
-          nom: data.user.nom || '',
-          nomNaissance: data.user.nomNaissance || '',
-          email: data.user.email || '',
-          civilite: data.user.civilite || 'M.',
-          telephone: data.user.telephone || '',
-          ville: data.user.ville || '',
-          dateNaissance: data.user.dateNaissance || '',
-          avatar: data.user.avatar || null,
-          searchOpportunities: data.user.searchOpportunities ?? true,
-          profileVisibility: data.user.profileVisibility ?? true,
-          interveneEstablishment: data.user.interveneEstablishment ?? false,
-          shareExperience: data.user.shareExperience ?? true,
-          ambassador: data.user.ambassador ?? false,
-          jury: data.user.jury ?? false,
-          notifNewsletter: data.user.notifNewsletter ?? false,
-          notifPlatform: data.user.notifPlatform ?? true,
-          notifWeeklyJobs: data.user.notifWeeklyJobs ?? false,
-          notifLastPosts: data.user.notifLastPosts ?? true,
-          notifLastBlogs: data.user.notifLastBlogs ?? true,
-          notifLastEvents: data.user.notifLastEvents ?? true,
-          notifMassMessages: data.user.notifMassMessages ?? true,
-          notifGroupInvites: data.user.notifGroupInvites ?? true,
-          mentoratRole: data.user.mentoratRole || 'filleul', 
-          mentoratActive: data.user.mentoratActive ?? false,
-          subGoogle: data.user.subGoogle || null,
-          subLinkedin: data.user.subLinkedin || null,
-        })
-      }
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => { 
-    fetchSettings() 
-    if (searchParams.get('success') === 'linked') {
-      setSuccessMessage('Votre compte tiers a été lié avec succès !')
-      setTimeout(() => setSuccessMessage(null), 4000)
-    }
-  }, [searchParams])
-
-  const handleUpdateFields = async (fieldsToSave: any) => {
-    setIsSaving(true)
-    setSuccessMessage(null)
-    setErrorMessage(null)
-
-    let avatarId = fieldsToSave.avatar
-    if (avatarId && typeof avatarId === 'object') {
-      avatarId = avatarId.id
-    }
-
-    const payload = { ...fieldsToSave, avatar: avatarId }
-
-    try {
-      const res = await fetch(`/api/alumni/${user.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        credentials: 'include',
-      })
-      if (res.ok) {
-        setSuccessMessage('Modifications enregistrées avec succès !')
-        setTimeout(() => setSuccessMessage(null), 3000)
-        fetchSettings()
-      } else {
-        setErrorMessage("Le serveur a refusé la mise à jour des données.")
-      }
-    } catch (err) {
-      console.error(err)
-      setErrorMessage("Erreur réseau lors de la mise à jour.")
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  const handleToggle = (key: string) => {
-    const updatedValue = !formData[key]
-    setFormData((prev: any) => ({ ...prev, [key]: updatedValue }))
-    handleUpdateFields({ ...formData, [key]: updatedValue })
-  }
-
-  const handleMentoratRoleChange = (role: 'filleul' | 'mentor') => {
-    setFormData((prev: any) => ({ ...prev, mentoratRole: role }))
-    handleUpdateFields({ ...formData, mentoratRole: role })
-  }
-
-  const handleUnlinkProvider = async (provider: 'google' | 'linkedin') => {
-    const field = provider === 'google' ? 'subGoogle' : 'subLinkedin'
-    const label = provider === 'google' ? 'Google' : 'LinkedIn'
-
-    if (!confirm(`Désassocier votre compte ${label} ? Vous ne pourrez plus vous connecter via ${label} jusqu'à une nouvelle association.`)) return
-
-    // Optimistic update
-    setFormData((prev: any) => ({ ...prev, [field]: null }))
-
-    try {
-      const res = await fetch(`/api/alumni/${user.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [field]: null }),
-        credentials: 'include',
-      })
-
-      if (res.ok) {
-        setSuccessMessage(`Compte ${label} désassocié avec succès.`)
-        setTimeout(() => setSuccessMessage(null), 3000)
-        fetchSettings()
-      } else {
-        // Rollback
-        setFormData((prev: any) => ({ ...prev, [field]: user[field] }))
-        setErrorMessage(`Impossible de désassocier le compte ${label}.`)
-      }
-    } catch {
-      // Rollback
-      setFormData((prev: any) => ({ ...prev, [field]: user[field] }))
-      setErrorMessage('Erreur réseau lors de la désassociation.')
-    }
-  }
-
-  const handleFileSelection = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) return
-    const file = e.target.files[0]
-    setSelectedImageFile(file)
-    setPreviewImageSrc(URL.createObjectURL(file))
-    setZoomScale(1)
-    setShowCropModal(true)
-  }
-
-  const handleSaveCroppedImage = async () => {
-    if (!selectedImageFile) return
-    setUploadingAvatar(true)
-    setShowCropModal(false)
-    setErrorMessage(null)
-    
-    const mediaFormData = new FormData()
-    mediaFormData.append('file', selectedImageFile)
-    mediaFormData.append('alt', `Avatar de ${formData.prenom} ${formData.nom}`)
-
-    try {
-      const mediaRes = await fetch('/api/media', {
-        method: 'POST',
-        body: mediaFormData,
-        credentials: 'include',
-      })
-      if (!mediaRes.ok) throw new Error("Droits d'accès refusés par Payload sur la collection Media.")
-      const mediaData = await mediaRes.json()
-      if (mediaData?.doc?.id) {
-        setFormData((prev: any) => ({ ...prev, avatar: mediaData.doc }))
-        await handleUpdateFields({ ...formData, avatar: mediaData.doc.id })
-        setSuccessMessage("Photo de profil mise à jour et visible par tous les utilisateurs !")
-      }
-    } catch (err: any) {
-      console.error(err)
-      setErrorMessage(err.message || "Impossible de lier l'image à votre profil.")
-    } finally {
-      setUploadingAvatar(false)
-    }
-  }
-
-  const getAvatarUrl = () => {
-    if (formData.avatar && typeof formData.avatar === 'object' && formData.avatar.url) return formData.avatar.url
-    if (user?.avatar && typeof user.avatar === 'object' && user.avatar.url) return user.avatar.url
-    return `https://ui-avatars.com/api/?name=${formData.prenom}+${formData.nom}&size=180&background=800020&color=fff`
-  }
-
-  if (loading) return <div className="min-h-screen flex items-center justify-center font-bold text-enc animate-pulse uppercase">Chargement des paramètres...</div>
-
-  return (
-    <div className="min-h-screen bg-[#F8F9FA] py-10 px-4">
-      <div className="max-w-6xl mx-auto bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-        
-        {/* BARRE DE NAVIGATION DES ONGLETS */}
-        <div className="flex border-b border-gray-100 overflow-x-auto bg-gray-50/50">
-          {[
-            { id: 'profile', label: 'Données personnelles', icon: 'fa-solid fa-user' },
-            { id: 'params', label: 'Paramètres', icon: 'fa-solid fa-gear' },
-            { id: 'notifs', label: 'Notifications', icon: 'fa-solid fa-bell' },
-            { id: 'mentorat', label: 'Mentorat', icon: 'fa-solid fa-user-group' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-6 py-4 text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all border-b-2 ${
-                activeTab === tab.id ? 'border-purple-600 text-purple-600 bg-white' : 'border-transparent text-gray-500 hover:text-gray-800'
-              }`}
-            >
-              <i className={tab.icon}></i>
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* FEEDBACKS UTILISATEUR */}
-        {successMessage && <div className="mx-8 mt-6 p-3 bg-emerald-50 text-emerald-800 text-xs font-bold rounded-xl animate-in fade-in">{successMessage}</div>}
-        {errorMessage && <div className="mx-8 mt-6 p-3 bg-rose-50 text-rose-700 text-xs font-bold rounded-xl animate-in shake duration-200">{errorMessage}</div>}
-
-        <div className="p-8 md:p-10">
-
-          {/* ================= ONGLET 1 : DONNÉES PERSONNELLES ================= */}
-          {activeTab === 'profile' && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 text-left">
-              <div className="lg:col-span-8 space-y-5">
-                <h3 className="text-lg font-black text-gray-800 uppercase tracking-tight mb-6">Informations Personnelles</h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 mb-1">Prénom *</label>
-                    <input className="w-full p-3 border border-gray-200 rounded-xl outline-none text-sm font-medium focus:border-purple-500" value={formData.prenom || ''} onChange={(e) => setFormData({...formData, prenom: e.target.value})} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 mb-1">Nom *</label>
-                    <input className="w-full p-3 border border-gray-200 rounded-xl outline-none text-sm font-medium focus:border-purple-500" value={formData.nom || ''} onChange={(e) => setFormData({...formData, nom: e.target.value})} />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 mb-1">Nom de naissance (si différent)</label>
-                  <input className="w-full p-3 border border-gray-200 rounded-xl outline-none text-sm font-medium focus:border-purple-500" value={formData.nomNaissance || ''} placeholder="NOM DE NAISSANCE" onChange={(e) => setFormData({...formData, nomNaissance: e.target.value})} />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 mb-1">Email *</label>
-                  <input type="email" className="w-full p-3 border border-gray-200 rounded-xl outline-none text-sm font-medium bg-gray-50 cursor-not-allowed text-gray-400" value={formData.email || ''} readOnly />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 mb-1">Civilité *</label>
-                    <select className="w-full p-3 border bg-white border-gray-200 rounded-xl text-sm font-medium outline-none" value={formData.civilite || 'M.'} onChange={(e) => setFormData({...formData, civilite: e.target.value})}>
-                      <option value="M.">M.</option>
-                      <option value="Mme">Mme</option>
-                    </select>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-xs font-bold text-gray-500 mb-1">Téléphone</label>
-                    <div className="flex border border-gray-200 rounded-xl overflow-hidden focus-within:border-purple-500">
-                      <div className="bg-gray-50 border-r border-gray-200 px-3 flex items-center gap-1 text-xs font-bold text-gray-600">🇫🇷</div>
-                      <input className="w-full p-3 outline-none text-sm font-medium" value={formData.telephone || ''} onChange={(e) => setFormData({...formData, telephone: e.target.value})} />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 mb-1">Ville</label>
-                    <input className="w-full p-3 border border-gray-200 rounded-xl outline-none text-sm font-medium focus:border-purple-500" value={formData.ville || ''} onChange={(e) => setFormData({...formData, ville: e.target.value})} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 mb-1">Date de naissance</label>
-                    <input type="date" className="w-full p-3 border border-gray-200 rounded-xl outline-none text-sm font-medium focus:border-purple-500" value={formData.dateNaissance || ''} onChange={(e) => setFormData({...formData, dateNaissance: e.target.value})} />
-                  </div>
-                </div>
-
-                <button onClick={() => handleUpdateFields(formData)} disabled={isSaving || uploadingAvatar} className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-md transition-all">
-                  {isSaving ? 'Enregistrement...' : 'Enregistrer les informations'}
-                </button>
-              </div>
-
-              {/* SECTEUR IMAGE */}
-              <div className="lg:col-span-4 flex flex-col items-center lg:border-l border-gray-100 lg:pl-10 space-y-6">
-                <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Photo de profil</p>
-                <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handleFileSelection} value={''} />
-                <div onClick={() => !uploadingAvatar && fileInputRef.current?.click()} className={`relative group w-44 h-44 rounded-2xl overflow-hidden border bg-gray-50 flex flex-col items-center justify-center cursor-pointer shadow-sm hover:scale-[1.02] transition-all ${uploadingAvatar ? 'animate-pulse' : ''}`}>
-                  <img src={getAvatarUrl()} className="w-full h-full object-cover" alt="Avatar" />
-                  <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity text-white font-bold text-xs">
-                    <i className="fa-solid fa-camera text-lg"></i>
-                    <span>{uploadingAvatar ? 'Envoi...' : 'Changer la photo'}</span>
-                  </div>
-                </div>
-                <div className="w-full space-y-3 pt-6 border-t border-gray-100 text-center text-sm font-medium">
-                  <p className="text-[11px] font-bold text-gray-500">CGU & Politique de Confidentialité</p>
-                  <label className="flex items-center justify-center gap-2 text-xs text-gray-400">
-                    <input type="checkbox" checked readOnly className="rounded text-purple-600 focus:ring-purple-500 w-4 h-4 cursor-not-allowed" />
-                    <span>Vous avez accepté les Conditions Générales</span>
-                  </label>
-                  <div className="pt-4">
-                    <button type="button" onClick={() => setShowDeleteModal(true)} className="w-full py-2.5 bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-bold text-xs uppercase shadow-sm">Désactiver mon compte</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ================= PARAMÈTRES DU COMPTE ================= */}
-          {activeTab === 'params' && (
-            <div className="space-y-10 text-left max-w-4xl">
-              <div>
-                <h3 className="text-lg font-black text-gray-800 uppercase tracking-tight border-b border-gray-100 pb-2">Paramètres du compte</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8 mt-6">
-                  <div className="space-y-2">
-                    <p className="font-bold text-sm text-gray-800">Visibilité du profil par les employeurs</p>
-                    <div className="flex gap-1 border border-gray-200 w-max p-1 bg-gray-50 rounded-xl">
-                      <button onClick={() => handleToggle('profileVisibility')} className={`px-4 py-1 rounded-lg text-xs font-bold uppercase ${formData.profileVisibility ? 'bg-white text-emerald-600' : 'text-gray-400'}`}>Oui</button>
-                      <button onClick={() => handleToggle('profileVisibility')} className={`px-4 py-1 rounded-lg text-xs font-bold uppercase ${!formData.profileVisibility ? 'bg-white text-rose-500' : 'text-gray-400'}`}>Non</button>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="font-bold text-sm text-gray-800">Intervenir dans l'établissement</p>
-                    <div className="flex gap-1 border border-gray-200 w-max p-1 bg-gray-50 rounded-xl">
-                      <button onClick={() => handleToggle('interveneEstablishment')} className={`px-4 py-1 rounded-lg text-xs font-bold uppercase ${formData.interveneEstablishment ? 'bg-white text-emerald-600 shadow-xs' : 'text-gray-400'}`}>Oui</button>
-                      <button onClick={() => handleToggle('interveneEstablishment')} className={`px-4 py-1 rounded-lg text-xs font-bold uppercase ${!formData.interveneEstablishment ? 'bg-white text-rose-500 shadow-xs' : 'text-gray-400'}`}>Non</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* COMPTES TIERS */}
-              <div className="pt-4">
-                <h3 className="text-sm font-black text-gray-400 uppercase tracking-widest border-b border-gray-100 pb-2 mb-6">Comptes tiers associés</h3>
-                <div className="max-w-xl space-y-4">
-
-                  {/* COMPTE GOOGLE */}
-                  <div className="flex justify-between items-center py-3.5 px-5 bg-gray-50/50 border border-gray-100 rounded-2xl">
-                    <div className="flex items-center gap-4">
-                      <div className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-100 shadow-xs">
-                        <i className="fa-brands fa-google text-gray-600 text-sm"></i>
-                      </div>
-                      <div>
-                        <p className="text-xs font-black uppercase text-gray-800 tracking-tight">Google ID Authenticator</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{formData.subGoogle ? 'Connexion à un clic active' : 'Non associé à votre profil'}</p>
-                      </div>
-                    </div>
-                    {formData.subGoogle ? (
-                      <div className="flex items-center gap-2">
-                        <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> En ligne
-                        </span>
-                        <button
-                          onClick={() => handleUnlinkProvider('google')}
-                          title="Désassocier Google"
-                          className="text-[10px] font-black uppercase tracking-wider bg-white border border-gray-200 hover:border-rose-400 text-gray-400 hover:text-rose-500 px-3 py-1.5 rounded-xl shadow-2xs transition-all active:scale-95"
-                        >
-                          <i className="fa-solid fa-xmark"></i>
-                        </button>
-                      </div>
-                    ) : (
-                      <a href={googleLinkUrl} className="text-[10px] font-black uppercase tracking-wider bg-white border border-gray-200 hover:border-purple-600 text-gray-700 hover:text-purple-600 px-4 py-2 rounded-xl shadow-2xs transition-all active:scale-95">
-                        Associer
-                      </a>
-                    )}
-                  </div>
-
-                  {/* COMPTE LINKEDIN */}
-                  <div className="flex justify-between items-center py-3.5 px-5 bg-gray-50/50 border border-gray-100 rounded-2xl">
-                    <div className="flex items-center gap-4">
-                      <div className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-gray-100 shadow-xs">
-                        <i className="fa-brands fa-linkedin-in text-gray-600 text-sm"></i>
-                      </div>
-                      <div>
-                        <p className="text-xs font-black uppercase text-gray-800 tracking-tight">LinkedIn Professional Connect</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{formData.subLinkedin ? 'Connexion à un clic active' : 'Non associé à votre profil'}</p>
-                      </div>
-                    </div>
-                    {formData.subLinkedin ? (
-                      <div className="flex items-center gap-2">
-                        <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-100">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> En ligne
-                        </span>
-                        <button
-                          onClick={() => handleUnlinkProvider('linkedin')}
-                          title="Désassocier LinkedIn"
-                          className="text-[10px] font-black uppercase tracking-wider bg-white border border-gray-200 hover:border-rose-400 text-gray-400 hover:text-rose-500 px-3 py-1.5 rounded-xl shadow-2xs transition-all active:scale-95"
-                        >
-                          <i className="fa-solid fa-xmark"></i>
-                        </button>
-                      </div>
-                    ) : (
-                      <a href={linkedinLinkUrl} className="text-[10px] font-black uppercase tracking-wider bg-white border border-gray-200 hover:border-purple-600 text-gray-700 hover:text-purple-600 px-4 py-2 rounded-xl shadow-2xs transition-all active:scale-95">
-                        Associer
-                      </a>
-                    )}
-                  </div>
-
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ================= ONGLET 4 : MENTORAT ================= */}
-          {activeTab === 'mentorat' && (
-            <div className="space-y-6 text-left">
-              <h3 className="text-lg font-black text-gray-800 uppercase tracking-tight border-b border-gray-100 pb-2">Mentorat</h3>
-              <div className="space-y-2">
-                <p className="text-xs font-bold text-gray-600">Je souhaite...</p>
-                <div className="flex border rounded-xl overflow-hidden p-1 bg-gray-50 w-full md:w-max">
-                  <button onClick={() => handleMentoratRoleChange('filleul')} className={`px-6 py-2 rounded-lg text-xs font-bold uppercase transition-all ${formData.mentoratRole === 'filleul' ? 'bg-purple-600 text-white shadow-sm' : 'text-gray-500'}`}>Être mentoré(e)</button>
-                  <button onClick={() => handleMentoratRoleChange('mentor')} className={`px-6 py-2 rounded-lg text-xs font-bold uppercase transition-all ${formData.mentoratRole === 'mentor' ? 'bg-purple-600 text-white shadow-sm' : 'text-gray-500'}`}>Devenir mentor</button>
-                </div>
-              </div>
-            </div>
-          )}
-
-        </div>
-      </div>
-
-      {/* MODAL DE CROP */}
-      {showCropModal && (
-        <div className="fixed inset-0 bg-gray-900/70 backdrop-blur-xs flex items-center justify-center z-[200] p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-6 shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="text-center space-y-1">
-              <h3 className="text-md font-black uppercase text-gray-800 tracking-tight">Recadrer votre photo</h3>
-            </div>
-            <div className="w-56 h-56 mx-auto rounded-full overflow-hidden border-4 border-gray-100 shadow-inner bg-gray-50 flex items-center justify-center relative">
-              <img src={previewImageSrc} style={{ transform: `scale(${zoomScale})` }} className="w-full h-full object-cover pointer-events-none" alt="Crop preview" />
-            </div>
-            <div className="space-y-2 max-w-xs mx-auto">
-              <input type="range" min="1" max="3" step="0.05" value={zoomScale} onChange={(e) => setZoomScale(parseFloat(e.target.value))} className="w-full accent-blue-600 bg-gray-100 h-1.5 rounded-lg cursor-pointer" />
-            </div>
-            <div className="flex gap-3 pt-2">
-              <button onClick={handleSaveCroppedImage} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl text-xs uppercase shadow-md">Valider</button>
-              <button onClick={() => { setShowCropModal(false); setSelectedImageFile(null); setPreviewImageSrc('') }} className="px-5 py-3 border rounded-xl font-bold text-xs uppercase text-gray-500">Annuler</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-    </div>
-  )
+interface PageProps {
+  searchParams: Promise<{ q?: string; filterType?: string }>
 }
 
-export default function SettingsPage() {
+export default async function FeedPage({ searchParams }: PageProps) {
+  const { user, payload } = await getAuthUser()
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 font-sans">
+        <div className="text-center p-8 bg-white border border-gray-200 rounded-3xl shadow-sm max-w-sm">
+          <div className="text-3xl mb-3">🔒</div>
+          <p className="text-sm font-bold text-gray-700">Accès restreint</p>
+          <p className="text-xs text-gray-400 mt-1 mb-4">Veuillez vous connecter pour accéder au fil d'actualité de l'ENC.</p>
+          <Link href="/login?redirect=/feed" className="inline-block w-full text-center py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-black uppercase rounded-xl transition-colors shadow-sm">Se connecter</Link>
+        </div>
+      </div>
+    )
+  }
+
+  const resolvedSearchParams = await searchParams
+  const filterType = resolvedSearchParams.filterType || 'all'
+
+  const [postsRes, offresRes, articlesRes] = await Promise.all([
+    payload.find({ collection: 'posts', limit: 30, sort: '-createdAt' }),
+    payload.find({ collection: 'offres', limit: 30, sort: '-createdAt' }),
+    payload.find({ collection: 'articles', where: { statut: { equals: 'publie' } }, limit: 30, sort: '-createdAt' }),
+  ])
+
+  let itemsFeed: any[] = [
+    ...postsRes.docs.map((p: any) => ({ ...p, typeItem: 'post' })),
+    ...offresRes.docs.map((o: any) => ({ ...o, typeItem: 'offre' })),
+    ...articlesRes.docs.map((a: any) => ({ ...a, typeItem: 'article' })),
+  ].sort((x, y) => new Date(y.createdAt).getTime() - new Date(x.createdAt).getTime())
+
+  if (filterType === 'posts') itemsFeed = itemsFeed.filter((i) => i.typeItem === 'post')
+  if (filterType === 'offres') itemsFeed = itemsFeed.filter((i) => i.typeItem === 'offre')
+  if (filterType === 'blog') itemsFeed = itemsFeed.filter((i) => i.typeItem === 'article')
+
+  const catLabels: any = {
+    vie_etablissement: "Vie de l'établissement",
+    portraits_anciens: "Portrait d'anciens",
+    international: 'International',
+    evenements: 'Événements',
+  }
+
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center font-bold text-enc animate-pulse uppercase">Chargement de l'environnement...</div>}>
-      <SettingsContent />
-    </Suspense>
+    <div className="bg-gray-50/60 min-h-screen py-6 px-4 sm:px-6 lg:px-8 font-sans text-left">
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white border border-gray-200 p-4 rounded-2xl shadow-2xs">
+          <div className="text-sm font-black text-gray-800">📋 Fil d'actualité global</div>
+          <div className="flex flex-wrap gap-1.5 text-[11px] font-black uppercase tracking-wider">
+            {['all', 'posts', 'offres', 'blog'].map((tab) => (
+              <Link key={tab} href={`/feed?filterType=${tab}`}
+                className={`px-4 py-2 rounded-xl transition-all ${filterType === tab ? 'bg-purple-600 text-white' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'}`}>
+                {tab === 'all' ? 'Tout' : tab === 'posts' ? 'Messages' : tab === 'offres' ? "Offres d'emploi" : 'Articles'}
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          <div className="lg:col-span-2 space-y-5">
+            {filterType !== 'offres' && filterType !== 'blog' && (
+              <PublishBox userPrenom={user.prenom || ''} userNom={user.nom || ''} />
+            )}
+
+            {itemsFeed.length > 0 ? itemsFeed.map((item: any) => {
+              const dateText = new Date(item.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+
+              if (item.typeItem === 'offre') {
+                return (
+                  <div key={item.id} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-2xs space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm border border-gray-200">💼</div>
+                      <div className="text-[11px] text-gray-500 font-semibold leading-tight">
+                        <span className="font-bold text-gray-800">{item.recruteur?.prenom || 'Virginie SABET'}</span> vient de déposer une offre d'emploi :
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 flex items-center gap-4">
+                      <div className="p-3 bg-white border border-gray-200 rounded-xl text-gray-400 text-xs shadow-3xs">💼</div>
+                      <div>
+                        <h4 className="text-xs font-black text-gray-800">poste de {item.poste}</h4>
+                        <p className="text-[10px] font-bold text-purple-600 uppercase mt-0.5 tracking-wide">{item.entreprise} • {item.typeContrat} • {item.localisation}</p>
+                      </div>
+                    </div>
+                    <div className="text-[9px] text-gray-400 font-bold">{dateText}</div>
+                  </div>
+                )
+              }
+
+              if (item.typeItem === 'post') {
+                return (
+                  <div key={item.id} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-2xs space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center text-xs font-black uppercase border border-purple-100">
+                        {item.auteur?.prenom?.[0] || 'A'}{item.auteur?.nom?.[0] || 'X'}
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black text-gray-800">{item.auteur?.prenom || 'Alumni'} {item.auteur?.nom || ''} a publié :</h4>
+                        <p className="text-[9px] text-gray-400 font-bold">{dateText}</p>
+                      </div>
+                    </div>
+                    <p className="text-xs font-medium text-gray-600 leading-relaxed whitespace-pre-wrap">{item.contenu}</p>
+                  </div>
+                )
+              }
+
+              const coverUrl = item.couverture && typeof item.couverture === 'object' ? item.couverture.url : null
+              return (
+                <div key={item.id} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-2xs flex flex-col sm:flex-row group hover:border-purple-200 transition-all">
+                  {coverUrl && (
+                    <div className="sm:w-48 h-40 shrink-0 bg-gray-100 relative">
+                      <img src={coverUrl} alt="" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                  <div className="p-5 flex flex-col justify-between space-y-2">
+                    <div className="space-y-1">
+                      <span className="inline-block bg-amber-400 text-gray-900 font-bold text-[8px] uppercase tracking-wider px-2 py-0.5 rounded">{catLabels[item.categorie] || item.categorie}</span>
+                      <h4 className="font-black text-gray-900 text-sm leading-tight tracking-tight pt-1">{item.titre}</h4>
+                      <p className="text-xs font-medium text-gray-500 line-clamp-2 leading-normal">{item.description}</p>
+                    </div>
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-[9px] text-gray-400 font-bold">{dateText}</span>
+                      <Link href={`/blog/${item.slug}`} className="text-[10px] font-black text-purple-600 uppercase tracking-wider hover:underline">Consulter l'article →</Link>
+                    </div>
+                  </div>
+                </div>
+              )
+            }) : (
+              <div className="text-center py-12 bg-white border border-gray-200 rounded-2xl text-xs text-gray-400 italic">Aucun contenu ne correspond à ce filtre actuellement.</div>
+            )}
+          </div>
+
+          <div className="space-y-5">
+            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">📰 Derniers Articles du Blog</h3>
+            {articlesRes.docs.slice(0, 3).map((article: any) => {
+              const coverUrl = article.couverture && typeof article.couverture === 'object' ? article.couverture.url : null
+              return (
+                <div key={article.id} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-2xs group flex flex-col justify-between">
+                  <div className="p-4 space-y-3">
+                    {coverUrl && <div className="h-32 rounded-xl overflow-hidden bg-gray-50 border border-gray-100"><img src={coverUrl} alt="" className="w-full h-full object-cover" /></div>}
+                    <div className="space-y-1">
+                      <span className="text-[8px] font-black uppercase tracking-wider text-amber-700 bg-amber-50 px-2 py-0.5 rounded">{catLabels[article.categorie] || article.categorie}</span>
+                      <h4 className="font-black text-gray-900 text-xs pt-1 leading-snug line-clamp-2">{article.titre}</h4>
+                      <p className="text-[11px] font-medium text-gray-400 line-clamp-2">{article.description}</p>
+                    </div>
+                  </div>
+                  <div className="px-4 pb-4">
+                    <Link href={`/blog/${article.slug}`} className="block text-center py-2 bg-gray-50 hover:bg-purple-50 text-gray-600 hover:text-purple-700 font-black text-[10px] uppercase tracking-wider rounded-xl transition-colors">Consulter</Link>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
