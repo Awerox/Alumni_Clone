@@ -1,21 +1,42 @@
+// app/blog/new/page.tsx
 'use client'
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import Cropper from 'react-easy-crop'
+import Link from 'next/link'
+
+// ─── Catégories — copie de Articles.ts pour le frontend ───────────────────
+// ✅ Quand tu ajoutes une catégorie dans Articles.ts, ajoute-la ici aussi
+const CATEGORIES = [
+  { label: "Vie de l'établissement", value: 'vie_etablissement' },
+  { label: "Portraits d'anciens",    value: 'portraits_anciens' },
+  { label: 'International',          value: 'international' },
+  { label: 'Événements',             value: 'evenements' },
+  { label: 'Insertion professionnelle', value: 'insertion_pro' },
+  { label: 'Orientation',            value: 'orientation' },
+  { label: 'Boîte à outils',         value: 'boite_outils' },
+  { label: 'Bons plans',             value: 'bons_plans' },
+]
+
+function toSlug(str: string): string {
+  return str
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)+/g, '')
+}
 
 export default function NewArticlePage() {
   const router = useRouter()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
 
-  const [imageSrc, setImageSrc] = useState<string | null>(null)
-  const [crop, setCrop] = useState({ x: 0, y: 0 })
-  const [zoom, setZoom] = useState(1)
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null)
-  const [finalFile, setFinalFile] = useState<File | null>(null)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-
-  const [formData, setFormData] = useState({
+  const [form, setForm] = useState({
     titre: '',
     slug: '',
     description: '',
@@ -25,104 +46,51 @@ export default function NewArticlePage() {
 
   const handleTitreChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const titre = e.target.value
-    const slug = titre
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)+/g, '')
-    setFormData({ ...formData, titre, slug })
+    setForm(prev => ({ ...prev, titre, slug: toSlug(titre) }))
   }
 
-  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0]
-      const reader = new FileReader()
-      reader.addEventListener('load', () => {
-        setImageSrc(reader.result as string)
-      })
-      reader.readAsDataURL(file)
-    }
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 8 * 1024 * 1024) { setError('Image trop lourde (max 8 Mo)'); return }
+    if (!file.type.startsWith('image/')) { setError('Seules les images sont acceptées'); return }
+    setImageFile(file)
+    setImagePreview(URL.createObjectURL(file))
+    setError('')
   }
 
-  const onCropComplete = useCallback((_croppedArea: any, croppedAreaPixels: any) => {
-    setCroppedAreaPixels(croppedAreaPixels)
-  }, [])
-
-  const generateCroppedImage = async () => {
-    if (!imageSrc || !croppedAreaPixels) return
-    try {
-      const image = new Image()
-      image.src = imageSrc
-      await new Promise((resolve) => (image.onload = resolve))
-
-      const canvas = document.createElement('canvas')
-      const ctx = canvas.getContext('2d')
-      canvas.width = croppedAreaPixels.width
-      canvas.height = croppedAreaPixels.height
-
-      if (ctx) {
-        ctx.drawImage(
-          image,
-          croppedAreaPixels.x,
-          croppedAreaPixels.y,
-          croppedAreaPixels.width,
-          croppedAreaPixels.height,
-          0,
-          0,
-          croppedAreaPixels.width,
-          croppedAreaPixels.height,
-        )
-      }
-
-      canvas.toBlob((blob) => {
-        if (!blob) return
-        const croppedFile = new File([blob], 'couverture-recadree.jpg', { type: 'image/jpeg' })
-        setFinalFile(croppedFile)
-        setPreviewUrl(URL.createObjectURL(croppedFile))
-        setImageSrc(null)
-      }, 'image/jpeg')
-    } catch (e) {
-      console.error(e)
-      setError("Erreur lors du recadrage de l'image.")
-    }
-  }
-
-  const handleSubmit = async (
-    e: React.MouseEvent,
-    typeStatut: 'publie' | 'brouillon' | 'attente',
-  ) => {
-    e.preventDefault()
-    if (!finalFile)
-      return setError('Veuillez importer et valider le recadrage de votre photo de couverture.')
-
-    setLoading(true)
+  const handleSubmit = async (statut: 'publie' | 'brouillon' | 'attente') => {
     setError('')
 
+    if (!form.titre.trim()) return setError('Le titre est obligatoire.')
+    if (!form.description.trim()) return setError('La description est obligatoire.')
+    if (!form.contenu.trim()) return setError('Le contenu est obligatoire.')
+    if (!imageFile) return setError('La photo de couverture est obligatoire.')
+
+    setLoading(true)
+
     try {
-      // 1. Upload de l'image vers /api/media
+      // 1. Upload image
+      setUploadingImage(true)
       const mediaForm = new FormData()
-      mediaForm.append('file', finalFile)
-      const mediaRes = await fetch('/api/media', { method: 'POST', body: mediaForm })
-      const mediaJson = await mediaRes.json()
+      mediaForm.append('file', imageFile)
+      mediaForm.append('alt', `Couverture : ${form.titre}`)
+      const mediaRes = await fetch('/api/media', { method: 'POST', body: mediaForm, credentials: 'include' })
+      const mediaData = await mediaRes.json()
+      if (!mediaRes.ok) throw new Error(mediaData?.errors?.[0]?.message || "Échec upload image")
+      const couvertureId = mediaData?.doc?.id
+      if (!couvertureId) throw new Error("ID image introuvable après upload")
+      setUploadingImage(false)
 
-      if (!mediaRes.ok) throw new Error("Échec du téléversement de l'image sur le serveur.")
-
-      // 2. Récupération de l'ID brut renvoyé par Payload (sans forcer le format String)
-      const imageId = mediaJson?.doc?.id ?? mediaJson?.id
-      if (!imageId) throw new Error("L'image a été uploadée mais son ID est introuvable.")
-
-      // 3. Format RichText Lexical structurellement valide
+      // 2. Contenu RichText Lexical minimal valide
       const richTextContent = {
         root: {
           type: 'root',
-          children: [
-            {
-              type: 'paragraph',
-              children: [{ type: 'text', text: formData.contenu, version: 1 }],
-              version: 1,
-            },
-          ],
+          children: form.contenu.split('\n\n').filter(Boolean).map(para => ({
+            type: 'paragraph',
+            version: 1,
+            children: [{ type: 'text', text: para.trim(), version: 1 }],
+          })),
           direction: 'ltr',
           format: '',
           indent: 0,
@@ -130,204 +98,202 @@ export default function NewArticlePage() {
         },
       }
 
-      // 4. Payload attend la clé brute (number ou string natif selon ta base)
-      const articlePayload = {
-        titre: formData.titre,
-        slug: formData.slug,
-        description: formData.description,
-        contenu: richTextContent,
-        categorie: formData.categorie,
-        statut: typeStatut,
-        couverture: imageId, // ✅ ID natif envoyé proprement pour la relation d'upload
-      }
-
-      const articleRes = await fetch('/api/articles', {
+      // 3. Créer l'article
+      const res = await fetch('/api/articles', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(articlePayload),
+        credentials: 'include',
+        body: JSON.stringify({
+          titre: form.titre.trim(),
+          slug: form.slug.trim(),
+          description: form.description.trim(),
+          contenu: richTextContent,
+          categorie: form.categorie,
+          statut,
+          couverture: couvertureId,
+        }),
       })
 
-      const resJson = await articleRes.json()
-
-      if (articleRes.ok) {
+      const data = await res.json()
+      if (res.ok) {
         router.push('/blog')
       } else {
-        const detailErreur =
-          resJson.errors?.map((e: any) => `• ${e.message}`).join('\n') || JSON.stringify(resJson)
-        setError(`Erreur de validation :\n${detailErreur}`)
+        throw new Error(data.error || 'Erreur lors de la création')
       }
     } catch (err: any) {
       setError(err.message)
     } finally {
       setLoading(false)
+      setUploadingImage(false)
     }
   }
 
   return (
-    <div className="bg-gray-50 min-h-screen py-10 px-4 sm:px-6 lg:px-8 text-left font-sans">
-      <div className="max-w-2xl mx-auto bg-white border border-gray-200 rounded-3xl p-8 shadow-sm space-y-6">
-        <div>
-          <h1 className="text-xl font-black text-gray-900 tracking-tight">Ajouter un article</h1>
-          <p className="text-xs text-gray-400 mt-1">
-            Publiez une actualité ou un événement marquant pour le réseau.
-          </p>
+    <div className="min-h-screen bg-gray-50/50 py-10 px-4 font-sans">
+      <div className="max-w-2xl mx-auto space-y-6">
+
+        {/* Header */}
+        <div className="flex items-center gap-4">
+          <Link href="/blog" className="text-gray-400 hover:text-gray-700 transition-colors">
+            ← Retour
+          </Link>
+          <div>
+            <h1 className="text-xl font-black text-gray-900 tracking-tight">Nouvel article</h1>
+            <p className="text-xs text-gray-400 mt-0.5">Rédigez et publiez un article pour la communauté</p>
+          </div>
         </div>
 
+        {/* Erreur */}
         {error && (
-          <p className="text-xs font-bold text-center text-red-600 bg-red-50 border border-red-100 p-3 rounded-xl whitespace-pre-wrap">
-            {error}
-          </p>
-        )}
-
-        {/* CROPPER OVERLAY */}
-        {imageSrc && (
-          <div className="fixed inset-0 z-50 bg-black/80 flex flex-col items-center justify-center p-4">
-            <div className="relative w-full max-w-xl h-96 bg-gray-900 rounded-2xl overflow-hidden shadow-2xl">
-              <Cropper
-                image={imageSrc}
-                crop={crop}
-                zoom={zoom}
-                aspect={16 / 9}
-                onCropChange={setCrop}
-                onCropComplete={onCropComplete}
-                onZoomChange={setZoom}
-              />
-            </div>
-            <div className="mt-4 flex gap-3 items-center bg-white p-4 rounded-xl shadow-md w-full max-w-xl justify-between">
-              <div className="flex items-center gap-2 text-xs font-bold text-gray-500 w-1/2">
-                <span>Zoom :</span>
-                <input
-                  type="range"
-                  min={1}
-                  max={3}
-                  step={0.1}
-                  value={zoom}
-                  onChange={(e) => setZoom(Number(e.target.value))}
-                  className="w-full accent-amber-500 cursor-pointer"
-                />
-              </div>
-              <div className="flex gap-2 text-xs font-black uppercase">
-                <button
-                  type="button"
-                  onClick={() => setImageSrc(null)}
-                  className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="button"
-                  onClick={generateCroppedImage}
-                  className="px-4 py-2 bg-amber-500 text-white rounded-lg"
-                >
-                  Valider
-                </button>
-              </div>
-            </div>
+          <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-xs font-bold text-red-700 flex items-start gap-2">
+            <span className="shrink-0">⚠️</span>
+            <span>{error}</span>
           </div>
         )}
 
-        <form className="space-y-4 text-xs font-bold text-gray-600">
+        {/* Formulaire */}
+        <div className="bg-white border border-gray-200 rounded-3xl p-8 shadow-sm space-y-6">
+
+          {/* Titre */}
           <div>
-            <label className="block text-gray-500 uppercase">Titre de l'article *</label>
+            <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-1.5">
+              Titre de l'article *
+            </label>
             <input
               type="text"
-              required
-              value={formData.titre}
+              value={form.titre}
               onChange={handleTitreChange}
-              className="mt-1 block w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-amber-500 font-medium text-gray-800"
-              placeholder="Ex: Grand Prix de l'Excellence 2026"
+              placeholder="Ex : Journée portes ouvertes 2026"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none text-sm font-medium text-gray-800 focus:border-amber-400 transition-colors"
             />
           </div>
 
+          {/* Slug */}
           <div>
-            <label className="block text-gray-500 uppercase">Slug de l'URL *</label>
-            <input
-              type="text"
-              required
-              value={formData.slug}
-              onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-              className="mt-1 block w-full px-4 py-2.5 bg-gray-50 border border-gray-200 text-gray-400 rounded-xl outline-none font-mono text-[11px]"
-            />
-          </div>
-
-          <div>
-            <label className="block text-gray-500 uppercase">Résumé court *</label>
-            <textarea
-              required
-              rows={2}
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="mt-1 block w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-amber-500 font-medium text-gray-800"
-              placeholder="Courte accroche visible sur la fiche d'actualité..."
-            />
-          </div>
-
-          <div>
-            <label className="block text-gray-500 uppercase">Contenu de l'article *</label>
-            <textarea
-              required
-              rows={5}
-              value={formData.contenu}
-              onChange={(e) => setFormData({ ...formData, contenu: e.target.value })}
-              className="mt-1 block w-full px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-amber-500 font-medium text-gray-800"
-              placeholder="Rédigez le corps complet de votre article..."
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
-            <div>
-              <label className="block text-gray-500 uppercase">Catégorie cible *</label>
-              <select
-                value={formData.categorie}
-                onChange={(e) => setFormData({ ...formData, categorie: e.target.value })}
-                className="mt-1 block w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl outline-none font-medium text-gray-700"
-              >
-                <option value="vie_etablissement">Vie de l'établissement</option>
-                <option value="portraits_anciens">Portraits d'anciens</option>
-                <option value="international">International</option>
-                <option value="evenements">Événements</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-gray-500 uppercase">Photo de couverture *</label>
+            <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-1.5">
+              URL (slug) — généré automatiquement
+            </label>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400 font-medium shrink-0">/blog/</span>
               <input
-                type="file"
-                accept="image/*"
-                onChange={onFileChange}
-                className="mt-1 block w-full text-gray-400 file:mr-4 file:py-1.5 file:px-4 file:rounded-xl file:border-0 file:text-[11px] file:font-black file:uppercase file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100 cursor-pointer font-medium"
+                type="text"
+                value={form.slug}
+                onChange={(e) => setForm(prev => ({ ...prev, slug: e.target.value }))}
+                className="flex-1 px-4 py-3 border border-gray-200 rounded-xl outline-none text-sm font-mono text-gray-500 bg-gray-50 focus:border-amber-400 transition-colors"
               />
             </div>
           </div>
 
-          {previewUrl && (
-            <div className="pt-2">
-              <p className="text-gray-400 text-[10px] uppercase mb-1">Aperçu sélectionné :</p>
-              <div className="w-48 h-28 rounded-xl overflow-hidden border border-gray-200">
-                <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
-              </div>
-            </div>
-          )}
-
-          <div className="flex flex-col sm:flex-row justify-end items-center gap-2 pt-4 border-t border-gray-100 text-[10px] uppercase tracking-wider font-black">
-            <button
-              type="button"
-              disabled={loading}
-              onClick={(e) => handleSubmit(e, 'brouillon')}
-              className="w-full sm:w-auto px-5 py-3 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-colors"
+          {/* Catégorie */}
+          <div>
+            <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-1.5">
+              Catégorie *
+            </label>
+            <select
+              value={form.categorie}
+              onChange={(e) => setForm(prev => ({ ...prev, categorie: e.target.value }))}
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none text-sm font-medium text-gray-700 bg-white focus:border-amber-400 transition-colors"
             >
-              Enregistrer en brouillon
-            </button>
-            <button
-              type="button"
-              disabled={loading}
-              onClick={(e) => handleSubmit(e, 'publie')}
-              className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
-            >
-              {loading ? 'Traitement...' : 'Soumettre la publication'}
-            </button>
+              {CATEGORIES.map((cat) => (
+                <option key={cat.value} value={cat.value}>{cat.label}</option>
+              ))}
+            </select>
           </div>
-        </form>
+
+          {/* Description */}
+          <div>
+            <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-1.5">
+              Description courte * <span className="text-gray-300 font-normal normal-case">(affichée sur la carte)</span>
+            </label>
+            <textarea
+              rows={2}
+              value={form.description}
+              onChange={(e) => setForm(prev => ({ ...prev, description: e.target.value }))}
+              placeholder="Courte accroche visible sur la carte de l'article..."
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none text-sm font-medium text-gray-800 resize-none focus:border-amber-400 transition-colors"
+            />
+          </div>
+
+          {/* Contenu */}
+          <div>
+            <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-1.5">
+              Contenu de l'article * <span className="text-gray-300 font-normal normal-case">(sauter une ligne = nouveau paragraphe)</span>
+            </label>
+            <textarea
+              rows={10}
+              value={form.contenu}
+              onChange={(e) => setForm(prev => ({ ...prev, contenu: e.target.value }))}
+              placeholder="Rédigez le contenu de votre article ici...&#10;&#10;Sautez une ligne pour créer un nouveau paragraphe."
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl outline-none text-sm font-medium text-gray-800 resize-y focus:border-amber-400 transition-colors leading-relaxed"
+            />
+          </div>
+
+          {/* Photo de couverture */}
+          <div>
+            <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-1.5">
+              Photo de couverture *
+            </label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleImageSelect}
+            />
+            {imagePreview ? (
+              <div className="relative group">
+                <img src={imagePreview} alt="Aperçu" className="w-full h-48 object-cover rounded-2xl border border-gray-200" />
+                <div className="absolute inset-0 bg-black/40 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <button
+                    type="button"
+                    onClick={() => { setImageFile(null); setImagePreview(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
+                    className="px-4 py-2 bg-white text-gray-800 text-xs font-black uppercase rounded-xl"
+                  >
+                    Changer la photo
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full h-40 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center gap-2 hover:border-amber-400 hover:bg-amber-50/30 transition-all group"
+              >
+                <span className="text-3xl group-hover:scale-110 transition-transform">🖼️</span>
+                <span className="text-xs font-bold text-gray-400 group-hover:text-amber-600">Cliquer pour importer une image</span>
+                <span className="text-[10px] text-gray-300">JPG, PNG, WebP — max 8 Mo</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Boutons d'action */}
+        <div className="flex flex-col sm:flex-row gap-3 pb-8">
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => handleSubmit('brouillon')}
+            className="flex-1 py-3 bg-white border border-gray-200 hover:border-gray-400 text-gray-600 font-black text-xs uppercase rounded-2xl transition-all disabled:opacity-50"
+          >
+            Enregistrer en brouillon
+          </button>
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => handleSubmit('attente')}
+            className="flex-1 py-3 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 font-black text-xs uppercase rounded-2xl transition-all disabled:opacity-50"
+          >
+            Soumettre à validation
+          </button>
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => handleSubmit('publie')}
+            className="flex-1 py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs uppercase rounded-2xl transition-all shadow-md disabled:opacity-50"
+          >
+            {uploadingImage ? 'Upload image...' : loading ? 'Publication...' : '✓ Publier maintenant'}
+          </button>
+        </div>
       </div>
     </div>
   )

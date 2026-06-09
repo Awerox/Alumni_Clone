@@ -1,19 +1,37 @@
+// collections/Articles.ts
+// 🎯 Pour ajouter une catégorie : ajouter un objet { label: '...', value: '...' }
+// dans le tableau ARTICLE_CATEGORIES ci-dessous, et mettre à jour catLabels
+// dans les pages frontend (blog/page.tsx, page.tsx).
+
 import type { CollectionConfig } from 'payload'
 
-export const Articles: CollectionConfig = {
+// ─── Catégories centralisées ───────────────────────────────────────────────
+// ✅ C'est ici et uniquement ici qu'on ajoute/modifie les catégories
+export const ARTICLE_CATEGORIES = [
+  { label: "Vie de l'établissement", value: 'vie_etablissement' },
+  { label: "Portraits d'anciens",    value: 'portraits_anciens' },
+  { label: 'International',          value: 'international' },
+  { label: 'Événements',             value: 'evenements' },
+  { label: 'Insertion professionnelle', value: 'insertion_pro' },
+  { label: 'Orientation',            value: 'orientation' },
+  { label: "Boîte à outils",         value: 'boite_outils' },
+  { label: 'Bons plans',             value: 'bons_plans' },
+]
+
+const Articles: CollectionConfig = {
   slug: 'articles',
   admin: {
     useAsTitle: 'titre',
     group: 'Contenu',
-    defaultColumns: ['titre', 'categorie', 'statut', 'createdAt'],
+    defaultColumns: ['titre', 'categorie', 'statut', 'auteur', 'createdAt'],
   },
   access: {
-    read: () => true, // Tout le monde peut lire les articles
-    create: ({ req: { user } }) => !!user, // Il faut être connecté
+    read: () => true,
+    create: ({ req: { user } }) => !!user,
     update: ({ req: { user } }) => {
       if (!user) return false
-      if (user.collection === 'users') return true // L'admin peut tout modifier
-      return { auteur: { equals: user.id } } // Un utilisateur modifie ses propres articles
+      if (user.collection === 'users') return true
+      return { auteur: { equals: user.id } }
     },
     delete: ({ req: { user } }) => {
       if (!user) return false
@@ -32,28 +50,25 @@ export const Articles: CollectionConfig = {
     ],
   },
   fields: [
-    { name: 'titre', type: 'text', required: true, label: "Titre de l'article" },
-    { name: 'slug', type: 'text', required: true, unique: true },
-    { name: 'description', type: 'textarea', required: true, label: 'Description courte (Card)' },
-    { name: 'contenu', type: 'richText', required: true, label: "Contenu de l'article" },
+    { name: 'titre',       type: 'text',     required: true, label: "Titre de l'article" },
+    { name: 'slug',        type: 'text',     required: true, unique: true, label: 'Slug URL' },
+    { name: 'description', type: 'textarea', required: true, label: 'Description courte (carte)' },
+    { name: 'contenu',     type: 'richText', required: true, label: "Contenu de l'article" },
     {
       name: 'categorie',
       type: 'select',
       required: true,
-      options: [
-        { label: "Vie de l'établissement", value: 'vie_etablissement' },
-        { label: "Portraits d'anciens", value: 'portraits_anciens' },
-        { label: 'International', value: 'international' },
-        { label: 'Événements', value: 'evenements' },
-      ],
+      label: 'Catégorie',
+      options: ARTICLE_CATEGORIES,
     },
     {
       name: 'statut',
       type: 'select',
       defaultValue: 'publie',
+      label: 'Statut',
       options: [
-        { label: 'Publié', value: 'publie' },
-        { label: 'Brouillon', value: 'brouillon' },
+        { label: 'Publié',                  value: 'publie' },
+        { label: 'Brouillon',               value: 'brouillon' },
         { label: 'En attente de validation', value: 'attente' },
       ],
     },
@@ -64,7 +79,13 @@ export const Articles: CollectionConfig = {
       required: true,
       label: 'Photo de couverture',
     },
-    { name: 'auteur', type: 'relationship', relationTo: 'alumni', admin: { position: 'sidebar' } },
+    {
+      name: 'auteur',
+      type: 'relationship',
+      relationTo: 'alumni',
+      label: 'Auteur',
+      admin: { position: 'sidebar' },
+    },
   ],
 }
 
