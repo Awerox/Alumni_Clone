@@ -71,12 +71,12 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* ── SECTION 2 : FEED ─────────────────────────────────────────────── */}
+            {/* ── SECTION 2 : FEED ─────────────────────────────────────────────── */}
       <section className="max-w-7xl mx-auto px-4 py-12">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
-          {/* Colonne gauche : publish + blog */}
-          <div className="space-y-6">
+          {/* Colonne gauche : publish + blog — sticky */}
+          <div className="space-y-6 lg:sticky lg:top-6">
             <FadeUp delay={0}>
               {user ? (
                 <PublishBox userPrenom={user.prenom || ''} userNom={user.nom || ''} />
@@ -98,7 +98,7 @@ export default async function HomePage() {
               </FadeUp>
 
               <StaggerContainer className="space-y-4" staggerDelay={0.1}>
-                {itemsFeed.filter((i) => i.typeItem === 'article').slice(0, 2).map((article: any) => {
+                {itemsFeed.filter((i: any) => i.typeItem === 'article').slice(0, 2).map((article: any) => {
                   const coverUrl = article.couverture && typeof article.couverture === 'object' ? article.couverture.url : null
                   return (
                     <StaggerItem key={article.id}>
@@ -132,17 +132,17 @@ export default async function HomePage() {
             </div>
           </div>
 
-          {/* Colonne centrale : activité réseau */}
+          {/* Colonne centrale : activité réseau — scrollable */}
           <FadeUp delay={0.1} className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">⚡ Activité du réseau</h3>
               <Link href="/feed" className="text-[10px] font-black text-purple-500 hover:text-purple-700 uppercase tracking-wide transition-colors">Voir tout →</Link>
             </div>
-            <ActivityFeed items={itemsFeed.filter((i) => i.typeItem === 'post')} />
+            <ActivityFeed items={itemsFeed.filter((i: any) => i.typeItem === 'post')} />
           </FadeUp>
 
-          {/* Colonne droite : nouveaux membres */}
-          <div className="space-y-4">
+          {/* Colonne droite : nouveaux membres — sticky */}
+          <div className="space-y-4 lg:sticky lg:top-6">
             <FadeUp delay={0.15}>
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">✨ Nouveaux membres</h3>
@@ -152,14 +152,13 @@ export default async function HomePage() {
 
             <StaggerContainer className="space-y-3" staggerDelay={0.07}>
               {recentAlumni.docs.map((alumnus: any) => {
-                const photoUrl = alumnus.photo && typeof alumnus.photo === 'object'
-                  ? alumnus.photo.url : null
+                const photoUrl = alumnus.photo && typeof alumnus.photo === 'object' ? alumnus.photo.url : null
                 const avatarFallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(alumnus.prenom)}+${encodeURIComponent(alumnus.nom)}&size=80&background=800020&color=fff`
                 return (
                   <StaggerItem key={alumnus.id}>
                     <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-2xs hover:shadow-md hover:border-purple-200 transition-all duration-300 group hover:-translate-y-0.5">
                       <div className="flex items-start gap-3">
-                        <div className="w-12 h-12 shrink-0 rounded-xl overflow-hidden border-2 border-white shadow-sm">
+                        <div className="w-11 h-11 shrink-0 rounded-xl overflow-hidden border-2 border-white shadow-sm">
                           <img src={photoUrl || avatarFallback} alt={`${alumnus.prenom} ${alumnus.nom}`}
                             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
                         </div>
