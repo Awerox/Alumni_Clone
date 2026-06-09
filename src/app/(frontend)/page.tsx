@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { getAuthUser } from '@/lib/auth'
 import HeroSlider from '@/components/HeroSlider'
 import PublishBox from '@/components/PublishBox'
+import ActivityFeed from '@/components/ActivityFeed'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,7 +13,7 @@ export default async function HomePage() {
 
   const [recentAlumni, postsRes, offresRes, articlesRes] = await Promise.all([
     payload.find({ collection: 'alumni', sort: '-createdAt', limit: 3 }),
-    payload.find({ collection: 'posts', limit: 10, sort: '-createdAt' }),
+    payload.find({ collection: 'posts', limit: 30, sort: '-createdAt', depth: 1 }),
     payload.find({ collection: 'offres', where: { statut: { equals: 'publie' } }, limit: 3, sort: '-createdAt' }),
     payload.find({ collection: 'articles', where: { statut: { equals: 'publie' } }, limit: 10, sort: '-createdAt' }),
   ])
@@ -44,6 +45,7 @@ export default async function HomePage() {
 
   return (
     <div className="bg-gray-50/40 min-h-screen font-sans text-left">
+
       {/* SECTION 1 : HERO */}
       <section className="bg-white border-b border-gray-100 py-12">
         <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center gap-12">
@@ -64,7 +66,8 @@ export default async function HomePage() {
       {/* SECTION 2 : FEED */}
       <section className="max-w-7xl mx-auto px-4 py-12">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-          {/* Colonne gauche */}
+
+          {/* Colonne gauche : publish + articles */}
           <div className="space-y-6">
             {user ? (
               <PublishBox userPrenom={user.prenom || ''} userNom={user.nom || ''} />
@@ -105,30 +108,10 @@ export default async function HomePage() {
             </div>
           </div>
 
-          {/* Colonne centrale : posts */}
+          {/* Colonne centrale : activité réseau avec pagination */}
           <div className="lg:col-span-1 space-y-5">
             <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">⚡ Activité du réseau</h3>
-            {itemsFeed.filter((i) => i.typeItem === 'post').length > 0 ? (
-              itemsFeed.filter((i) => i.typeItem === 'post').map((item: any) => {
-                const dateText = new Date(item.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
-                return (
-                  <div key={item.id} className="bg-white border border-gray-200 rounded-3xl p-5 shadow-2xs space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-7 h-7 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center text-[10px] font-black uppercase">
-                        {item.auteur?.prenom?.[0]}{item.auteur?.nom?.[0]}
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-black text-gray-800">{item.auteur?.prenom} {item.auteur?.nom}</h4>
-                        <p className="text-[9px] text-gray-400 font-bold">{dateText}</p>
-                      </div>
-                    </div>
-                    <p className="text-xs font-medium text-gray-600 leading-relaxed whitespace-pre-wrap">{item.contenu}</p>
-                  </div>
-                )
-              })
-            ) : (
-              <p className="text-center text-xs text-gray-400 italic py-6 bg-white border border-gray-200 rounded-3xl">Aucune publication récente.</p>
-            )}
+            <ActivityFeed items={itemsFeed.filter((i) => i.typeItem === 'post')} />
           </div>
 
           {/* Colonne droite : nouveaux membres */}
