@@ -12,7 +12,7 @@ export default async function HomePage() {
   const { user, payload } = await getAuthUser()
 
   const [recentAlumni, postsRes, offresRes, articlesRes] = await Promise.all([
-    payload.find({ collection: 'alumni', sort: '-createdAt', limit: 3 }),
+    payload.find({ collection: 'alumni', sort: '-createdAt', limit: 6, depth: 1 }),
     payload.find({ collection: 'posts', limit: 30, sort: '-createdAt', depth: 1 }),
     payload.find({ collection: 'offres', where: { statut: { equals: 'publie' } }, limit: 3, sort: '-createdAt' }),
     payload.find({ collection: 'articles', where: { statut: { equals: 'publie' } }, limit: 10, sort: '-createdAt' }),
@@ -67,7 +67,7 @@ export default async function HomePage() {
       <section className="max-w-7xl mx-auto px-4 py-12">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
-          {/* Colonne gauche : publish + articles */}
+          {/* ── Colonne gauche : publish + blog ── */}
           <div className="space-y-6">
             {user ? (
               <PublishBox userPrenom={user.prenom || ''} userNom={user.nom || ''} />
@@ -79,27 +79,33 @@ export default async function HomePage() {
               </div>
             )}
 
-            <div className="space-y-6">
-              <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">📰 À la une du blog</h3>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">📰 À la une du blog</h3>
+                <Link href="/blog" className="text-[10px] font-black text-purple-500 hover:text-purple-700 uppercase tracking-wide">Voir tout →</Link>
+              </div>
               {itemsFeed.filter((i) => i.typeItem === 'article').slice(0, 2).map((article: any) => {
                 const coverUrl = article.couverture && typeof article.couverture === 'object' ? article.couverture.url : null
                 return (
-                  <div key={article.id} className="bg-white border border-gray-200 rounded-3xl overflow-hidden shadow-2xs group flex flex-col justify-between">
+                  <div key={article.id} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-2xs group flex flex-col justify-between hover:border-amber-200 transition-all">
                     <div>
-                      <div className="h-44 bg-gray-100 relative overflow-hidden border-b border-gray-100">
-                        {coverUrl && <img src={coverUrl} alt="" className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300" />}
-                        <span className="absolute bottom-3 left-3 bg-amber-400 text-gray-900 font-bold text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-md">
+                      <div className="h-36 bg-gray-100 relative overflow-hidden border-b border-gray-100">
+                        {coverUrl
+                          ? <img src={coverUrl} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                          : <div className="w-full h-full flex items-center justify-center text-3xl text-gray-200">📰</div>
+                        }
+                        <span className="absolute bottom-2 left-2 bg-amber-400 text-gray-900 font-bold text-[8px] uppercase tracking-wider px-2 py-0.5 rounded-md shadow-sm">
                           {catLabels[article.categorie] || article.categorie}
                         </span>
                       </div>
-                      <div className="p-5 space-y-2">
-                        <h4 className="font-black text-gray-900 text-sm leading-tight tracking-tight line-clamp-2">{article.titre}</h4>
-                        <p className="text-xs font-medium text-gray-500 line-clamp-3 leading-relaxed">{article.description}</p>
+                      <div className="p-4 space-y-1.5">
+                        <h4 className="font-black text-gray-900 text-xs leading-tight tracking-tight line-clamp-2">{article.titre}</h4>
+                        <p className="text-[11px] font-medium text-gray-400 line-clamp-2 leading-relaxed">{article.description}</p>
                       </div>
                     </div>
-                    <div className="px-5 pb-5">
-                      <Link href={`/blog/${article.slug}`} className="block text-center py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-colors">
-                        Lire la suite...
+                    <div className="px-4 pb-4">
+                      <Link href={`/blog/${article.slug}`} className="block text-center py-2 bg-amber-50 hover:bg-amber-400 hover:text-white text-amber-700 font-black text-[10px] uppercase tracking-widest rounded-xl transition-all border border-amber-200 hover:border-amber-400">
+                        Lire la suite →
                       </Link>
                     </div>
                   </div>
@@ -108,29 +114,91 @@ export default async function HomePage() {
             </div>
           </div>
 
-          {/* Colonne centrale : activité réseau avec pagination */}
-          <div className="lg:col-span-1 space-y-5">
-            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">⚡ Activité du réseau</h3>
+          {/* ── Colonne centrale : activité réseau ── */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">⚡ Activité du réseau</h3>
+              <Link href="/feed" className="text-[10px] font-black text-purple-500 hover:text-purple-700 uppercase tracking-wide">Voir tout →</Link>
+            </div>
             <ActivityFeed items={itemsFeed.filter((i) => i.typeItem === 'post')} />
           </div>
 
-          {/* Colonne droite : nouveaux membres */}
-          <div className="space-y-6">
-            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">✨ Nouveaux membres</h3>
-            <div className="space-y-4">
-              {recentAlumni.docs.map((alumnus) => (
-                <div key={alumnus.id} className="bg-white p-4 rounded-2xl shadow-2xs border border-gray-200 flex items-start gap-3">
-                  <div className="h-10 w-10 shrink-0 rounded-full bg-enc/5 flex items-center justify-center text-enc font-black text-xs border border-enc/10">
-                    {alumnus.prenom[0]}{alumnus.nom[0]}
-                  </div>
-                  <div className="space-y-0.5">
-                    <h4 className="font-bold text-xs text-gray-800 uppercase leading-none">{alumnus.prenom} {alumnus.nom}</h4>
-                    <p className="text-[9px] font-black text-gray-400 uppercase">Promo {alumnus.promotion || 'NC'} • {alumnus.statut}</p>
-                    <p className="text-[11px] font-bold text-gray-600 truncate max-w-[180px] pt-0.5">{alumnus.poste || 'Étudiant'}</p>
-                  </div>
-                </div>
-              ))}
+          {/* ── Colonne droite : nouveaux membres ── */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">✨ Nouveaux membres</h3>
+              <Link href="/directory" className="text-[10px] font-black text-purple-500 hover:text-purple-700 uppercase tracking-wide">Annuaire →</Link>
             </div>
+
+            <div className="space-y-3">
+              {recentAlumni.docs.map((alumnus: any) => {
+                const photoUrl = alumnus.photo && typeof alumnus.photo === 'object'
+                  ? alumnus.photo.url
+                  : null
+                const avatarFallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(alumnus.prenom)}+${encodeURIComponent(alumnus.nom)}&size=80&background=800020&color=fff`
+
+                return (
+                  <div key={alumnus.id} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-2xs hover:shadow-md hover:border-purple-200 transition-all group">
+                    <div className="flex items-start gap-3">
+                      {/* Avatar */}
+                      <div className="w-12 h-12 shrink-0 rounded-xl overflow-hidden border-2 border-white shadow-sm">
+                        <img
+                          src={photoUrl || avatarFallback}
+                          alt={`${alumnus.prenom} ${alumnus.nom}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+
+                      {/* Infos */}
+                      <div className="flex-1 min-w-0 space-y-0.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <h4 className="font-black text-gray-900 text-xs uppercase leading-tight group-hover:text-purple-700 transition-colors truncate">
+                            {alumnus.prenom} {alumnus.nom}
+                          </h4>
+                          {alumnus.isMentor && (
+                            <span className="inline-flex items-center gap-0.5 bg-amber-400 text-white text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full shrink-0">
+                              ⭐ Mentor
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-wider">
+                          Promo {alumnus.promotion || 'NC'} · {alumnus.statut === 'alumni' ? 'Alumni' : 'Étudiant'}
+                        </p>
+
+                        {(alumnus.poste || alumnus.entreprise) && (
+                          <p className="text-[10px] font-semibold text-gray-600 truncate">
+                            {alumnus.poste}{alumnus.entreprise ? ` · ${alumnus.entreprise}` : ''}
+                          </p>
+                        )}
+
+                        {alumnus.ville && (
+                          <p className="text-[9px] text-gray-400 font-medium flex items-center gap-0.5">
+                            <span className="text-enc">📍</span> {alumnus.ville}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Bouton voir profil */}
+                    <div className="mt-3 pt-3 border-t border-gray-50">
+                      <Link
+                        href={`/directory/${alumnus.id}`}
+                        className="block text-center py-1.5 bg-gray-50 hover:bg-purple-600 hover:text-white text-gray-500 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all border border-gray-100 hover:border-purple-600"
+                      >
+                        Voir le profil →
+                      </Link>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* CTA annuaire */}
+            <Link href="/directory"
+              className="block text-center py-3 bg-white border border-gray-200 hover:border-purple-300 hover:bg-purple-50 text-gray-500 hover:text-purple-700 text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all shadow-2xs">
+              Voir tous les membres →
+            </Link>
           </div>
         </div>
       </section>
@@ -166,11 +234,10 @@ export default async function HomePage() {
                   <div key={offre.id} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-2xs hover:shadow-xs hover:border-gray-300 transition-all flex flex-col justify-between relative group">
                     <div className="flex justify-between items-start gap-4">
                       <div className="flex items-center gap-4">
-                        {logoUrl ? (
-                          <img src={logoUrl} alt="" className="w-16 h-16 rounded-2xl border border-gray-100 object-contain bg-white p-1 shadow-3xs" />
-                        ) : (
-                          <div className="w-16 h-16 bg-gray-50 border border-gray-100 text-gray-400 rounded-2xl flex items-center justify-center text-2xl shadow-3xs">🏢</div>
-                        )}
+                        {logoUrl
+                          ? <img src={logoUrl} alt="" className="w-16 h-16 rounded-2xl border border-gray-100 object-contain bg-white p-1 shadow-3xs" />
+                          : <div className="w-16 h-16 bg-gray-50 border border-gray-100 text-gray-400 rounded-2xl flex items-center justify-center text-2xl shadow-3xs">🏢</div>
+                        }
                         <div>
                           <h3 className="font-black text-gray-900 text-sm group-hover:text-emerald-600 transition-colors leading-tight">{offre.poste}</h3>
                           <p className="text-[10px] font-bold text-gray-400 uppercase mt-0.5">
@@ -215,9 +282,9 @@ export default async function HomePage() {
             <div className="md:w-1/3 space-y-6">
               <div className="space-y-4">
                 <h3 className="text-lg font-black text-gray-900">Qu'est-ce que le mentorat ?</h3>
-                <p className="text-gray-500 leading-relaxed text-xs font-medium">Le mentorat est une initiative bénévole qui permet à chaque utilisateur de pouvoir transmettre son expérience terrain et d'accompagner un camarade.</p>
-                <p className="text-gray-500 leading-relaxed text-xs font-medium">Les mentors potentiels sont identifiables grâce à un <strong className="text-enc">badge MENTOR</strong> et peuvent être sollicités directement depuis l'onglet Mentorat.</p>
-                <p className="text-gray-500 leading-relaxed text-xs font-medium">Une bonne relation de mentorat nécessite au moins <strong>une rencontre par mois</strong> et le suivi s'effectue sur une période de <strong>six mois</strong>.</p>
+                <p className="text-gray-500 leading-relaxed text-xs font-medium">Le mentorat est une initiative bénévole qui permet à chaque utilisateur de transmettre son expérience terrain et d'accompagner un camarade.</p>
+                <p className="text-gray-500 leading-relaxed text-xs font-medium">Les mentors sont identifiables grâce au <strong className="text-enc">badge MENTOR</strong> et peuvent être sollicités depuis l'onglet Mentorat.</p>
+                <p className="text-gray-500 leading-relaxed text-xs font-medium">Une bonne relation nécessite au moins <strong>une rencontre par mois</strong> sur une période de <strong>six mois</strong>.</p>
                 <p className="text-enc font-black italic pt-2 tracking-wide text-base">À vous de jouer !</p>
               </div>
               <Link href="/mentoring" className="inline-block bg-enc text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-[#6b001a] transition-all shadow-sm">

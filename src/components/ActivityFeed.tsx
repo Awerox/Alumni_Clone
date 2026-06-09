@@ -2,8 +2,8 @@
 'use client'
 import React, { useState } from 'react'
 
-const INITIAL_COUNT = 5
-const LOAD_MORE_COUNT = 5
+const INITIAL_COUNT = 3
+const LOAD_MORE_COUNT = 3
 
 export default function ActivityFeed({ items }: { items: any[] }) {
   const [visibleCount, setVisibleCount] = useState(INITIAL_COUNT)
