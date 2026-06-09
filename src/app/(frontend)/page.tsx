@@ -242,7 +242,7 @@ export default async function HomePage() {
               </Link>
             </div>
             <div className="md:w-2/3 w-full">
-              <img src="https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&q=80&w=1000" alt="Mentorat"
+              <img src="https://www.enc-bessieres.org/anglais/" alt="Mentorat"
                 className="w-full h-64 md:h-80 object-cover rounded-3xl shadow-md transform hover:scale-[1.01] transition-transform duration-500" />
             </div>
           </div>

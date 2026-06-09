@@ -168,7 +168,11 @@ function LoginContent() {
     <div className="min-h-[80vh] flex items-center justify-center bg-gray-50 py-12 px-4">
       <div className="max-w-md w-full space-y-6 bg-white p-10 rounded-2xl shadow-xl border border-gray-100 font-sans text-left">
         <div className="text-center">
-          <div className="inline-block bg-enc p-3 rounded-lg text-white font-bold text-2xl mb-4 select-none">E</div>
+          <img 
+  src="https://www.enc-bessieres.org/wp-content/uploads/2025/01/logo_enc_2025.jpg" 
+  alt="ENC Bessières" 
+  className="w-24 h-auto mx-auto mb-4 object-contain"
+/>
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Accédez à votre réseau</h1>
           <p className="mt-2 text-sm text-gray-600">Connectez-vous pour retrouver vos anciens camarades.</p>
         </div>

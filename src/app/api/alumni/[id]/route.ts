@@ -1,26 +1,42 @@
 // app/api/alumni/[id]/route.ts
-// Route PATCH pour mettre à jour le profil d'un alumni (photo, infos, etc.)
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { verify } from 'jsonwebtoken'
 
-async function getCurrentUserId(req: NextRequest, secret: string): Promise<string | null> {
+interface DecodedToken {
+  id: string
+  collection: string
+}
+
+// Vérifie le token alumni OU admin (Users)
+async function getAuthContext(req: NextRequest, secret: string): Promise<{
+  userId: string | null
+  isAdmin: boolean
+}> {
   const token =
     req.cookies.get('payload-alumni-token')?.value ||
     req.cookies.get('payload-token')?.value
 
-  if (!token) return null
+  if (!token) return { userId: null, isAdmin: false }
 
   try {
-    const decoded = verify(token, secret) as any
+    const decoded = verify(token, secret) as DecodedToken
+
+    // Token alumni (connexion frontend)
     if (decoded?.collection === 'alumni' && decoded?.id) {
-      return String(decoded.id)
+      return { userId: String(decoded.id), isAdmin: false }
     }
-    return null
+
+    // Token admin Payload (connexion /admin)
+    if (decoded?.collection === 'users' && decoded?.id) {
+      return { userId: String(decoded.id), isAdmin: true }
+    }
+
+    return { userId: null, isAdmin: false }
   } catch {
-    return null
+    return { userId: null, isAdmin: false }
   }
 }
 
@@ -31,21 +47,22 @@ export async function PATCH(
   try {
     const { id } = await params
     const payload = await getPayload({ config: configPromise })
-    const currentUserId = await getCurrentUserId(req, payload.secret)
+    const { userId, isAdmin } = await getAuthContext(req, payload.secret)
 
-    if (!currentUserId) {
+    if (!userId) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
     }
 
-    // Sécurité : un utilisateur ne peut modifier que son propre profil
-    if (String(currentUserId) !== String(id)) {
+    // Un utilisateur ne peut modifier que son propre profil
+    // sauf si c'est un admin
+    if (!isAdmin && String(userId) !== String(id)) {
       return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
     }
 
     const body = await req.json()
 
-    // Champs autorisés à être mis à jour par l'utilisateur lui-même
-    const allowedFields = [
+    // Champs autorisés pour un utilisateur normal
+    const userAllowedFields = [
       'prenom', 'nom', 'nomNaissance', 'telephone', 'ville',
       'dateNaissance', 'civilite', 'bio', 'poste', 'entreprise',
       'diplome', 'promotion', 'secteur', 'searchOpportunities',
@@ -57,6 +74,15 @@ export async function PATCH(
       'linkedin', 'instagram', 'socialLinks', 'experiences',
       'formations', 'interets', 'latitude', 'longitude',
     ]
+
+    // L'admin peut tout modifier (password inclus)
+    const adminAllowedFields = [
+      ...userAllowedFields,
+      'password', 'email', 'statut', 'isMentor',
+      'subGoogle', 'subLinkedin',
+    ]
+
+    const allowedFields = isAdmin ? adminAllowedFields : userAllowedFields
 
     const sanitized: Record<string, any> = {}
     for (const field of allowedFields) {
