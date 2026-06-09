@@ -4,7 +4,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { sign } from 'jsonwebtoken'
-import { createHash } from 'crypto'
 
 interface OAuthUserData {
   email: string
@@ -87,10 +86,6 @@ async function uploadAvatar(
   } catch { return null }
 }
 
-function buildStablePassword(providerId: string): string {
-  return `OA-${providerId}-${process.env.PAYLOAD_SECRET?.slice(0, 8) ?? 'fallback'}`
-}
-
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ provider: string }> }
@@ -106,9 +101,11 @@ export async function GET(
   }
 
   const payload = await getPayload({ config: configPromise })
+  // 🎯 Secret brut — utilisé partout de façon cohérente
+  const secret = payload.secret
 
   try {
-    // ── 1. Données fournisseur ────────────────────────────────────────────────
+    // ── 1. Données fournisseur ────────────────────────────────────────────
     let userData: OAuthUserData
     if (provider === 'google') {
       userData = await fetchGoogleUser(code, baseUrl)
@@ -120,9 +117,8 @@ export async function GET(
 
     const { email, prenom, nom, providerId, avatarUrl } = userData
     const fieldToMatch = provider === 'google' ? 'subGoogle' : 'subLinkedin'
-    const stablePassword = buildStablePassword(providerId)
 
-    // ── 2. Recherche du compte ────────────────────────────────────────────────
+    // ── 2. Recherche du compte ────────────────────────────────────────────
     let userQuery = await payload.find({
       collection: 'alumni',
       where: { [fieldToMatch]: { equals: providerId } },
@@ -139,14 +135,7 @@ export async function GET(
     let targetUser = userQuery.docs[0] ?? null
     const isNewUser = !targetUser
 
-    // FIX : Un compte existant est considéré "OAuth natif" uniquement s'il a déjà
-    // un subGoogle ou subLinkedin. S'il n'en a pas, c'est un compte manuel —
-    // on ne touche pas à son mot de passe.
-    const isOAuthNativeAccount = targetUser
-      ? Boolean((targetUser as any).subGoogle || (targetUser as any).subLinkedin)
-      : false
-
-    // ── 3. Avatar ─────────────────────────────────────────────────────────────
+    // ── 3. Avatar ─────────────────────────────────────────────────────────
     let savedMediaId: string | null = null
     if (avatarUrl && (!targetUser || !targetUser.photo)) {
       savedMediaId = await uploadAvatar(payload, avatarUrl, prenom, nom, providerId)
@@ -154,12 +143,14 @@ export async function GET(
 
     const photoToAssign = targetUser?.photo
       ? (typeof targetUser.photo === 'object'
-          ? Number((targetUser.photo as any).id)
-          : Number(targetUser.photo))
+        ? Number((targetUser.photo as any).id)
+        : Number(targetUser.photo))
       : (savedMediaId ? Number(savedMediaId) : null)
 
-    // ── 4. Création ou mise à jour ────────────────────────────────────────────
+    // ── 4. Création ou mise à jour ────────────────────────────────────────
     if (isNewUser) {
+      // Nouveau compte OAuth — on crée avec un mot de passe stable
+      const stablePassword = `OA-${providerId}-${secret.slice(0, 8)}`
       targetUser = await payload.create({
         collection: 'alumni',
         overrideAccess: true,
@@ -171,54 +162,48 @@ export async function GET(
           photo: savedMediaId ? Number(savedMediaId) : null,
         },
       })
+      console.log(`[OAuth/${provider}] ✅ Nouveau compte créé id=${targetUser.id}`)
     } else {
+      // Compte existant — on lie le provider SANS toucher au mot de passe
+      // Cela préserve le mot de passe original de l'utilisateur
       targetUser = await payload.update({
         collection: 'alumni',
         id: targetUser!.id,
         overrideAccess: true,
         data: {
           [fieldToMatch]: providerId,
-          // FIX CLÉ : on n'écrase le mot de passe que si le compte est
-          // déjà un compte OAuth natif (jamais créé manuellement).
-          // Pour un premier lien OAuth sur un compte manuel, on laisse
-          // son mot de passe intact — il pourra toujours se connecter
-          // avec ses identifiants d'origine.
-          ...(isOAuthNativeAccount ? { password: stablePassword } : {}),
-          photo: photoToAssign,
+          // Pas de password ici — on ne l'écrase jamais sur un compte existant
+          ...(photoToAssign && !targetUser!.photo ? { photo: photoToAssign } : {}),
         },
       })
+      console.log(`[OAuth/${provider}] ✅ Compte existant lié id=${targetUser.id}`)
     }
 
-    // ── 5. Génération JWT ─────────────────────────────────────────────────────
-    const rawSecret = payload.secret
-    const derivedSecret = createHash('sha256').update(rawSecret).digest('hex').slice(0, 32)
-
+    // ── 5. Génération JWT avec secret brut ────────────────────────────────
+    // On utilise le secret brut directement — cohérent avec /api/alumni/me
     const token = sign(
       {
         id: String(targetUser.id),
         collection: 'alumni',
         email: targetUser.email,
       },
-      derivedSecret, // ✅ Secret dérivé, identique à celui que Payload utilise
+      secret,
       { expiresIn: '7d' },
     )
 
-    console.log(`[OAuth/${provider}] ✅ Token généré pour id=${targetUser.id}`)
+    console.log(`[OAuth/${provider}] ✅ Token signé pour id=${targetUser.id}`)
 
-    // ── 6. Réponse avec cookie ────────────────────────────────────────────────
+    // ── 6. Cookie + redirection ───────────────────────────────────────────
     const redirectTo = isNewUser ? '/onboarding' : '/'
-    const redirectUrl = new URL(redirectTo, baseUrl)
-const response = NextResponse.redirect(redirectUrl)
+    const response = NextResponse.redirect(new URL(redirectTo, baseUrl))
 
-response.cookies.set('payload-alumni-token', token, {
-  path: '/',
-  httpOnly: true,
-  secure: true, // toujours true sur Vercel (HTTPS)
-  sameSite: 'lax',
-  maxAge: 60 * 60 * 24 * 7,
-})
-
-return response
+    response.cookies.set('payload-alumni-token', token, {
+      path: '/',
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7,
+    })
 
     return response
 
