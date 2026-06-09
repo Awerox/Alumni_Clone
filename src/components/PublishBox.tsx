@@ -10,25 +10,32 @@ export default function PublishBox({
 }) {
   const [contenu, setContenu] = useState('')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const handlePublish = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!contenu.trim()) return
     setLoading(true)
+    setError('')
 
     try {
-      const res = await fetch('/api/posts', {
+      const res = await fetch('/api/alumni-posts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ contenu }),
       })
+
       if (res.ok) {
         setContenu('')
-        // Recharge proprement l'URL actuelle du Feed global
         window.location.href = '/feed'
+      } else {
+        const data = await res.json()
+        setError(data.error || 'Erreur lors de la publication.')
       }
     } catch (err) {
       console.error(err)
+      setError('Erreur réseau.')
     } finally {
       setLoading(false)
     }
@@ -38,12 +45,9 @@ export default function PublishBox({
     <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-2xs space-y-3 text-left">
       <div className="flex items-center gap-2.5">
         <div className="w-7 h-7 rounded-full bg-purple-100 text-purple-700 font-black flex items-center justify-center uppercase text-xs">
-          {userPrenom[0]}
-          {userNom[0]}
+          {userPrenom[0]}{userNom[0]}
         </div>
-        <span className="text-xs font-black text-gray-700">
-          {userPrenom} {userNom}
-        </span>
+        <span className="text-xs font-black text-gray-700">{userPrenom} {userNom}</span>
       </div>
 
       <form onSubmit={handlePublish} className="space-y-3">
@@ -53,13 +57,22 @@ export default function PublishBox({
           placeholder="Un déplacement prévu ? Une annonce à faire ? Écrivez ici un message à la communauté."
           className="w-full min-h-[60px] text-xs font-medium text-gray-600 outline-none resize-none placeholder-gray-400 bg-transparent"
         />
+
+        {error && (
+          <p className="text-[11px] text-red-500 font-bold bg-red-50 px-3 py-1.5 rounded-lg">
+            {error}
+          </p>
+        )}
+
         <div className="flex justify-between items-center pt-2 border-t border-gray-100">
           <div className="flex gap-3 text-gray-400 text-sm cursor-pointer">
             <span className="hover:text-amber-500 transition-colors">😊</span>
             <span className="hover:text-purple-500 transition-colors">🖼️</span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-[10px] text-gray-400 font-bold">{contenu.length}/500</span>
+            <span className={`text-[10px] font-bold ${contenu.length > 450 ? 'text-orange-400' : 'text-gray-400'}`}>
+              {contenu.length}/500
+            </span>
             <button
               type="submit"
               disabled={loading || !contenu.trim()}
