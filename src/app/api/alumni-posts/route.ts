@@ -1,4 +1,4 @@
-// app/api/posts/route.ts
+// app/api/alumni-posts/route.ts
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
@@ -9,19 +9,14 @@ async function getUserFromToken(req: NextRequest, secret: string): Promise<any |
   const token =
     req.cookies.get('payload-alumni-token')?.value ||
     req.cookies.get('payload-token')?.value
-
   if (!token) return null
-
   try {
     const decoded = verify(token, secret) as any
     if (decoded?.collection === 'alumni' && decoded?.id) return decoded
     return null
-  } catch {
-    return null
-  }
+  } catch { return null }
 }
 
-// Créer un post
 export async function POST(req: NextRequest) {
   const payload = await getPayload({ config: configPromise })
   const decoded = await getUserFromToken(req, payload.secret)
@@ -37,24 +32,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Le contenu est requis' }, { status: 400 })
     }
 
+    if (body.contenu.trim().length > 500) {
+      return NextResponse.json({ error: 'Message trop long (max 500 caractères)' }, { status: 400 })
+    }
+
+    // On passe auteur directement dans data ET on désactive le hook beforeChange
+    // en utilisant overrideAccess + data complet
     const post = await payload.create({
       collection: 'posts',
       overrideAccess: true,
       data: {
-        contenu: body.contenu,
-        auteur: decoded.id,
-        ...(body.image ? { image: body.image } : {}),
+        contenu: body.contenu.trim(),
+        auteur: Number(decoded.id), // 🎯 Passer l'auteur explicitement
+        ...(body.image ? { image: Number(body.image) } : {}),
       },
     })
 
     return NextResponse.json({ doc: post }, { status: 201 })
-  } catch (err) {
-    console.error('[POST /api/posts]', err)
-    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
+  } catch (err: any) {
+    console.error('[POST /api/alumni-posts]', err)
+    // Log l'erreur complète pour debug
+    console.error('Error details:', JSON.stringify(err?.data || err, null, 2))
+    return NextResponse.json({ error: err.message || 'Erreur serveur' }, { status: 500 })
   }
 }
 
-// Lire les posts
 export async function GET(req: NextRequest) {
   const payload = await getPayload({ config: configPromise })
   const { searchParams } = new URL(req.url)
@@ -66,10 +68,9 @@ export async function GET(req: NextRequest) {
       sort: searchParams.get('sort') || '-createdAt',
       depth: 1,
     })
-
     return NextResponse.json(posts)
-  } catch (err) {
-    console.error('[GET /api/posts]', err)
+  } catch (err: any) {
+    console.error('[GET /api/alumni-posts]', err)
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 })
   }
 }
