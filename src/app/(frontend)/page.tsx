@@ -65,9 +65,9 @@ export default async function HomePage() {
               En savoir plus
             </Link>
           </FadeLeft>
-          <FadeRight className="md:w-1/2" delay={0.1}>
-            <HeroSlider />
-          </FadeRight>
+          <div className="md:w-1/2">
+  <HeroSlider />
+</div>
         </div>
       </section>
 
