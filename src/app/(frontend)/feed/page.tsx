@@ -116,8 +116,32 @@ export default async function FeedPage({ searchParams }: PageProps) {
                       <p className="text-xs font-medium text-gray-600 leading-relaxed whitespace-pre-wrap">{item.contenu}</p>
                     )}
                     {postImageUrl && (
-                      <div className="rounded-xl overflow-hidden border border-gray-100">
-                        <img src={postImageUrl} alt="Image du post" className="w-full max-h-80 object-cover" />
+                      <div className="rounded-xl overflow-hidden border border-gray-100 relative group">
+                        <img
+                          src={postImageUrl}
+                          alt="Image du post"
+                          className="w-full h-56 object-cover"
+                        />
+                        {/* Overlay au survol */}
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                          {/* Voir en grand */}
+                          <a
+                            href={postImageUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center gap-1.5 px-3 py-2 bg-white text-gray-800 text-[10px] font-black uppercase rounded-xl hover:bg-gray-100 transition-colors shadow-md"
+                          >
+                            🔍 Voir
+                          </a>
+                          {/* Télécharger */}
+                          <a
+                            href={postImageUrl}
+                            download
+                            className="flex items-center gap-1.5 px-3 py-2 bg-purple-600 text-white text-[10px] font-black uppercase rounded-xl hover:bg-purple-700 transition-colors shadow-md"
+                          >
+                            ⬇️ Télécharger
+                          </a>
+                        </div>
                       </div>
                     )}
                   </div>
