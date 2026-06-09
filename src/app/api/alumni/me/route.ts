@@ -1,41 +1,48 @@
-// src/app/api/alumni/me/route.ts
+// app/api/alumni/me/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { verify } from 'jsonwebtoken'
-import { createHash } from 'crypto'
 
 export async function GET(req: NextRequest) {
   try {
     const payload = await getPayload({ config: configPromise })
-    const derivedSecret = createHash('sha256').update(payload.secret).digest('hex').slice(0, 32)
+    const secret = payload.secret
 
-    // ── Cookie OAuth custom (Google/LinkedIn) ─────────────────────────────
-    const oauthToken = req.cookies.get('payload-alumni-token')?.value
-    if (oauthToken) {
-      try {
-        const decoded = verify(oauthToken, derivedSecret) as { id: string; collection: string }
-        if (decoded.collection === 'alumni') {
-          const user = await payload.findByID({ collection: 'alumni', id: decoded.id, depth: 1 })
-          if (user) return NextResponse.json({ user })
-        }
-      } catch {}
+    // ── Token du cookie OAuth ou login natif ─────────────────────────────
+    const token =
+      req.cookies.get('payload-alumni-token')?.value ||
+      req.cookies.get('payload-token')?.value
+
+    if (!token) {
+      return NextResponse.json({ user: null, message: 'No token' }, { status: 401 })
     }
 
-    // ── Cookie natif Payload (login email/password) ───────────────────────
-    const nativeToken = req.cookies.get('payload-token')?.value
-    if (nativeToken) {
-      try {
-        const decoded = verify(nativeToken, derivedSecret) as { id: string; collection: string }
-        if (decoded.collection === 'alumni') {
-          const user = await payload.findByID({ collection: 'alumni', id: decoded.id, depth: 1 })
-          if (user) return NextResponse.json({ user })
-        }
-      } catch {}
+    // Vérifie avec le secret brut — c'est ce que Payload et jsonwebtoken utilisent
+    let decoded: any
+    try {
+      decoded = verify(token, secret)
+    } catch {
+      return NextResponse.json({ user: null, message: 'Invalid token' }, { status: 401 })
     }
 
-    return NextResponse.json({ user: null }, { status: 401 })
-  } catch {
-    return NextResponse.json({ user: null }, { status: 401 })
+    if (!decoded?.id || decoded?.collection !== 'alumni') {
+      return NextResponse.json({ user: null, message: 'Not alumni' }, { status: 401 })
+    }
+
+    const user = await payload.findByID({
+      collection: 'alumni',
+      id: decoded.id,
+      depth: 1,
+    })
+
+    if (!user) {
+      return NextResponse.json({ user: null, message: 'User not found' }, { status: 404 })
+    }
+
+    return NextResponse.json({ user })
+  } catch (err) {
+    console.error('[/api/alumni/me]', err)
+    return NextResponse.json({ user: null, message: 'Server error' }, { status: 500 })
   }
 }
