@@ -147,33 +147,35 @@ const Navbar = () => {
       </div>
 
       {/* 2. NAVIGATION PRINCIPALE */}
-      <nav className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-24">
-            {/* ZONE LOGO */}
-            <div className="flex items-center">
-              <Link
-                href="/"
-                className="flex items-center gap-3 group transition-transform active:scale-[0.98]"
-              >
-                <div className="flex items-center justify-center w-28 h-20 overflow-hidden flex-shrink-0 bg-transparent">
-                  <img
-                    src="https://www.enc-bessieres.org/wp-content/uploads/2025/01/logo_enc_2025.jpg"
-                    alt="Logo ENC Bessières 2025"
-                    className="w-full h-full object-contain img-render-smooth mix-blend-multiply brightness-100 contrast-100"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none'
-                      const fallback =
-                        e.currentTarget.parentElement?.querySelector('.navbar-fallback-letter')
-                      if (fallback) fallback.classList.remove('hidden')
-                    }}
-                  />
-                  <span className="navbar-fallback-letter hidden text-white bg-enc px-3 py-1.5 rounded-xl font-black text-2xl tracking-tighter">
-                    E
-                  </span>
-                </div>
-              </Link>
-            </div>
+<nav className="bg-white border-b border-gray-200">
+  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="flex justify-between h-24">
+      {/* ZONE LOGO */}
+      <div className="flex items-center">
+        <Link
+          href="/"
+          className="flex items-center gap-3 group transition-transform active:scale-[0.98]"
+        >
+          {/* Ajustement de la boîte pour respecter les proportions du logo */}
+          <div className="flex items-center justify-center w-36 h-16 overflow-hidden flex-shrink-0 bg-transparent">
+            <img
+              src="https://www.enc-bessieres.org/wp-content/uploads/2025/01/logo_enc_2025.jpg"
+              alt="Logo ENC Bessières 2025"
+              /* 🎯 Nettoyage des filtres de fusion qui altéraient la qualité du logo */
+              className="max-w-full max-h-full object-contain"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none'
+                const fallback = e.currentTarget.parentElement?.querySelector('.navbar-fallback-letter')
+                if (fallback) fallback.classList.remove('hidden')
+              }}
+            />
+            {/* Fallback épuré si jamais le site de l'école est inaccessible */}
+            <span className="navbar-fallback-letter hidden bg-enc text-white px-4 py-2 rounded-xl font-black text-xl tracking-wider shadow-sm animate-pulse">
+              ENC
+            </span>
+          </div>
+        </Link>
+      </div>
 
             {/* Menu Desktop */}
             <div className="hidden lg:flex items-center space-x-8">
