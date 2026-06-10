@@ -14,11 +14,28 @@ interface OAuthUserData {
 }
 
 function normalizeName(given?: string, family?: string, full?: string) {
-  const parts = full?.trim().split(' ') ?? []
-  return {
-    prenom: (given?.trim() || parts[0] || 'Prénom').trim() || 'Prénom',
-    nom: (family?.trim() || parts.slice(1).join(' ') || parts[0] || 'Nom').trim() || 'Nom',
+  // Nettoyage des valeurs
+  const g = given?.trim() || ''
+  const f = family?.trim() || ''
+  
+  // Cas idéal : given_name ET family_name fournis par le provider
+  if (g && f) return { prenom: g, nom: f }
+  
+  // Fallback sur le nom complet
+  const parts = (full?.trim() || '').split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) {
+    return {
+      prenom: parts[0],
+      nom: parts.slice(1).join(' '),  // Tout ce qui suit = nom de famille
+    }
   }
+  if (parts.length === 1) {
+    // Un seul mot → prénom uniquement, nom vide plutôt que doublon
+    return { prenom: parts[0], nom: '' }
+  }
+  
+  // Fallback ultime
+  return { prenom: g || 'Prénom', nom: f || '' }
 }
 
 async function fetchGoogleUser(code: string, baseUrl: string): Promise<OAuthUserData> {
