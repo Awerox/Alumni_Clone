@@ -70,6 +70,7 @@ function InputField({ label, required, children }: {
 const INPUT_CLASS = 'w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-enc outline-none transition-all text-gray-800 font-medium'
 const SELECT_CLASS = 'w-full px-4 py-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-enc bg-white text-gray-700 font-semibold cursor-pointer'
 const TOTAL_STEPS = 3
+const DRAFT_KEY = 'enc_onboarding_draft'
 
 function StepBar({ current, total }: { current: number; total: number }) {
   return (
@@ -81,8 +82,6 @@ function StepBar({ current, total }: { current: number; total: number }) {
   )
 }
 
-const ONBOARDING_DRAFT_KEY = 'enc_onboarding_draft'
-
 export default function OnboardingPage() {
   const router = useRouter()
   const [step, setStep] = useState(1)
@@ -91,20 +90,21 @@ export default function OnboardingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [draftRestored, setDraftRestored] = useState(false)
-
-  // ✅ nomManquant : true si le nom OAuth est un doublon du prénom
   const [nomManquant, setNomManquant] = useState(false)
 
+  // Étape 1
   const [prenom, setPrenom] = useState('')
   const [nom, setNom] = useState('')
   const [dateNaissance, setDateNaissance] = useState('')
   const [civilite, setCivilite] = useState('')
 
+  // Étape 2
   const [statut, setStatut] = useState('etudiant')
   const [diplome, setDiplome] = useState('')
   const [promotion, setPromotion] = useState('')
   const [campus, setCampus] = useState('bessieres')
 
+  // Étape 3
   const [poste, setPoste] = useState('')
   const [entreprise, setEntreprise] = useState('')
   const [secteur, setSecteur] = useState('')
@@ -121,55 +121,32 @@ export default function OnboardingPage() {
   const [searchingCity, setSearchingCity] = useState(false)
   const [villeFormatted, setVilleFormatted] = useState('')
 
+  // ── Charger profil avec retry (fix timing cookie OAuth) ──────────────
   useEffect(() => {
-    fetch('/api/alumni/me?depth=0')
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (!data?.user) { router.push('/login'); return }
+    let attempts = 0
+    const MAX = 4
+    const DELAY = 700
+
+    const tryFetch = async () => {
+      attempts++
+      try {
+        const res = await fetch('/api/alumni/me?depth=0')
+        if (!res.ok) {
+          if (attempts < MAX) { setTimeout(tryFetch, DELAY); return }
+          router.push('/login')
+          return
+        }
+        const data = await res.json()
+        if (!data?.user) {
+          if (attempts < MAX) { setTimeout(tryFetch, DELAY); return }
+          router.push('/login')
+          return
+        }
         const u = data.user
         setUser(u)
         setPrenom(u.prenom || '')
-        // ── Restaurer brouillon onboarding ──────────────────────────────────
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(ONBOARDING_DRAFT_KEY)
-      if (!saved) return
-      const draft = JSON.parse(saved)
-      if (draft.step && draft.step > 1) setStep(draft.step)
-      if (draft.statut) setStatut(draft.statut)
-      if (draft.diplome) setDiplome(draft.diplome)
-      if (draft.promotion) setPromotion(draft.promotion)
-      if (draft.campus) setCampus(draft.campus)
-      if (draft.poste) setPoste(draft.poste)
-      if (draft.entreprise) setEntreprise(draft.entreprise)
-      if (draft.secteur) setSecteur(draft.secteur)
-      if (draft.searchOpportunities) setSearchOpportunities(draft.searchOpportunities)
-      if (draft.mentoratActive !== undefined) setMentoratActive(draft.mentoratActive)
-      if (draft.cityInput) setCityInput(draft.cityInput)
-      if (draft.isCitySelected) { setIsCitySelected(true); setVilleFormatted(draft.villeFormatted || '') }
-      if (draft.civilite) setCivilite(draft.civilite)
-      if (draft.dateNaissance) setDateNaissance(draft.dateNaissance)
-      setDraftRestored(true)
-    } catch {}
-  }, [])
-
-  // ── Sauvegarder à chaque modification ────────────────────────────────
-  useEffect(() => {
-    if (!step) return
-    try {
-      localStorage.setItem(ONBOARDING_DRAFT_KEY, JSON.stringify({
-        step, statut, diplome, promotion, campus,
-        poste, entreprise, secteur, searchOpportunities, mentoratActive,
-        cityInput, isCitySelected, villeFormatted, civilite, dateNaissance,
-        // Jamais de mot de passe en localStorage
-      }))
-    } catch {}
-  }, [step, statut, diplome, promotion, campus, poste, entreprise, secteur,
-      searchOpportunities, mentoratActive, cityInput, isCitySelected, villeFormatted,
-      civilite, dateNaissance])
-
-  // ✅ Détecter si nom = prénom (doublon OAuth) → forcer la saisie
-        const nomEstDoublon = u.nom && u.prenom && u.nom.toLowerCase() === u.prenom.toLowerCase()
+        const nomEstDoublon = u.nom && u.prenom &&
+          u.nom.trim().toLowerCase() === u.prenom.trim().toLowerCase()
         if (nomEstDoublon || !u.nom) {
           setNom('')
           setNomManquant(true)
@@ -178,33 +155,71 @@ export default function OnboardingPage() {
           setNomManquant(false)
         }
         setLoading(false)
-      })
-      .catch(() => router.push('/login'))
+      } catch {
+        if (attempts < MAX) { setTimeout(tryFetch, DELAY) }
+        else { router.push('/login') }
+      }
+    }
+
+    tryFetch()
   }, [router])
 
-  // ✅ Autocomplétion ville — France en priorité, fallback monde
+  // ── Restaurer brouillon ──────────────────────────────────────────────
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY)
+      if (!saved) return
+      const d = JSON.parse(saved)
+      if (d.step > 1) setStep(d.step)
+      if (d.statut) setStatut(d.statut)
+      if (d.diplome) setDiplome(d.diplome)
+      if (d.promotion) setPromotion(d.promotion)
+      if (d.campus) setCampus(d.campus)
+      if (d.poste) setPoste(d.poste)
+      if (d.entreprise) setEntreprise(d.entreprise)
+      if (d.secteur) setSecteur(d.secteur)
+      if (d.searchOpportunities) setSearchOpportunities(d.searchOpportunities)
+      if (d.mentoratActive !== undefined) setMentoratActive(d.mentoratActive)
+      if (d.cityInput) setCityInput(d.cityInput)
+      if (d.isCitySelected) { setIsCitySelected(true); setVilleFormatted(d.villeFormatted || '') }
+      if (d.civilite) setCivilite(d.civilite)
+      if (d.dateNaissance) setDateNaissance(d.dateNaissance)
+      setDraftRestored(true)
+    } catch {}
+  }, [])
+
+  // ── Sauvegarder brouillon ────────────────────────────────────────────
+  useEffect(() => {
+    if (loading) return // ne pas sauvegarder avant que le profil soit chargé
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({
+        step, statut, diplome, promotion, campus, poste, entreprise,
+        secteur, searchOpportunities, mentoratActive,
+        cityInput, isCitySelected, villeFormatted, civilite, dateNaissance,
+      }))
+    } catch {}
+  }, [loading, step, statut, diplome, promotion, campus, poste, entreprise,
+      secteur, searchOpportunities, mentoratActive, cityInput, isCitySelected,
+      villeFormatted, civilite, dateNaissance])
+
+  // ── Autocomplétion ville — France d'abord ────────────────────────────
   useEffect(() => {
     if (cityInput.length < 2 || isCitySelected) { setCitySuggestions([]); return }
     const t = setTimeout(async () => {
       try {
         setSearchingCity(true)
-        // D'abord chercher en France
-        const resFrance = await fetch(
+        const resFr = await fetch(
           `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cityInput)}&limit=5&addressdetails=1&accept-language=fr&countrycodes=fr`
         )
-        let results = resFrance.ok ? await resFrance.json() : []
-
-        // Si aucun résultat en France → chercher dans le monde entier
+        let results = resFr.ok ? await resFr.json() : []
         if (results.length === 0) {
           const resMonde = await fetch(
             `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cityInput)}&limit=5&addressdetails=1&accept-language=fr`
           )
           results = resMonde.ok ? await resMonde.json() : []
         }
-
-        // Garder uniquement les villes/communes (éviter les rues, bâtiments, etc.)
         const filtered = results.filter((p: any) =>
-          ['city', 'town', 'village', 'municipality', 'administrative'].includes(p.type) ||
+          ['city','town','village','municipality','administrative'].includes(p.type) ||
           p.class === 'place' || p.class === 'boundary'
         )
         setCitySuggestions(filtered.length > 0 ? filtered : results.slice(0, 5))
@@ -214,28 +229,23 @@ export default function OnboardingPage() {
   }, [cityInput, isCitySelected])
 
   const handleSelectCity = (place: any) => {
-    // Construire un nom lisible : Ville + département/région si France, sinon Ville + Pays
-    const parts = place.display_name.split(',').map((s: string) => s.trim())
-    const city = parts[0]
-    const country = place.address?.country || ''
-    const isFrance = place.address?.country_code === 'fr'
-    const dept = place.address?.state || place.address?.county || ''
-    const formatted = isFrance && dept
-      ? `${city} (${dept})`
-      : country ? `${city} (${country})` : city
-
+    const city = place.display_name.split(',')[0].trim()
+    const isFr = place.address?.country_code === 'fr'
+    const region = isFr
+      ? (place.address?.state || place.address?.county || '')
+      : (place.address?.country || '')
+    const formatted = region ? `${city} (${region})` : city
     setCityInput(formatted)
     setVilleFormatted(formatted)
     setIsCitySelected(true)
     setCitySuggestions([])
   }
 
-  // ✅ Validation stricte — pas de skip possible
+  // ── Validation stricte ───────────────────────────────────────────────
   const validateStep = useCallback((): string | null => {
     if (step === 1) {
       if (!prenom.trim()) return 'Le prénom est obligatoire.'
       if (!nom.trim()) return 'Le nom de famille est obligatoire.'
-      // Vérifier que nom ≠ prénom
       if (nom.trim().toLowerCase() === prenom.trim().toLowerCase())
         return 'Veuillez saisir votre vrai nom de famille (différent du prénom).'
     }
@@ -246,10 +256,8 @@ export default function OnboardingPage() {
     }
     if (step === 3) {
       if (!isCitySelected) return 'La ville de résidence est obligatoire. Sélectionnez-la dans la liste.'
-      if (!skipPassword) {
-        if (password && password.length < 8) return 'Le mot de passe doit faire au moins 8 caractères.'
-        if (password && password !== confirmPassword) return 'Les mots de passe ne correspondent pas.'
-      }
+      if (!skipPassword && password && password.length < 8) return 'Le mot de passe doit faire au moins 8 caractères.'
+      if (!skipPassword && password && password !== confirmPassword) return 'Les mots de passe ne correspondent pas.'
     }
     return null
   }, [step, prenom, nom, diplome, promotion, statut, isCitySelected, skipPassword, password, confirmPassword])
@@ -263,30 +271,27 @@ export default function OnboardingPage() {
 
   const handleBack = () => { setError(''); setStep(s => s - 1) }
 
+  const resetDraft = () => {
+    localStorage.removeItem(DRAFT_KEY)
+    setStep(1); setStatut('etudiant'); setDiplome(''); setPromotion('')
+    setCampus('bessieres'); setPoste(''); setEntreprise(''); setSecteur('')
+    setCityInput(''); setIsCitySelected(false); setVilleFormatted('')
+    setCivilite(''); setDateNaissance(''); setDraftRestored(false)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const err = validateStep()
     if (err) { setError(err); return }
-
     setIsSubmitting(true)
     setError('')
-
     const body: Record<string, any> = {
       prenom: prenom.trim(),
       nom: nom.trim(),
-      statut,
-      diplome,
+      statut, diplome,
       promotion: promotion ? Number(promotion) : undefined,
-      formations: diplome ? [{
-        nom: diplome,
-        etablissement: campus === 'bessieres' ? 'ENC Bessières' : 'ENC',
-        annee: promotion,
-        isENC: true,
-        campus,
-      }] : [],
-      ville: villeFormatted,
-      searchOpportunities,
-      mentoratActive,
+      formations: diplome ? [{ nom: diplome, etablissement: campus === 'bessieres' ? 'ENC Bessières' : 'ENC', annee: promotion, isENC: true, campus }] : [],
+      ville: villeFormatted, searchOpportunities, mentoratActive,
       mentoratRole: mentoratActive ? 'mentor' : 'filleul',
       ...(dateNaissance ? { dateNaissance } : {}),
       ...(civilite ? { civilite } : {}),
@@ -295,7 +300,6 @@ export default function OnboardingPage() {
       ...(secteur ? { secteur } : {}),
       ...(password && !skipPassword ? { password } : {}),
     }
-
     try {
       const res = await fetch('/api/onboarding', {
         method: 'POST',
@@ -304,7 +308,7 @@ export default function OnboardingPage() {
       })
       const data = await res.json()
       if (res.ok) {
-        localStorage.removeItem(ONBOARDING_DRAFT_KEY)
+        localStorage.removeItem(DRAFT_KEY)
         router.push('/')
       } else {
         setError(data.error || 'Erreur lors de la sauvegarde.')
@@ -319,14 +323,17 @@ export default function OnboardingPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-400 font-bold text-xs uppercase tracking-widest animate-pulse">Chargement...</div>
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-enc border-t-transparent rounded-full animate-spin" />
+          <p className="text-gray-400 font-bold text-xs uppercase tracking-widest">Chargement...</p>
+        </div>
       </div>
     )
   }
 
   const stepSubtitles = [
     'Vérifiez et complétez vos informations',
-    'Votre formation à l\'ENC Bessières',
+    "Votre formation à l'ENC Bessières",
     'Votre situation actuelle et accès au compte',
   ]
 
@@ -334,14 +341,13 @@ export default function OnboardingPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
       <div className="max-w-xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden border border-gray-100">
 
-        {/* Header */}
         <div className="bg-enc p-8 text-white text-center">
           <div className="inline-flex items-center gap-2 bg-white/10 px-3 py-1 rounded-full mb-3">
             <span className="text-[10px] font-black uppercase tracking-widest text-white/80">
               Bienvenue {user?.prenom} !
             </span>
           </div>
-          <h1 className="text-2xl font-black uppercase tracking-tight" style={{color: 'white', textDecoration: 'none'}}>
+          <h1 className="text-2xl font-black uppercase tracking-tight" style={{ color: 'white', textDecoration: 'none' }}>
             Complétez votre profil
           </h1>
           <p className="text-white/60 text-xs mt-1">{stepSubtitles[step - 1]}</p>
@@ -354,24 +360,14 @@ export default function OnboardingPage() {
         <form onSubmit={handleSubmit} noValidate>
           <div className="p-10 space-y-5">
 
-            {/* ✅ Bandeau brouillon restauré */}
             {draftRestored && (
               <div className="flex items-center justify-between bg-blue-50 border border-blue-100 text-blue-700 px-4 py-2.5 rounded-xl text-xs font-semibold">
                 <div className="flex items-center gap-2">
                   <i className="fa-solid fa-rotate-left text-blue-400" />
                   <span>Profil repris là où vous en étiez</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    localStorage.removeItem(ONBOARDING_DRAFT_KEY)
-                    setStep(1); setStatut('etudiant'); setDiplome(''); setPromotion('')
-                    setCampus('bessieres'); setPoste(''); setEntreprise(''); setSecteur('')
-                    setCityInput(''); setIsCitySelected(false); setVilleFormatted('')
-                    setCivilite(''); setDateNaissance(''); setDraftRestored(false)
-                  }}
-                  className="text-blue-400 hover:text-blue-600 underline text-[11px]"
-                >
+                <button type="button" onClick={resetDraft}
+                  className="text-blue-400 hover:text-blue-600 underline text-[11px]">
                   Recommencer
                 </button>
               </div>
@@ -384,11 +380,9 @@ export default function OnboardingPage() {
               </div>
             )}
 
-            {/* ══ ÉTAPE 1 — Identité ══════════════════════════════════════════ */}
+            {/* ══ ÉTAPE 1 ══ */}
             {step === 1 && (
               <div className="space-y-4">
-
-                {/* ✅ Bandeau avertissement si nom manquant */}
                 {nomManquant && (
                   <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
                     <i className="fa-solid fa-circle-info text-amber-500 flex-shrink-0 mt-0.5" />
@@ -397,7 +391,6 @@ export default function OnboardingPage() {
                     </p>
                   </div>
                 )}
-
                 <div className="grid grid-cols-2 gap-4">
                   <InputField label="Civilité">
                     <select className={SELECT_CLASS} value={civilite} onChange={e => setCivilite(e.target.value)}>
@@ -410,42 +403,32 @@ export default function OnboardingPage() {
                     <input type="date" className={INPUT_CLASS} value={dateNaissance} onChange={e => setDateNaissance(e.target.value)} />
                   </InputField>
                 </div>
-
                 <div className="grid grid-cols-2 gap-4">
                   <InputField label="Prénom" required>
-                    <input
-                      className={INPUT_CLASS}
-                      value={prenom}
-                      onChange={e => setPrenom(e.target.value)}
-                      placeholder="Jean"
-                    />
+                    <input className={INPUT_CLASS} value={prenom} onChange={e => setPrenom(e.target.value)} placeholder="Jean" />
                   </InputField>
                   <InputField label="Nom de famille" required>
                     <input
                       className={`${INPUT_CLASS} ${nomManquant && !nom ? 'border-amber-400 focus:ring-amber-400' : ''}`}
-                      value={nom}
-                      onChange={e => setNom(e.target.value)}
-                      placeholder="Dupont"
-                      autoFocus={nomManquant}
+                      value={nom} onChange={e => setNom(e.target.value)}
+                      placeholder="Dupont" autoFocus={nomManquant}
                     />
                   </InputField>
                 </div>
-
                 {(prenom || nom) && (
                   <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 text-center">
                     <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1">Aperçu</p>
                     <p className="font-black text-gray-800 text-sm">{civilite && `${civilite} `}{prenom} {nom}</p>
                   </div>
                 )}
-
                 <button type="button" onClick={handleNext}
-                  className="w-full py-4 bg-enc text-white rounded-xl font-bold uppercase tracking-widest hover:brightness-110 transition-all mt-2">
+                  className="w-full py-4 bg-enc text-white rounded-xl font-bold uppercase tracking-widest hover:brightness-110 transition-all">
                   Suivant →
                 </button>
               </div>
             )}
 
-            {/* ══ ÉTAPE 2 — Parcours ENC ══════════════════════════════════════ */}
+            {/* ══ ÉTAPE 2 ══ */}
             {step === 2 && (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -464,7 +447,6 @@ export default function OnboardingPage() {
                     </select>
                   </InputField>
                 </div>
-
                 <InputField label="Diplôme suivi à l'ENC" required>
                   <select className={SELECT_CLASS} value={diplome} onChange={e => setDiplome(e.target.value)}>
                     <option value="">Sélectionnez votre cursus...</option>
@@ -487,14 +469,12 @@ export default function OnboardingPage() {
                     </optgroup>
                   </select>
                 </InputField>
-
                 <InputField label="Campus">
                   <select className={SELECT_CLASS} value={campus} onChange={e => setCampus(e.target.value)}>
                     <option value="bessieres">Bessières (ENC)</option>
                     <option value="autre">Autre campus</option>
                   </select>
                 </InputField>
-
                 <div className="flex gap-4 pt-2">
                   <button type="button" onClick={handleBack}
                     className="flex-1 py-4 border-2 border-gray-100 text-gray-400 rounded-xl font-bold uppercase text-xs hover:bg-gray-50 transition-all">
@@ -508,16 +488,15 @@ export default function OnboardingPage() {
               </div>
             )}
 
-            {/* ══ ÉTAPE 3 — Pro + Ville + Mot de passe ════════════════════════ */}
+            {/* ══ ÉTAPE 3 ══ */}
             {step === 3 && (
               <div className="space-y-4">
-
-                {/* ✅ Ville obligatoire avec France en priorité */}
+                {/* Ville */}
                 <div className="space-y-1 text-left relative">
                   <label className="text-xs font-bold uppercase text-gray-400 ml-1">
                     Ville de résidence <span className="text-red-500">*</span>
                   </label>
-                  <p className="text-[10px] text-gray-400 ml-1">Commencez à taper — France en priorité</p>
+                  <p className="text-[10px] text-gray-400 ml-1">France en priorité — autres pays si introuvable</p>
                   <div className="relative">
                     <input
                       placeholder="Ex : Paris, Lyon, Marseille..."
@@ -529,16 +508,8 @@ export default function OnboardingPage() {
                       value={cityInput}
                       onChange={e => { setCityInput(e.target.value); setIsCitySelected(false); setVilleFormatted('') }}
                     />
-                    {isCitySelected && (
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500">
-                        <i className="fa-solid fa-circle-check" />
-                      </span>
-                    )}
-                    {searchingCity && !isCitySelected && (
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <div className="w-4 h-4 border-2 border-gray-300 border-t-enc rounded-full animate-spin" />
-                      </span>
-                    )}
+                    {isCitySelected && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500"><i className="fa-solid fa-circle-check" /></span>}
+                    {searchingCity && !isCitySelected && <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-gray-300 border-t-enc rounded-full animate-spin" />}
                   </div>
                   {citySuggestions.length > 0 && (
                     <ul className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 max-h-52 overflow-y-auto">
@@ -552,7 +523,7 @@ export default function OnboardingPage() {
                           <li key={i}>
                             <button type="button" onClick={() => handleSelectCity(place)}
                               className="w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors border-b last:border-0 border-gray-100 flex items-center gap-3">
-                              <span className="text-base">{isFr ? '🇫🇷' : '🌍'}</span>
+                              <span className="text-base flex-shrink-0">{isFr ? '🇫🇷' : '🌍'}</span>
                               <div>
                                 <p className="text-xs font-bold text-gray-800">{city}</p>
                                 {region && <p className="text-[10px] text-gray-400">{region}</p>}
@@ -595,13 +566,11 @@ export default function OnboardingPage() {
                   </InputField>
                 </div>
 
-                {/* Mentorat */}
                 <div className="pt-2 border-t border-gray-100">
                   <label className="flex items-start gap-3 cursor-pointer p-3 rounded-xl hover:bg-gray-50 transition-colors">
                     <input type="checkbox"
                       className="w-5 h-5 mt-0.5 border-2 border-gray-300 rounded cursor-pointer"
-                      checked={mentoratActive}
-                      onChange={e => setMentoratActive(e.target.checked)}
+                      checked={mentoratActive} onChange={e => setMentoratActive(e.target.checked)}
                     />
                     <div>
                       <span className="font-bold text-gray-700 block text-[13px]">Devenir Mentor</span>
@@ -610,18 +579,15 @@ export default function OnboardingPage() {
                   </label>
                 </div>
 
-                {/* Mot de passe optionnel */}
                 <div className="pt-2 border-t border-gray-100 space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs font-black text-gray-700 uppercase tracking-wider">Définir un mot de passe</p>
-                      <p className="text-[11px] text-gray-400 mt-0.5">Permet de se connecter par email en plus de Google/LinkedIn</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">Connexion par email en plus de Google/LinkedIn</p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input type="checkbox" className="sr-only peer"
-                        checked={!skipPassword}
-                        onChange={e => setSkipPassword(!e.target.checked)}
-                      />
+                        checked={!skipPassword} onChange={e => setSkipPassword(!e.target.checked)} />
                       <div className="w-11 h-6 bg-gray-200 peer-checked:bg-enc rounded-full transition-all after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full" />
                     </label>
                   </div>
