@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import Cropper from 'react-easy-crop'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -19,6 +18,27 @@ interface CropState {
   y: number
 }
 
+interface MediaItem {
+  id: string
+  url: string
+  alt?: string
+}
+
+interface GroupData {
+  id: string
+  titre: string
+  slug: string
+  categorie?: string
+  description?: string
+  miniature?: MediaItem
+  banniere?: MediaItem
+  isPublic?: boolean
+  restrictDiplome?: string
+  restrictCampus?: string
+  restrictCategorie?: string
+  restrictPromotion?: string
+}
+
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
 const CATEGORIES = [
@@ -33,18 +53,13 @@ const CATEGORIES = [
 ]
 
 const DIPLOMES_OPTIONS = {
-  BTS: [
-    'BTS ASSURANCE', 'BTS CG', 'BTS CI', 'BTS COMMUNICATION',
-    'BTS GPME', 'BTS MCO', 'BTS NDRC', 'BTS PIM', 'BTS SIO',
-  ],
+  BTS: ['BTS ASSURANCE', 'BTS CG', 'BTS CI', 'BTS COMMUNICATION', 'BTS GPME', 'BTS MCO', 'BTS NDRC', 'BTS PIM', 'BTS SIO'],
   DCG3: ['DCG3'],
   Prépa: ['ATS', 'D1', 'D2', 'DCG', 'DCG2', 'DSCG', 'ECG', 'ECT'],
 }
 
 const CAMPUS_OPTIONS = ['ENC Bessières', 'ENC Bessières Apprentissage']
-const CATEGORIE_RESTRICT_OPTIONS = [
-  'Équipe administrative', 'Étudiant', 'Alumni', 'Enseignant', 'Recruteur', 'Candidat',
-]
+const CATEGORIE_RESTRICT_OPTIONS = ['Équipe administrative', 'Étudiant', 'Alumni', 'Enseignant', 'Recruteur', 'Candidat']
 const PROMOTION_OPTIONS = ['2031', '2030', '2029', '2028', '2027', '2026']
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -58,58 +73,32 @@ function slugify(str: string): string {
     .replace(/^-+|-+$/g, '')
 }
 
-const getRadianAngle = (deg: number) => (deg * Math.PI) / 180
-
-async function getCroppedImg(
-  imageSrc: string,
-  pixelCrop: CropArea,
-  rotation = 0,
-  flip = { h: false, v: false },
-): Promise<Blob> {
+async function getCroppedImg(imageSrc: string, pixelCrop: CropArea): Promise<Blob> {
   const image = await new Promise<HTMLImageElement>((resolve, reject) => {
     const img = new Image()
-    img.setAttribute('crossOrigin', 'anonymous')
     img.onload = () => resolve(img)
     img.onerror = reject
     img.src = imageSrc
   })
-
   const canvas = document.createElement('canvas')
-  const ctx = canvas.getContext('2d')!
-
-  // On travaille sur une zone «safe» pour gérer rotation sans coupure
-  const safeArea = Math.max(image.width, image.height) * 2
-  canvas.width = safeArea
-  canvas.height = safeArea
-
-  ctx.translate(safeArea / 2, safeArea / 2)
-  ctx.rotate(getRadianAngle(rotation))
-  ctx.scale(flip.h ? -1 : 1, flip.v ? -1 : 1)
-  ctx.translate(-safeArea / 2, -safeArea / 2)
-  ctx.drawImage(image, safeArea / 2 - image.width / 2, safeArea / 2 - image.height / 2)
-
-  const data = ctx.getImageData(0, 0, safeArea, safeArea)
   canvas.width = pixelCrop.width
   canvas.height = pixelCrop.height
-  ctx.putImageData(
-    data,
-    Math.round(0 - safeArea / 2 + image.width / 2 - pixelCrop.x),
-    Math.round(0 - safeArea / 2 + image.height / 2 - pixelCrop.y),
-  )
-
-  return new Promise<Blob>((resolve, reject) =>
-    canvas.toBlob(
-      (blob) => (blob ? resolve(blob) : reject(new Error('toBlob failed'))),
-      'image/jpeg',
-      0.92,
-    ),
-  )
+  const ctx = canvas.getContext('2d')!
+  ctx.drawImage(image, pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height, 0, 0, pixelCrop.width, pixelCrop.height)
+  return new Promise<Blob>((resolve) => canvas.toBlob((blob) => resolve(blob!), 'image/jpeg', 0.92))
 }
 
 // ─── Composant MultiSelect ────────────────────────────────────────────────────
 
-interface MultiSelectOption { value: string; label: string }
-interface MultiSelectGroup { group: string; options: MultiSelectOption[] }
+interface MultiSelectOption {
+  value: string
+  label: string
+}
+
+interface MultiSelectGroup {
+  group: string
+  options: MultiSelectOption[]
+}
 
 function MultiSelect({
   label,
@@ -127,26 +116,34 @@ function MultiSelect({
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
-  // Fermeture au clic extérieur
-  const handleBlur = useCallback((e: React.FocusEvent) => {
-    if (!ref.current?.contains(e.relatedTarget as Node)) setOpen(false)
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
   const allOptions: MultiSelectOption[] = groups
     ? groups.flatMap((g) => g.options)
     : (options ?? [])
 
-  const toggle = (v: string) =>
+  const toggle = (v: string) => {
     onChange(selected.includes(v) ? selected.filter((s) => s !== v) : [...selected, v])
+  }
 
   const toggleGroup = (groupOptions: MultiSelectOption[]) => {
     const vals = groupOptions.map((o) => o.value)
     const allIn = vals.every((v) => selected.includes(v))
-    onChange(allIn ? selected.filter((s) => !vals.includes(s)) : [...new Set([...selected, ...vals])])
+    if (allIn) {
+      onChange(selected.filter((s) => !vals.includes(s)))
+    } else {
+      onChange([...new Set([...selected, ...vals])])
+    }
   }
 
   return (
-    <div ref={ref} className="relative" onBlur={handleBlur}>
+    <div ref={ref} className="relative">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -162,7 +159,10 @@ function MultiSelect({
         </span>
         <svg
           className={`h-4 w-4 text-gray-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
-          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
         >
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
@@ -170,7 +170,6 @@ function MultiSelect({
 
       {open && (
         <div className="absolute z-30 mt-1 w-full rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
-          {/* Barre tout / aucun */}
           <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 bg-gray-50">
             <button
               type="button"
@@ -188,7 +187,6 @@ function MultiSelect({
               Aucun
             </button>
           </div>
-
           <div className="max-h-56 overflow-y-auto py-1">
             {groups
               ? groups.map((g) => {
@@ -197,20 +195,27 @@ function MultiSelect({
                   const someIn = groupVals.some((v) => selected.includes(v))
                   return (
                     <div key={g.group}>
-                      {/* En-tête groupe avec checkbox indéterminée */}
                       <button
                         type="button"
                         className="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 transition-colors"
                         onClick={() => toggleGroup(g.options)}
                       >
-                        <div className={`h-4 w-4 rounded flex items-center justify-center flex-shrink-0 border ${
-                          allIn ? 'bg-indigo-600 border-indigo-600'
-                          : someIn ? 'bg-indigo-200 border-indigo-400'
-                          : 'border-gray-300'
-                        }`}>
+                        <div
+                          className={`h-4 w-4 rounded flex items-center justify-center flex-shrink-0 border ${
+                            allIn
+                              ? 'bg-indigo-600 border-indigo-600'
+                              : someIn
+                              ? 'bg-indigo-200 border-indigo-400'
+                              : 'border-gray-300'
+                          }`}
+                        >
                           {(allIn || someIn) && (
                             <svg className="h-2.5 w-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              <path
+                                fillRule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clipRule="evenodd"
+                              />
                             </svg>
                           )}
                         </div>
@@ -219,7 +224,10 @@ function MultiSelect({
                         </span>
                       </button>
                       {g.options.map((opt) => (
-                        <label key={opt.value} className="flex items-center gap-2 px-3 py-1.5 pl-8 hover:bg-gray-50 cursor-pointer transition-colors">
+                        <label
+                          key={opt.value}
+                          className="flex items-center gap-2 px-3 py-1.5 pl-8 hover:bg-gray-50 cursor-pointer transition-colors"
+                        >
                           <input
                             type="checkbox"
                             checked={selected.includes(opt.value)}
@@ -233,7 +241,10 @@ function MultiSelect({
                   )
                 })
               : options?.map((opt) => (
-                  <label key={opt.value} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer transition-colors">
+                  <label
+                    key={opt.value}
+                    className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer transition-colors"
+                  >
                     <input
                       type="checkbox"
                       checked={selected.includes(opt.value)}
@@ -244,14 +255,21 @@ function MultiSelect({
                   </label>
                 ))}
           </div>
-
-          {/* Chips des sélections actives */}
           {selected.length > 0 && (
             <div className="px-3 py-2 border-t border-gray-100 bg-gray-50 flex flex-wrap gap-1">
               {selected.map((v) => (
-                <span key={v} className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">
+                <span
+                  key={v}
+                  className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700"
+                >
                   {v}
-                  <button type="button" onClick={() => toggle(v)} className="ml-0.5 hover:text-indigo-900">×</button>
+                  <button
+                    type="button"
+                    onClick={() => toggle(v)}
+                    className="ml-0.5 hover:text-indigo-900"
+                  >
+                    ×
+                  </button>
                 </span>
               ))}
             </div>
@@ -280,7 +298,7 @@ function CropModal({
   const [crop, setCrop] = useState<CropState>({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
   const [rotation, setRotation] = useState(0)
-  const [flip, setFlip] = useState({ h: false, v: false })
+  const [flipH, setFlipH] = useState(false)
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<CropArea | null>(null)
 
   const onCropComplete = useCallback((_: unknown, pixels: CropArea) => {
@@ -289,33 +307,25 @@ function CropModal({
 
   const handleDone = async () => {
     if (!croppedAreaPixels) return
-    try {
-      const blob = await getCroppedImg(src, croppedAreaPixels, rotation, flip)
-      onDone(blob)
-    } catch {
-      onCancel()
-    }
+    const blob = await getCroppedImg(src, croppedAreaPixels)
+    onDone(blob)
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
       <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden">
-        {/* En-tête */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <h3 className="font-semibold text-gray-900">{title}</h3>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-lg p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-          >
+          <button onClick={onCancel} className="rounded-lg p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
-
-        {/* Zone de crop */}
-        <div className="relative bg-gray-900" style={{ height: 300 }}>
+        <div
+          className="relative bg-gray-900"
+          style={{ height: 300, transform: flipH ? 'scaleX(-1)' : 'none' }}
+        >
           <Cropper
             image={src}
             crop={crop}
@@ -325,36 +335,24 @@ function CropModal({
             onCropChange={setCrop}
             onZoomChange={setZoom}
             onCropComplete={onCropComplete}
-            transform={`translate(${crop.x}px, ${crop.y}px) rotate(${rotation}deg) scale(${flip.h ? -zoom : zoom}, ${flip.v ? -zoom : zoom})`}
           />
         </div>
-
-        {/* Contrôles */}
         <div className="px-5 py-4 space-y-3 border-t border-gray-100">
           <div className="flex items-center gap-3">
             <span className="text-xs text-gray-500 w-16 flex-shrink-0">Zoom</span>
-            <input
-              type="range" min={1} max={3} step={0.05} value={zoom}
-              onChange={(e) => setZoom(+e.target.value)}
-              className="flex-1 accent-indigo-600"
-            />
-            <span className="text-xs text-gray-400 w-10 text-right">{Math.round(zoom * 100)}%</span>
+            <input type="range" min={1} max={3} step={0.05} value={zoom} onChange={(e) => setZoom(+e.target.value)} className="flex-1 accent-indigo-600" />
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs text-gray-500 w-16 flex-shrink-0">Rotation</span>
-            <input
-              type="range" min={0} max={360} step={1} value={rotation}
-              onChange={(e) => setRotation(+e.target.value)}
-              className="flex-1 accent-indigo-600"
-            />
+            <input type="range" min={-180} max={180} step={1} value={rotation} onChange={(e) => setRotation(+e.target.value)} className="flex-1 accent-indigo-600" />
             <span className="text-xs text-gray-400 w-10 text-right">{rotation}°</span>
           </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setFlip((f) => ({ ...f, h: !f.h }))}
+              onClick={() => setFlipH((f) => !f)}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                flip.h ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                flipH ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
               <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -362,35 +360,13 @@ function CropModal({
               </svg>
               Miroir H
             </button>
-            <button
-              type="button"
-              onClick={() => setFlip((f) => ({ ...f, v: !f.v }))}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                flip.v ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5L7.5 3m0 0L12 7.5M7.5 3v13.5m13.5 0L16.5 21m0 0L12 16.5m4.5 4.5V7.5" />
-              </svg>
-              Miroir V
-            </button>
           </div>
         </div>
-
-        {/* Actions */}
         <div className="px-5 pb-5 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-xl px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors"
-          >
+          <button onClick={onCancel} className="rounded-xl px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition-colors">
             Annuler
           </button>
-          <button
-            type="button"
-            onClick={handleDone}
-            className="rounded-xl px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition-colors"
-          >
+          <button onClick={handleDone} className="rounded-xl px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 transition-colors">
             Valider le recadrage
           </button>
         </div>
@@ -402,40 +378,39 @@ function CropModal({
 // ─── ImageUploadField ─────────────────────────────────────────────────────────
 
 function ImageUploadField({
-  id,
   label,
   hint,
+  aspectRatio,
   previewClass,
+  currentUrl,
   previewUrl,
   onFileSelected,
   onRemove,
-  required,
 }: {
-  id: string
   label: string
   hint: string
+  aspectRatio: number
   previewClass: string
+  currentUrl?: string
   previewUrl?: string
   onFileSelected: (file: File) => void
   onRemove: () => void
-  required?: boolean
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const displayUrl = previewUrl ?? currentUrl
 
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-2">
         {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
         <span className="ml-1.5 text-xs text-gray-400 font-normal">{hint}</span>
       </label>
-      <div
-        className={`relative overflow-hidden rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 hover:border-indigo-400 hover:bg-indigo-50/30 transition-colors cursor-pointer ${previewClass}`}
+      <div className={`relative overflow-hidden rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 hover:border-indigo-400 hover:bg-indigo-50/30 transition-colors cursor-pointer ${previewClass}`}
         onClick={() => inputRef.current?.click()}
       >
-        {previewUrl ? (
+        {displayUrl ? (
           <>
-            <img src={previewUrl} alt="" className="h-full w-full object-cover" />
+            <img src={displayUrl} alt="" className="h-full w-full object-cover" />
             <div className="absolute inset-0 bg-black/0 hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 hover:opacity-100">
               <span className="text-white text-sm font-medium bg-black/40 rounded-lg px-3 py-1.5 backdrop-blur-sm">
                 Changer
@@ -462,7 +437,6 @@ function ImageUploadField({
       </div>
       <input
         ref={inputRef}
-        id={id}
         type="file"
         accept="image/*"
         className="hidden"
@@ -476,22 +450,29 @@ function ImageUploadField({
   )
 }
 
-// ─── Page de création ─────────────────────────────────────────────────────────
+// ─── Page d'édition ───────────────────────────────────────────────────────────
 
-export default function CreateGroupPage() {
+export default function EditGroupPage({ params }: { params: { id: string } }) {
   const router = useRouter()
 
-  // Champs texte
+  // État chargement initial
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  // Champs du formulaire
   const [titre, setTitre] = useState('')
+  const [slug, setSlug] = useState('')
   const [categorie, setCategorie] = useState('')
   const [description, setDescription] = useState('')
   const [isPublic, setIsPublic] = useState(true)
 
-  // Images
-  const [miniatureBlob, setMiniatureBlob] = useState<Blob | null>(null)
-  const [banniereBlob, setBanniereBlob] = useState<Blob | null>(null)
+  // Images : url existantes + prévisualisations + blobs rognés
+  const [miniatureUrl, setMiniatureUrl] = useState<string | undefined>()
+  const [banniereUrl, setBanniereUrl] = useState<string | undefined>()
   const [miniaturePreview, setMiniaturePreview] = useState<string | undefined>()
   const [bannierePreview, setBannierePreview] = useState<string | undefined>()
+  const [miniatureBlob, setMiniatureBlob] = useState<Blob | null>(null)
+  const [banniereBlob, setBanniereBlob] = useState<Blob | null>(null)
 
   // Crop modal
   const [cropModal, setCropModal] = useState<{
@@ -500,6 +481,7 @@ export default function CreateGroupPage() {
     title: string
     onDone: (blob: Blob) => void
   } | null>(null)
+  const [pendingCropSrc, setPendingCropSrc] = useState<{ type: 'miniature' | 'banniere'; src: string } | null>(null)
 
   // Restrictions
   const [restrictDiplomes, setRestrictDiplomes] = useState<string[]>([])
@@ -510,89 +492,124 @@ export default function CreateGroupPage() {
   // Soumission
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
 
-  const slug = slugify(titre)
+  // ── Chargement des données ───────────────────────────────
+  useEffect(() => {
+    async function fetchGroup() {
+      try {
+        const res = await fetch(`/api/groups/${params.id}?depth=1`)
+        if (!res.ok) throw new Error('Groupe introuvable')
+        const data: GroupData = await res.json()
 
-  // ── Gestion des images ───────────────────────────────────
-  function openCrop(type: 'miniature' | 'banniere', file: File) {
+        setTitre(data.titre ?? '')
+        setSlug(data.slug ?? '')
+        setCategorie(data.categorie ?? '')
+        setDescription(data.description ?? '')
+        setIsPublic(data.isPublic ?? true)
+
+        if (data.miniature?.url) setMiniatureUrl(data.miniature.url)
+        if (data.banniere?.url) setBanniereUrl(data.banniere.url)
+
+        if (data.restrictDiplome) setRestrictDiplomes(data.restrictDiplome.split(',').map((s) => s.trim()).filter(Boolean))
+        if (data.restrictCampus) setRestrictCampus(data.restrictCampus.split(',').map((s) => s.trim()).filter(Boolean))
+        if (data.restrictCategorie) setRestrictCategories(data.restrictCategorie.split(',').map((s) => s.trim()).filter(Boolean))
+        if (data.restrictPromotion) setRestrictPromotions(data.restrictPromotion.split(',').map((s) => s.trim()).filter(Boolean))
+      } catch (err) {
+        setLoadError(err instanceof Error ? err.message : 'Erreur de chargement')
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchGroup()
+  }, [params.id])
+
+  // ── Crop helpers ─────────────────────────────────────────
+  function openCrop(type: 'miniature' | 'banniere', src: string) {
+    const aspect = type === 'miniature' ? 1 : 16 / 9
+    const title = type === 'miniature' ? 'Recadrer la miniature (1:1)' : 'Recadrer la bannière (16:9)'
+    setCropModal({
+      src,
+      aspect,
+      title,
+      onDone: (blob) => {
+        const preview = URL.createObjectURL(blob)
+        if (type === 'miniature') {
+          setMiniaturePreview(preview)
+          setMiniatureBlob(blob)
+        } else {
+          setBannierePreview(preview)
+          setBanniereBlob(blob)
+        }
+        setCropModal(null)
+      },
+    })
+    setPendingCropSrc({ type, src })
+  }
+
+  function handleImageFile(type: 'miniature' | 'banniere', file: File) {
     const reader = new FileReader()
     reader.onload = (e) => {
-      if (!e.target?.result) return
-      const src = e.target.result as string
-      const aspect = type === 'miniature' ? 1 : 16 / 9
-      const title =
-        type === 'miniature'
-          ? 'Recadrer la miniature (1:1)'
-          : 'Recadrer la bannière (16:9)'
-      setCropModal({
-        src,
-        aspect,
-        title,
-        onDone: (blob) => {
-          const preview = URL.createObjectURL(blob)
-          if (type === 'miniature') {
-            setMiniatureBlob(blob)
-            setMiniaturePreview(preview)
-          } else {
-            setBanniereBlob(blob)
-            setBannierePreview(preview)
-          }
-          setCropModal(null)
-        },
-      })
+      if (e.target?.result) openCrop(type, e.target.result as string)
     }
     reader.readAsDataURL(file)
   }
 
-  // ── Upload + soumission ──────────────────────────────────
+  // ── Upload image vers PayloadCMS ─────────────────────────
   async function uploadMedia(blob: Blob, filename: string): Promise<string> {
     const formData = new FormData()
     formData.append('file', blob, filename)
     const res = await fetch('/api/media', { method: 'POST', body: formData })
-    if (!res.ok) throw new Error("Erreur lors de l'upload de l'image")
+    if (!res.ok) throw new Error('Erreur lors de l\'upload de l\'image')
     const data = await res.json()
     return data.doc?.id ?? data.id
   }
 
+  // ── Soumission ───────────────────────────────────────────
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!titre.trim()) { setError('Le titre est obligatoire.'); return }
+    setSubmitting(true)
     setError(null)
 
-    if (!titre.trim()) { setError('Le titre est obligatoire.'); return }
-    if (!miniatureBlob) { setError('La miniature est obligatoire.'); return }
-    if (!banniereBlob) { setError("L'image d'en-tête est obligatoire."); return }
-
-    setSubmitting(true)
     try {
-      const [miniatureId, banniereId] = await Promise.all([
-        uploadMedia(miniatureBlob, `miniature-${slug}.jpg`),
-        uploadMedia(banniereBlob, `banniere-${slug}.jpg`),
-      ])
+      let miniatureId: string | undefined
+      let banniereId: string | undefined
 
-      const res = await fetch('/api/groups', {
-        method: 'POST',
+      if (miniatureBlob) miniatureId = await uploadMedia(miniatureBlob, `miniature-${slug}.jpg`)
+      if (banniereBlob) banniereId = await uploadMedia(banniereBlob, `banniere-${slug}.jpg`)
+
+      const body: Record<string, unknown> = {
+        titre: titre.trim(),
+        categorie: categorie || undefined,
+        description: description.trim() || undefined,
+        isPublic,
+        restrictDiplome: restrictDiplomes.join(', ') || undefined,
+        restrictCampus: restrictCampus.join(', ') || undefined,
+        restrictCategorie: restrictCategories.join(', ') || undefined,
+        restrictPromotion: restrictPromotions.join(', ') || undefined,
+      }
+
+      if (miniatureId) body.miniature = miniatureId
+      if (banniereId) body.banniere = banniereId
+
+      // Si l'image a été retirée explicitement (previewUrl = undefined ET url = undefined)
+      if (!miniaturePreview && !miniatureUrl) body.miniature = null
+      if (!bannierePreview && !banniereUrl) body.banniere = null
+
+      const res = await fetch(`/api/groups/${params.id}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          titre: titre.trim(),
-          slug,
-          categorie: categorie || undefined,
-          description: description.trim() || undefined,
-          isPublic,
-          miniature: miniatureId,
-          banniere: banniereId,
-          restrictDiplome: restrictDiplomes.join(', ') || undefined,
-          restrictCampus: restrictCampus.join(', ') || undefined,
-          restrictCategorie: restrictCategories.join(', ') || undefined,
-          restrictPromotion: restrictPromotions.join(', ') || undefined,
-        }),
+        body: JSON.stringify(body),
       })
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}))
-        throw new Error(errData?.errors?.[0]?.message ?? errData?.message ?? 'Erreur lors de la création')
+        throw new Error(errData?.message ?? 'Erreur lors de la mise à jour')
       }
 
-      router.push('/groups')
+      setSuccess(true)
+      setTimeout(() => router.push(`/groups/${params.id}`), 1200)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Une erreur est survenue.')
     } finally {
@@ -600,7 +617,31 @@ export default function CreateGroupPage() {
     }
   }
 
-  // ─── Rendu ────────────────────────────────────────────────
+  // ─── Rendu états de chargement ───────────────────────────
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
+          <p className="text-sm text-gray-500">Chargement du groupe…</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-600 font-medium mb-4">{loadError}</p>
+          <a href="/groups" className="text-sm text-indigo-600 hover:underline">← Retour aux groupes</a>
+        </div>
+      </div>
+    )
+  }
+
+  // ─── Formulaire ──────────────────────────────────────────
 
   return (
     <>
@@ -616,71 +657,66 @@ export default function CreateGroupPage() {
 
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-2xl mx-auto px-4 sm:px-6">
-
           {/* En-tête */}
           <div className="flex items-center gap-3 mb-8">
-            <Link
-              href="/groups"
+            <a
+              href={`/groups/${params.id}`}
               className="rounded-lg p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
               </svg>
-            </Link>
+            </a>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Créer un groupe</h1>
-              <p className="text-sm text-gray-500 mt-0.5">
-                Nouvelle communauté sur le réseau ENC
-              </p>
+              <h1 className="text-2xl font-bold text-gray-900">Modifier le groupe</h1>
+              <p className="text-sm text-gray-500 mt-0.5">{titre}</p>
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-
-            {/* ── Identité ──────────────────────────────────── */}
+            {/* ── Identité ─────────────────────────────────── */}
             <div className="rounded-2xl bg-white shadow-sm ring-1 ring-gray-100 p-6 space-y-5">
               <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">
                 Identité
               </h2>
 
-              {/* Titre + Slug */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Titre <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={titre}
-                    onChange={(e) => setTitre(e.target.value)}
-                    placeholder="Nom du groupe…"
-                    required
-                    className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    Slug
-                    <span className="ml-1.5 text-xs text-gray-400 font-normal">auto-généré</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={slug}
-                    disabled
-                    className="w-full rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5 text-sm text-gray-400 font-mono cursor-not-allowed"
-                  />
-                </div>
+              {/* Titre */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Titre <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={titre}
+                  onChange={(e) => {
+                    setTitre(e.target.value)
+                    setSlug(slugify(e.target.value))
+                  }}
+                  placeholder="Nom du groupe…"
+                  className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-colors"
+                />
+              </div>
+
+              {/* Slug */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Slug
+                  <span className="ml-1.5 text-xs text-gray-400 font-normal">auto-généré, non modifiable</span>
+                </label>
+                <input
+                  type="text"
+                  value={slug}
+                  disabled
+                  className="w-full rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5 text-sm text-gray-400 font-mono cursor-not-allowed"
+                />
               </div>
 
               {/* Catégorie */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Catégorie <span className="text-red-500">*</span>
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Catégorie</label>
                 <select
                   value={categorie}
                   onChange={(e) => setCategorie(e.target.value)}
-                  required
                   className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-colors bg-white"
                 >
                   <option value="">Sélectionner une catégorie…</option>
@@ -692,29 +728,34 @@ export default function CreateGroupPage() {
 
               {/* Description */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Description <span className="text-red-500">*</span>
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
                 <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20 transition-colors">
-                  {/* Barre d'outils décorative */}
                   <div className="flex items-center gap-1 px-3 py-2 bg-gray-50 border-b border-gray-100">
                     {['B', 'I', 'U'].map((f) => (
-                      <button key={f} type="button"
+                      <button
+                        key={f}
+                        type="button"
                         className="rounded px-2 py-1 text-xs font-bold text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors"
-                      >{f}</button>
+                        title={f}
+                      >
+                        {f}
+                      </button>
                     ))}
                     <div className="w-px h-4 bg-gray-200 mx-1" />
                     {['≡', '•', '№'].map((f) => (
-                      <button key={f} type="button"
+                      <button
+                        key={f}
+                        type="button"
                         className="rounded px-2 py-1 text-sm text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors"
-                      >{f}</button>
+                      >
+                        {f}
+                      </button>
                     ))}
                   </div>
                   <textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     rows={4}
-                    required
                     placeholder="Décrivez l'objectif et la communauté de ce groupe…"
                     className="w-full px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 bg-white outline-none resize-none"
                   />
@@ -722,36 +763,36 @@ export default function CreateGroupPage() {
               </div>
             </div>
 
-            {/* ── Visuels ───────────────────────────────────── */}
+            {/* ── Images ───────────────────────────────────── */}
             <div className="rounded-2xl bg-white shadow-sm ring-1 ring-gray-100 p-6 space-y-5">
               <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">
                 Visuels
               </h2>
               <div className="grid grid-cols-2 gap-4">
                 <ImageUploadField
-                  id="miniature"
                   label="Miniature"
                   hint="1:1"
+                  aspectRatio={1}
                   previewClass="h-32"
+                  currentUrl={miniatureUrl}
                   previewUrl={miniaturePreview}
-                  onFileSelected={(f) => openCrop('miniature', f)}
-                  onRemove={() => { setMiniatureBlob(null); setMiniaturePreview(undefined) }}
-                  required
+                  onFileSelected={(f) => handleImageFile('miniature', f)}
+                  onRemove={() => { setMiniatureUrl(undefined); setMiniaturePreview(undefined); setMiniatureBlob(null) }}
                 />
                 <ImageUploadField
-                  id="banniere"
                   label="Bannière"
                   hint="16:9"
+                  aspectRatio={16 / 9}
                   previewClass="h-32"
+                  currentUrl={banniereUrl}
                   previewUrl={bannierePreview}
-                  onFileSelected={(f) => openCrop('banniere', f)}
-                  onRemove={() => { setBanniereBlob(null); setBannierePreview(undefined) }}
-                  required
+                  onFileSelected={(f) => handleImageFile('banniere', f)}
+                  onRemove={() => { setBanniereUrl(undefined); setBannierePreview(undefined); setBanniereBlob(null) }}
                 />
               </div>
             </div>
 
-            {/* ── Droit d'accès ─────────────────────────────── */}
+            {/* ── Accès ─────────────────────────────────────── */}
             <div className="rounded-2xl bg-white shadow-sm ring-1 ring-gray-100 p-6 space-y-3">
               <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">
                 Droit d'accès
@@ -761,7 +802,7 @@ export default function CreateGroupPage() {
                   {
                     value: true,
                     label: 'Groupe public',
-                    desc: 'Visible et rejoignable par tous',
+                    desc: 'Visible par tous',
                     icon: (
                       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
@@ -771,7 +812,7 @@ export default function CreateGroupPage() {
                   {
                     value: false,
                     label: 'Groupe privé',
-                    desc: 'Contenu réservé aux membres acceptés',
+                    desc: 'Sur invitation',
                     icon: (
                       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
@@ -803,7 +844,7 @@ export default function CreateGroupPage() {
               </div>
             </div>
 
-            {/* ── Restrictions ──────────────────────────────── */}
+            {/* ── Restrictions ─────────────────────────────── */}
             <div className="rounded-2xl bg-white shadow-sm ring-1 ring-gray-100 p-6 space-y-4">
               <div>
                 <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">
@@ -842,7 +883,7 @@ export default function CreateGroupPage() {
               </div>
             </div>
 
-            {/* ── Erreur ────────────────────────────────────── */}
+            {/* ── Erreur / Succès ───────────────────────────── */}
             {error && (
               <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 flex items-start gap-2.5">
                 <svg className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -852,30 +893,39 @@ export default function CreateGroupPage() {
               </div>
             )}
 
+            {success && (
+              <div className="rounded-xl bg-green-50 border border-green-200 px-4 py-3 flex items-center gap-2.5">
+                <svg className="h-5 w-5 text-green-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p className="text-sm text-green-700 font-medium">Modifications enregistrées. Redirection…</p>
+              </div>
+            )}
+
             {/* ── Actions ───────────────────────────────────── */}
             <div className="flex items-center justify-between gap-3 pb-4">
-              <Link
-                href="/groups"
+              <a
+                href={`/groups/${params.id}`}
                 className="rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 transition-colors shadow-sm"
               >
                 Annuler
-              </Link>
+              </a>
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || success}
                 className="flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
               >
                 {submitting ? (
                   <>
                     <div className="h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
-                    Création en cours…
+                    Enregistrement…
                   </>
                 ) : (
                   <>
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    Créer le groupe
+                    Enregistrer les modifications
                   </>
                 )}
               </button>
