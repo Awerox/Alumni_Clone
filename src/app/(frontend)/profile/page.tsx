@@ -224,81 +224,86 @@ export default function ProfilePage() {
   }
 
   const saveCroppedAvatar = useCallback(async () => {
-    if (!avatarPreview) return
+  if (!avatarPreview) return
 
-    const SIZE = 400
-    const canvas = document.createElement('canvas')
-    canvas.width = SIZE
-    canvas.height = SIZE
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
+  const SIZE = 400
+  const canvas = document.createElement('canvas')
+  canvas.width = SIZE
+  canvas.height = SIZE
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
 
-    const img = new Image()
-    img.crossOrigin = 'anonymous'
-    img.src = avatarPreview
+  const img = new Image()
+  img.crossOrigin = 'anonymous'
+  img.src = avatarPreview
 
-    await new Promise<void>((resolve, reject) => {
-      img.onload = () => resolve()
-      img.onerror = () => reject(new Error('Chargement image échoué'))
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve()
+    img.onerror = () => reject(new Error('Chargement image échoué'))
+  })
+
+  const imgW = img.naturalWidth
+  const imgH = img.naturalHeight
+  const imgRatio = imgW / imgH
+  let srcX = 0, srcY = 0, srcW = imgW, srcH = imgH
+  if (imgRatio > 1) {
+    srcW = imgH
+    srcX = (imgW - srcW) / 2
+  } else if (imgRatio < 1) {
+    srcH = imgW
+    srcY = (imgH - srcH) / 2
+  }
+
+  ctx.save()
+  ctx.translate(SIZE / 2, SIZE / 2)
+  ctx.rotate((rotation * Math.PI) / 180)
+  ctx.scale(flipH ? -zoom : zoom, flipV ? -zoom : zoom)
+  ctx.drawImage(img, srcX, srcY, srcW, srcH, -SIZE / 2, -SIZE / 2, SIZE, SIZE)
+  ctx.restore()
+
+  const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/png'))
+  if (!blob) return
+
+  setIsUploading(true)
+  try {
+    const formData = new FormData()
+    formData.append('file', blob, 'photo-profil.png')
+    formData.append('alt', `Avatar de ${user?.prenom || 'Alumni'}`)
+
+    const uploadRes = await fetch('/api/media', {
+      method: 'POST',
+      body: formData,
     })
 
-    // Calcul "object-fit: cover" : on recadre l'image source pour remplir le carré sans étirement
-    const imgW = img.naturalWidth
-    const imgH = img.naturalHeight
-    const imgRatio = imgW / imgH
-    let srcX = 0, srcY = 0, srcW = imgW, srcH = imgH
-    if (imgRatio > 1) {
-      // paysage → recadrer sur la largeur
-      srcW = imgH
-      srcX = (imgW - srcW) / 2
-    } else if (imgRatio < 1) {
-      // portrait → recadrer sur la hauteur
-      srcH = imgW
-      srcY = (imgH - srcH) / 2
+    if (!uploadRes.ok) {
+      const errData = await uploadRes.json().catch(() => ({}))
+      setErrorMessage(errData?.error || "Échec de l'upload de la photo.")
+      return
     }
 
-    ctx.save()
-    ctx.translate(SIZE / 2, SIZE / 2)
-    ctx.rotate((rotation * Math.PI) / 180)
-    ctx.scale(flipH ? -zoom : zoom, flipV ? -zoom : zoom)
-    ctx.drawImage(img, srcX, srcY, srcW, srcH, -SIZE / 2, -SIZE / 2, SIZE, SIZE)
-    ctx.restore()
+    const uploadData = await uploadRes.json()
+    // FIX : on force Number() ici aussi comme filet de sécurité,
+    // même si /api/media retourne déjà un Number.
+    const mediaId = Number(uploadData?.doc?.id)
+    const mediaUrl = uploadData?.doc?.url
 
-    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/png'))
-    if (!blob) return
-
-    try {
-      const formData = new FormData()
-      formData.append('file', blob, 'photo-profil.png')
-      formData.append('alt', `Avatar de ${user?.prenom || 'Alumni'}`)
-
-      const uploadRes = await fetch('/api/media', {
-        method: 'POST',
-        body: formData,
-      })
-      if (!uploadRes.ok) {
-        setErrorMessage("Échec de l'upload de la photo.")
-        return
-      }
-      const uploadData = await uploadRes.json()
-      const mediaId = uploadData?.doc?.id
-      const mediaUrl = uploadData?.doc?.url
-
-      if (!mediaId) {
-        setErrorMessage('Réponse invalide du serveur.')
-        return
-      }
-
-      if (mediaUrl) setSavedAvatar(mediaUrl)
-
-      await handleSave({ photo: mediaId })
-      setShowPopup(null)
-      setAvatarPreview(null)
-    } catch (err) {
-      console.error(err)
-      setErrorMessage("Erreur lors de l'envoi de la photo.")
+    if (!mediaId || isNaN(mediaId)) {
+      setErrorMessage('Réponse invalide du serveur (id manquant).')
+      return
     }
-  }, [avatarPreview, zoom, rotation, flipH, flipV, user])
+
+    if (mediaUrl) setSavedAvatar(mediaUrl)
+
+    await handleSave({ photo: mediaId })
+    setShowPopup(null)
+    setAvatarPreview(null)
+  } catch (err) {
+    console.error(err)
+    setErrorMessage("Erreur lors de l'envoi de la photo.")
+  } finally {
+    setIsUploading(false)
+  }
+}, [avatarPreview, zoom, rotation, flipH, flipV, user])
 
   // ─── DOCUMENT UPLOAD ───────────────────────────────────────────────────────
   const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

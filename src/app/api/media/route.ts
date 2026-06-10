@@ -23,15 +23,14 @@ export async function POST(req: NextRequest) {
 
     const buffer = Buffer.from(await file.arrayBuffer())
     const ext = file.name.split('.').pop() || 'jpg'
-    // ✅ FIX 1 : timestamp unique calculé une seule fois
     const timestamp = Date.now()
     const baseName = file.name.replace(/\.[^/.]+$/, '')
     const filename = `${baseName}-${timestamp}.${ext}`
-    const publicId = `media/${baseName}-${timestamp}` // même timestamp, pas de doublon
+    const publicId = `media/${baseName}-${timestamp}`
     const mimeType = file.type
     const filesize = buffer.length
 
-    // 1. Upload vers Cloudinary
+    // 1. Upload Cloudinary
     const cloudinaryUrl = await new Promise<string>((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
         { resource_type: 'auto', public_id: publicId, overwrite: false },
@@ -43,7 +42,7 @@ export async function POST(req: NextRequest) {
       stream.end(buffer)
     })
 
-    // 2. INSERT SQL direct (bypass Payload filesystem)
+    // 2. INSERT SQL direct
     const doc = await payload.db.drizzle.execute(
       `INSERT INTO media (alt, url, filename, mime_type, filesize, updated_at, created_at)
        VALUES ('${alt.replace(/'/g, "''")}', '${cloudinaryUrl}', '${filename.replace(/'/g, "''")}', '${mimeType}', ${filesize}, NOW(), NOW())
@@ -54,8 +53,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       doc: {
-        // ✅ FIX 2 : id retourné en string pour compatibilité Payload relationship
-        id: String(row.id),
+        // FIX CLÉ : id retourné en Number — Payload relationship attend un entier,
+        // pas une string. C'était la cause du "field is invalid: Photo de profil".
+        id: Number(row.id),
         alt: row.alt,
         url: row.url || cloudinaryUrl,
         filename: row.filename,
