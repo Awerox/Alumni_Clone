@@ -96,9 +96,12 @@ function OAuthButton({ provider, label, icon, onClick }: {
 }
 
 // ─── Page principale ───────────────────────────────────────────────────────
+const DRAFT_KEY = 'enc_register_draft'
+
 export default function RegisterPage() {
   const [step, setStep] = useState(1)
   const [oauthLoading, setOauthLoading] = useState<'google' | 'linkedin' | null>(null)
+  const [draftRestored, setDraftRestored] = useState(false)
 
   const [formData, setFormData] = useState({
     prenom: '', nom: '', email: '', password: '', confirmPassword: '',
@@ -116,6 +119,35 @@ export default function RegisterPage() {
   const [searchingCity, setSearchingCity] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const router = useRouter()
+
+  // ── Restaurer le brouillon au chargement ──────────────────────────────
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_KEY)
+      if (!saved) return
+      const draft = JSON.parse(saved)
+      if (draft.formData) {
+        setFormData({ ...draft.formData, password: '', confirmPassword: '' })
+      }
+      if (draft.step && draft.step > 1) setStep(draft.step)
+      if (draft.cityInput) setCityInput(draft.cityInput)
+      if (draft.isCitySelected) setIsCitySelected(true)
+      setDraftRestored(true)
+    } catch {}
+  }, [])
+
+  // ── Sauvegarder à chaque modification (jamais le mot de passe) ────────
+  useEffect(() => {
+    if (!formData.prenom && !formData.email) return
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({
+        formData: { ...formData, password: '', confirmPassword: '' },
+        step,
+        cityInput,
+        isCitySelected,
+      }))
+    } catch {}
+  }, [formData, step, cityInput, isCitySelected])
 
   // ── Validation étape 1 ────────────────────────────────────────────────
   const validateStep1 = useCallback((): boolean => {
@@ -144,25 +176,42 @@ export default function RegisterPage() {
     window.location.href = `/api/oauth/${provider}`
   }
 
-  // ── Autocomplétion ville ──────────────────────────────────────────────
+  // ── Autocomplétion ville — France en priorité, fallback monde ────────
   useEffect(() => {
     if (cityInput.length < 2 || isCitySelected) { setCitySuggestions([]); return }
     const t = setTimeout(async () => {
       try {
         setSearchingCity(true)
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cityInput)}&limit=5&addressdetails=1&accept-language=fr`
+        // 1. Chercher en France d'abord
+        const resFrance = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cityInput)}&limit=5&addressdetails=1&accept-language=fr&countrycodes=fr`
         )
-        if (res.ok) setCitySuggestions(await res.json())
+        let results = resFrance.ok ? await resFrance.json() : []
+        // 2. Si aucun résultat → chercher dans le monde entier
+        if (results.length === 0) {
+          const resMonde = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cityInput)}&limit=5&addressdetails=1&accept-language=fr`
+          )
+          results = resMonde.ok ? await resMonde.json() : []
+        }
+        // Filtrer pour garder uniquement les lieux de type ville/commune
+        const filtered = results.filter((p: any) =>
+          ['city','town','village','municipality','administrative'].includes(p.type) ||
+          p.class === 'place' || p.class === 'boundary'
+        )
+        setCitySuggestions(filtered.length > 0 ? filtered : results.slice(0, 5))
       } catch {} finally { setSearchingCity(false) }
     }, 400)
     return () => clearTimeout(t)
   }, [cityInput, isCitySelected])
 
   const handleSelectCity = (place: any) => {
-    const city = place.display_name.split(',')[0]
-    const country = place.address?.country || ''
-    const formatted = country ? `${city} (${country})` : city
+    const city = place.display_name.split(',')[0].trim()
+    const isFr = place.address?.country_code === 'fr'
+    const region = isFr
+      ? (place.address?.state || place.address?.county || '')
+      : (place.address?.country || '')
+    const formatted = region ? `${city} (${region})` : city
     setCityInput(formatted)
     setFormData((prev) => ({ ...prev, ville: formatted, latitude: place.lat || '', longitude: place.lon || '' }))
     setIsCitySelected(true)
@@ -186,6 +235,7 @@ export default function RegisterPage() {
         body: JSON.stringify(payload),
       })
       if (res.ok) {
+        localStorage.removeItem(DRAFT_KEY)
         router.push('/login?message=Compte créé avec succès ! Connectez-vous.')
       } else {
         const data = await res.json()
@@ -269,6 +319,31 @@ export default function RegisterPage() {
 
           {/* ── FORMULAIRE ── */}
           <form onSubmit={handleSubmit} noValidate className="space-y-5">
+
+            {/* ✅ Bandeau brouillon restauré */}
+            {draftRestored && (
+              <div className="flex items-center justify-between bg-blue-50 border border-blue-100 text-blue-700 px-4 py-2.5 rounded-xl text-xs font-semibold">
+                <div className="flex items-center gap-2">
+                  <i className="fa-solid fa-rotate-left text-blue-400" />
+                  <span>Inscription reprise là où vous en étiez</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    localStorage.removeItem(DRAFT_KEY)
+                    setFormData({ prenom: '', nom: '', email: '', password: '', confirmPassword: '', statut: '', promotion: '', diplome: '', poste: '', entreprise: '', ville: '', latitude: '', longitude: '', secteur: '', campus: 'bessieres', searchOpportunities: 'not_looking', mentoratActive: false, mentoratRole: 'filleul' })
+                    setCityInput('')
+                    setIsCitySelected(false)
+                    setStep(1)
+                    setDraftRestored(false)
+                  }}
+                  className="text-blue-400 hover:text-blue-600 underline text-[11px]"
+                >
+                  Recommencer
+                </button>
+              </div>
+            )}
+
             {error && (
               <p role="alert" className="bg-red-50 text-red-600 p-3 rounded-xl text-sm text-center font-bold border border-red-100">
                 {error}
@@ -392,6 +467,7 @@ export default function RegisterPage() {
                     <label className="text-xs font-bold uppercase text-gray-400 ml-1">
                       Ville de résidence <span className="text-red-500">*</span>
                     </label>
+                    <p className="text-[10px] text-gray-400 ml-1">France en priorité — autres pays si introuvable</p>
                     <div className="relative">
                       <input required placeholder="Tapez le nom de votre ville..."
                         aria-autocomplete="list" aria-expanded={citySuggestions.length > 0}
@@ -403,19 +479,30 @@ export default function RegisterPage() {
                         value={cityInput}
                         onChange={(e) => { setCityInput(e.target.value); setIsCitySelected(false) }}
                       />
-                      {isCitySelected && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500">✓</span>}
-                      {searchingCity && !isCitySelected && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-[10px] font-bold">…</span>}
+                      {isCitySelected && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500"><i className="fa-solid fa-circle-check" /></span>}
+                      {searchingCity && !isCitySelected && <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-gray-300 border-t-enc rounded-full animate-spin" />}
                     </div>
                     {citySuggestions.length > 0 && (
-                      <ul role="listbox" className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 max-h-48 overflow-y-auto">
-                        {citySuggestions.map((place, i) => (
-                          <li key={i}>
-                            <button type="button" role="option" onClick={() => handleSelectCity(place)}
-                              className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 hover:text-enc transition-colors border-b last:border-0 border-gray-100">
-                              🌍 {place.display_name.split(',').slice(0, 3).join(',')}
-                            </button>
-                          </li>
-                        ))}
+                      <ul role="listbox" className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 max-h-52 overflow-y-auto">
+                        {citySuggestions.map((place, i) => {
+                          const city = place.display_name.split(',')[0].trim()
+                          const isFr = place.address?.country_code === 'fr'
+                          const region = isFr
+                            ? (place.address?.state || place.address?.county || '')
+                            : (place.address?.country || '')
+                          return (
+                            <li key={i}>
+                              <button type="button" role="option" onClick={() => handleSelectCity(place)}
+                                className="w-full text-left px-4 py-2.5 hover:bg-gray-50 transition-colors border-b last:border-0 border-gray-100 flex items-center gap-3">
+                                <span className="text-base flex-shrink-0">{isFr ? '🇫🇷' : '🌍'}</span>
+                                <div>
+                                  <p className="text-xs font-bold text-gray-800">{city}</p>
+                                  {region && <p className="text-[10px] text-gray-400">{region}</p>}
+                                </div>
+                              </button>
+                            </li>
+                          )
+                        })}
                       </ul>
                     )}
                   </div>
