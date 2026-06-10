@@ -16,25 +16,44 @@ async function getUserFromToken(req: NextRequest, secret: string): Promise<any |
   } catch { return null }
 }
 
-// GET /api/mp?with=<alumniId>
+// GET /api/mp?with=<alumniId>  → historique d'une conversation
+// GET /api/mp?all=1             → toutes les conversations (dernier message par contact)
 export async function GET(req: NextRequest) {
   const payload = await getPayload({ config: configPromise })
   const user = await getUserFromToken(req, payload.secret)
-
-  if (!user) {
-    return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-  }
+  if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
   const withId = searchParams.get('with')
+  const all = searchParams.get('all')
+  const myId = Number(user.id)
 
-  if (!withId) {
-    return NextResponse.json({ error: 'Paramètre "with" manquant' }, { status: 400 })
+  // ── GET all=1 : tous les messages impliquant cet utilisateur ──────────
+  if (all === '1') {
+    try {
+      const result = await payload.find({
+        collection: 'direct-messages',
+        overrideAccess: true,
+        where: {
+          or: [
+            { from: { equals: myId } },
+            { to: { equals: myId } },
+          ],
+        },
+        sort: '-createdAt',
+        limit: 500,
+        depth: 1,
+      })
+      return NextResponse.json({ docs: result.docs })
+    } catch (err: any) {
+      return NextResponse.json({ error: err.message }, { status: 500 })
+    }
   }
 
-  const myId = Number(user.id)
-  const otherId = Number(withId)
+  // ── GET ?with=ID : historique d'une conversation ──────────────────────
+  if (!withId) return NextResponse.json({ error: 'Paramètre "with" manquant' }, { status: 400 })
 
+  const otherId = Number(withId)
   try {
     const result = await payload.find({
       collection: 'direct-messages',
@@ -49,7 +68,6 @@ export async function GET(req: NextRequest) {
       limit: 100,
       depth: 1,
     })
-
     return NextResponse.json({ docs: result.docs })
   } catch (err: any) {
     console.error('[GET /api/mp]', err)
@@ -61,14 +79,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const payload = await getPayload({ config: configPromise })
   const user = await getUserFromToken(req, payload.secret)
-
-  if (!user) {
-    return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
-  }
+  if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
   try {
     const { to, message, fileId, fileUrl, fileName } = await req.json()
-
     if (!to) return NextResponse.json({ error: 'Destinataire manquant' }, { status: 400 })
     if (!message && !fileId) return NextResponse.json({ error: 'Message ou fichier requis' }, { status: 400 })
 
@@ -76,7 +90,7 @@ export async function POST(req: NextRequest) {
     const toId = Number(to)
 
     const toAlumni = await payload.findByID({ collection: 'alumni', id: toId }).catch(() => null)
-    if (!toAlumni) return NextResponse.json({ error: `Destinataire introuvable` }, { status: 400 })
+    if (!toAlumni) return NextResponse.json({ error: 'Destinataire introuvable' }, { status: 400 })
 
     const savedMsg = await payload.create({
       collection: 'direct-messages',
@@ -89,7 +103,6 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    // Récupérer le vrai prenom/nom depuis la base
     const alumniUser = await payload.findByID({ collection: 'alumni', id: fromId }).catch(() => null)
     const displayPrenom = (alumniUser as any)?.prenom || 'Membre'
     const displayNom = (alumniUser as any)?.nom || 'ENC'

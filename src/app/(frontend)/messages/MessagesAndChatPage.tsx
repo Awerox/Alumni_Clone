@@ -1,5 +1,5 @@
 'use client'
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 
 interface Commentaire {
@@ -12,7 +12,7 @@ interface Commentaire {
 interface Discussion {
   id: string
   titre: string
-  contenu: string
+  contenu: string 
   categorie?: string
   tags?: string
   auteur: { id: string; prenom: string; nom: string }
@@ -52,7 +52,6 @@ export function MessagesAndChatPage() {
   const [me, setMe] = useState<any>(null)
   const [activeTab, setActiveTab] = useState<'forum' | 'chat' | 'mp'>('forum')
 
-  // Forum
   const [discussions, setDiscussions] = useState<Discussion[]>([])
   const [selectedDiscussion, setSelectedDiscussion] = useState<Discussion | null>(null)
   const [loading, setLoading] = useState(true)
@@ -63,7 +62,6 @@ export function MessagesAndChatPage() {
   const [newTopicTags, setNewTopicTags] = useState('')
   const [showNewTopicModal, setShowNewTopicModal] = useState(false)
 
-  // Chat & MP
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [directMessages, setDirectMessages] = useState<ChatMessage[]>([])
   const [typedChatMessage, setTypedChatMessage] = useState('')
@@ -73,7 +71,6 @@ export function MessagesAndChatPage() {
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [allUsers, setAllUsers] = useState<DirectoryUser[]>([])
 
-  // Multimedia
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [filePreview, setFilePreview] = useState<string | null>(null)
   const [isUploadingFile, setIsUploadingFile] = useState(false)
@@ -81,7 +78,14 @@ export function MessagesAndChatPage() {
   const chatEndRef = useRef<HTMLDivElement>(null)
   const mpEndRef = useRef<HTMLDivElement>(null)
   const chatFileInputRef = useRef<HTMLInputElement>(null)
+
+  // ✅ Refs stables pour le SSE — évitent de recréer la connexion
   const meRef = useRef<any>(null)
+  const selectedUserForMPRef = useRef<OnlineUser | DirectoryUser | null>(null)
+  const eventSourceRef = useRef<EventSource | null>(null)
+
+  useEffect(() => { meRef.current = me }, [me])
+  useEffect(() => { selectedUserForMPRef.current = selectedUserForMP }, [selectedUserForMP])
 
   const categoryBadges: Record<string, { label: string; cls: string }> = {
     entraide: { label: '💡 Entraide Cursus', cls: 'bg-amber-100 text-amber-800' },
@@ -91,35 +95,51 @@ export function MessagesAndChatPage() {
     divers: { label: '☕ Café / Divers', cls: 'bg-purple-100 text-purple-800' },
   }
 
-  const loadInitialData = async () => {
+  // ── Chargement initial — tout en parallèle ────────────────────────────
+  const loadInitialData = useCallback(async () => {
     try {
-      const userRes = await fetch('/api/alumni/me', { credentials: 'include' })
-      const userData = await userRes.json()
-      let currentMe = null
-      if (userData?.user) {
-        setMe(userData.user)
-        meRef.current = userData.user
-        currentMe = userData.user
+      // ✅ Promise.all : tous les fetches en parallèle
+      const [userRes, discRes, allUsersRes, publicChatRes] = await Promise.all([
+        fetch('/api/alumni/me', { credentials: 'include' }),
+        fetch('/api/discussions?limit=50&sort=-createdAt'),
+        fetch('/api/alumni?limit=100&sort=nom', { credentials: 'include' }),
+        fetch('/api/public-messages?limit=50&sort=createdAt', { credentials: 'include' }),
+      ])
+
+      const [userData, discData, allUsersData, publicChatData] = await Promise.all([
+        userRes.json(),
+        discRes.json(),
+        allUsersRes.json(),
+        publicChatRes.json(),
+      ])
+
+      const currentMe = userData?.user || null
+      if (currentMe) {
+        setMe(currentMe)
+        meRef.current = currentMe
       }
 
-      // Forum
-      const discRes = await fetch('/api/discussions?limit=50&sort=-createdAt')
-      const discData = await discRes.json()
       if (discData?.docs) {
         setDiscussions(discData.docs)
         if (discData.docs.length > 0) setSelectedDiscussion(discData.docs[0])
       }
 
-      // Traitement des boîtes de réception
-      const allUsersRes = await fetch('/api/alumni?limit=100&sort=nom', { credentials: 'include' })
-      const allUsersData = await allUsersRes.json()
+      if (publicChatData?.docs) {
+        setChatMessages(publicChatData.docs.map((doc: any) => ({
+          user: doc.user,
+          text: doc.text || doc.message || '',
+          time: doc.time,
+          from: doc.from ? String(doc.from) : undefined,
+        })))
+      }
 
       if (allUsersData?.docs && currentMe) {
         const filteredContacts: DirectoryUser[] = allUsersData.docs.filter(
-          (u: any) => String(u.id) !== String(currentMe.id),
+          (u: any) => String(u.id) !== String(currentMe.id)
         )
 
-        const mpRes = await fetch('/api/mp?limit=500&sort=-createdAt', { credentials: 'include' })
+        // ✅ Charger toutes les conversations en une requête
+        const mpRes = await fetch('/api/mp?all=1', { credentials: 'include' })
         const mpData = await mpRes.json()
 
         let activeConversations: DirectoryUser[] = []
@@ -134,25 +154,22 @@ export function MessagesAndChatPage() {
                 (fId === String(contact.id) && tId === String(currentMe.id))
               )
             })
-
             if (exchange.length > 0) {
               const lastMsg = exchange[0]
               activeConversations.push({
                 ...contact,
                 lastMessageText: lastMsg.message || '📁 Fichier partagé',
                 lastMessageTime: new Date(lastMsg.createdAt).toLocaleTimeString('fr-FR', {
-                  hour: '2-digit',
-                  minute: '2-digit',
+                  hour: '2-digit', minute: '2-digit',
                 }),
                 _rawTimestamp: new Date(lastMsg.createdAt).getTime(),
               })
             }
           })
-
           activeConversations.sort((a, b) => (b._rawTimestamp || 0) - (a._rawTimestamp || 0))
         }
 
-        // Intercepter l'utilisateur transmis par l'URL (?userId=XXX)
+        // Gestion de l'URL ?userId=XXX
         const urlUserId = searchParams.get('userId')
         const urlPrenom = searchParams.get('prenom') || ''
         const urlNom = searchParams.get('nom') || ''
@@ -160,48 +177,31 @@ export function MessagesAndChatPage() {
         if (urlUserId) {
           setActiveTab('mp')
           const alreadyInList = activeConversations.find((u) => String(u.id) === urlUserId)
-
           if (!alreadyInList) {
-            const pendingUser: DirectoryUser = {
-              id: urlUserId,
-              prenom: urlPrenom,
-              nom: urlNom,
-              isPending: true,
-            }
+            const pendingUser: DirectoryUser = { id: urlUserId, prenom: urlPrenom, nom: urlNom, isPending: true }
             activeConversations = [pendingUser, ...activeConversations]
             setSelectedUserForMP(pendingUser)
+            selectedUserForMPRef.current = pendingUser
             setDirectMessages([])
           } else {
             setSelectedUserForMP(alreadyInList)
+            selectedUserForMPRef.current = alreadyInList
             loadHistoryDirect(urlUserId, currentMe, alreadyInList)
           }
         } else if (activeConversations.length > 0) {
           setSelectedUserForMP(activeConversations[0])
+          selectedUserForMPRef.current = activeConversations[0]
           loadHistoryDirect(activeConversations[0].id, currentMe, activeConversations[0])
         }
 
         setAllUsers(activeConversations)
-      }
-
-      // Chat public
-      const publicChatRes = await fetch('/api/public-messages?limit=50&sort=createdAt', { credentials: 'include' })
-      const publicChatData = await publicChatRes.json()
-      if (publicChatData?.docs) {
-        setChatMessages(
-          publicChatData.docs.map((doc: any) => ({
-            user: doc.user,
-            text: doc.text || doc.message || '',
-            time: doc.time,
-            from: doc.from ? String(doc.from) : undefined,
-          })),
-        )
       }
     } catch (err) {
       console.error(err)
     } finally {
       setLoading(false)
     }
-  }
+  }, [searchParams])
 
   const loadHistoryDirect = async (uId: string, currentMe: any, contact: any) => {
     try {
@@ -212,13 +212,15 @@ export function MessagesAndChatPage() {
           dataH.docs.map((doc: any) => {
             const fromId = String(typeof doc.from === 'object' ? doc.from?.id : doc.from)
             return {
-              user: fromId === String(currentMe.id) ? `${currentMe.prenom} ${currentMe.nom}` : `${contact.prenom} ${contact.nom}`,
+              user: fromId === String(currentMe.id)
+                ? `${currentMe.prenom} ${currentMe.nom}`
+                : `${contact.prenom} ${contact.nom}`,
               text: doc.message || '',
               time: new Date(doc.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
               from: fromId,
               to: String(typeof doc.to === 'object' ? doc.to?.id : doc.to),
-              fileUrl: doc.file?.url || null,
-              fileName: doc.file?.filename || null,
+              fileUrl: (doc.file as any)?.url || null,
+              fileName: (doc.file as any)?.filename || null,
             }
           }).reverse()
         )
@@ -226,17 +228,15 @@ export function MessagesAndChatPage() {
     } catch (e) { console.error(e) }
   }
 
-  useEffect(() => {
-    loadInitialData()
-  }, [searchParams])
+  useEffect(() => { loadInitialData() }, [loadInitialData])
 
   useEffect(() => {
     if (!loading && typeof window !== 'undefined') {
       const urlUserId = searchParams.get('userId')
-      if (urlUserId) return 
+      if (urlUserId) return
       const savedTab = localStorage.getItem('messages_active_tab')
       if (savedTab === 'forum' || savedTab === 'chat' || savedTab === 'mp') {
-        setActiveTab(savedTab)
+        setActiveTab(savedTab as any)
       }
     }
   }, [loading, searchParams])
@@ -246,129 +246,131 @@ export function MessagesAndChatPage() {
     if (typeof window !== 'undefined') localStorage.setItem('messages_active_tab', tab)
   }
 
-  const loadHistory = async (otherUser: OnlineUser | DirectoryUser) => {
-    if (!me) return
+  const loadHistory = useCallback(async (otherUser: OnlineUser | DirectoryUser) => {
+    if (!meRef.current) return
     setLoadingHistory(true)
     try {
       const res = await fetch(`/api/mp?with=${otherUser.id}`, { credentials: 'include' })
       const data = await res.json()
       if (data?.docs) {
-        const history: ChatMessage[] = data.docs.map((doc: any) => {
+        const me = meRef.current
+        setDirectMessages(data.docs.map((doc: any) => {
           const fromId = String(typeof doc.from === 'object' ? doc.from?.id : doc.from)
           const fromUser = typeof doc.from === 'object' ? doc.from : null
           return {
-            user: fromId === String(me.id) ? `${me.prenom} ${me.nom}` : fromUser ? `${fromUser.prenom} ${fromUser.nom}` : 'Inconnu',
+            user: fromId === String(me.id)
+              ? `${me.prenom} ${me.nom}`
+              : fromUser ? `${fromUser.prenom} ${fromUser.nom}` : 'Inconnu',
             text: doc.message || '',
             time: new Date(doc.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
             from: fromId,
             to: String(typeof doc.to === 'object' ? doc.to?.id : doc.to),
-            fileUrl: doc.file?.url || null,
-            fileName: doc.file?.filename || null,
+            fileUrl: (doc.file as any)?.url || null,
+            fileName: (doc.file as any)?.filename || null,
           }
-        })
-        setDirectMessages(history.reverse())
+        }).reverse())
       }
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setLoadingHistory(false)
-    }
-  }
+    } catch (err) { console.error(err) } finally { setLoadingHistory(false) }
+  }, [])
 
-  const handleSelectUserForMP = (user: OnlineUser | DirectoryUser) => {
+  const handleSelectUserForMP = useCallback((user: OnlineUser | DirectoryUser) => {
     setSelectedUserForMP(user)
+    selectedUserForMPRef.current = user
     setDirectMessages([])
     const asDirUser = user as DirectoryUser
-    if (!asDirUser.isPending) {
-      loadHistory(user)
-    }
-  }
+    if (!asDirUser.isPending) loadHistory(user)
+  }, [loadHistory])
 
-  // SSE stream
+  // ── SSE stable — dépendance seulement sur me.id ───────────────────────
   useEffect(() => {
-    if (!me) return
+    if (!me?.id) return
 
-    const eventSource = new EventSource(
-      `/api/chat/stream?userId=${me.id}&name=${encodeURIComponent(me.prenom + ' ' + me.nom)}`,
+    if (eventSourceRef.current) eventSourceRef.current.close()
+
+    const es = new EventSource(
+      `/api/chat/stream?userId=${me.id}&name=${encodeURIComponent(me.prenom + ' ' + me.nom)}`
     )
+    eventSourceRef.current = es
 
-    eventSource.onmessage = (event) => {
+    es.onmessage = (event) => {
       const data = JSON.parse(event.data)
       const currentMe = meRef.current
+      const currentSelectedUser = selectedUserForMPRef.current
 
       if (data.type === 'presence-full') {
-        setOnlineUsers((data.users as OnlineUser[]).filter((u) => String(u.id) !== String(me.id)))
+        setOnlineUsers((data.users as OnlineUser[]).filter((u) => String(u.id) !== String(currentMe?.id)))
+
       } else if (data.type === 'msg-public') {
+        // ✅ Ignorer ses propres messages (déjà en optimistic)
+        if (String(data.from) === String(currentMe?.id)) return
         setChatMessages((prev) => {
-          const isDuplicate = prev.some((m) => m.user === data.user && m.text === data.text && m.time === data.time)
+          const isDuplicate = prev.some(
+            (m) => m.from === data.from && m.text === data.text && m.time === data.time
+          )
           return isDuplicate ? prev : [...prev, data]
         })
+
       } else if (data.type === 'msg-prive') {
         if (!currentMe) return
         const myId = String(currentMe.id)
         const fromId = String(data.from)
         const toId = String(data.to)
-
         if (toId !== myId && fromId !== myId) return
+
         const otherId = fromId === myId ? toId : fromId
 
+        // Mettre à jour la liste des conversations
         setAllUsers((prev) => {
           const exists = prev.some((u) => String(u.id) === otherId)
           if (!exists) {
-            const newContact: DirectoryUser = {
+            return [{
               id: otherId,
               prenom: data.fromPrenom || '?',
               nom: data.fromNom || '',
               lastMessageText: data.text,
               lastMessageTime: data.time,
               _rawTimestamp: Date.now(),
-            }
-            return [newContact, ...prev]
+            }, ...prev]
           }
           const updated = prev.map((u) =>
             String(u.id) === otherId
               ? { ...u, lastMessageText: data.text, lastMessageTime: data.time, isPending: false, _rawTimestamp: Date.now() }
-              : u,
+              : u
           )
-          const contactIdx = updated.findIndex((u) => String(u.id) === otherId)
-          if (contactIdx > 0) {
-            const [contact] = updated.splice(contactIdx, 1)
+          const idx = updated.findIndex((u) => String(u.id) === otherId)
+          if (idx > 0) {
+            const [contact] = updated.splice(idx, 1)
             return [contact, ...updated]
           }
           return updated
         })
 
-        // Ajouter l'aperçu synchronisé au composant central s'il est actif
-        setSelectedUserForMP((prev: any) => {
-          if (prev && String(prev.id) === otherId) {
-            return { ...prev, lastMessageText: data.text, lastMessageTime: data.time, isPending: false }
-          }
-          return prev
-        })
+        // ✅ Ajouter dans la conversation active seulement si on est le destinataire
+        // (l'expéditeur a déjà son message via optimistic update)
+        if (fromId === myId) return
 
-        if (selectedUserForMP && String(selectedUserForMP.id) === otherId) {
+        if (currentSelectedUser && String(currentSelectedUser.id) === otherId) {
           setDirectMessages((prev) => {
-            const exists = prev.some((m) => m.from === fromId && m.text === data.text && m.time === data.time)
+            const exists = prev.some(
+              (m) => m.from === fromId && m.text === data.text && m.time === data.time
+            )
             if (exists) return prev
-            return [
-              ...prev,
-              {
-                user: data.user,
-                text: data.text,
-                time: data.time,
-                from: fromId,
-                to: toId,
-                fileUrl: data.fileUrl,
-                fileName: data.fileName,
-              },
-            ]
+            return [...prev, {
+              user: data.user,
+              text: data.text,
+              time: data.time,
+              from: fromId,
+              to: toId,
+              fileUrl: data.fileUrl,
+              fileName: data.fileName,
+            }]
           })
         }
       }
     }
 
-    return () => eventSource.close()
-  }, [me, selectedUserForMP])
+    return () => { es.close(); eventSourceRef.current = null }
+  }, [me?.id]) // ✅ Seulement me.id
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [chatMessages])
   useEffect(() => { mpEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [directMessages, selectedUserForMP])
@@ -418,14 +420,29 @@ export function MessagesAndChatPage() {
     e.preventDefault()
     if (!typedChatMessage.trim() || !me) return
     const messageTime = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-    setChatMessages((prev) => [...prev, { user: `${me.prenom} ${me.nom}`, text: typedChatMessage, time: messageTime, from: String(me.id) }])
+
+    // ✅ Optimistic update immédiat
+    setChatMessages((prev) => [...prev, {
+      user: `${me.prenom} ${me.nom}`,
+      text: typedChatMessage,
+      time: messageTime,
+      from: String(me.id),
+    }])
+    const textToSend = typedChatMessage
+    setTypedChatMessage('')
+
     try {
       await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'msg-public', user: `${me.prenom} ${me.nom}`, text: typedChatMessage, time: messageTime, from: String(me.id) }),
+        body: JSON.stringify({
+          type: 'msg-public',
+          user: `${me.prenom} ${me.nom}`,
+          text: textToSend,
+          time: messageTime,
+          from: String(me.id),
+        }),
       })
-      setTypedChatMessage('')
     } catch (err) { console.error(err) }
   }
 
@@ -461,53 +478,48 @@ export function MessagesAndChatPage() {
         }
       }
 
-      const res = await fetch('/api/mp', {
+      const now = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+      const textToSend = typedPrivateMessage
+
+      // ✅ Optimistic update avant le fetch
+      setDirectMessages((prev) => [...prev, {
+        user: `${me.prenom} ${me.nom}`,
+        text: textToSend || '',
+        time: now,
+        from: String(me.id),
+        to: String(selectedUserForMP.id),
+        fileUrl: uploadedFileUrl,
+        fileName: uploadedFileName,
+      }])
+
+      setAllUsers((prev) => {
+        const filtered = prev.filter((u) => String(u.id) !== String(selectedUserForMP.id))
+        const current = prev.find((u) => String(u.id) === String(selectedUserForMP.id))
+        return [{
+          ...(current || { id: selectedUserForMP.id, prenom: selectedUserForMP.prenom, nom: selectedUserForMP.nom }),
+          lastMessageText: textToSend || '📁 Fichier partagé',
+          lastMessageTime: now,
+          isPending: false,
+          _rawTimestamp: Date.now(),
+        }, ...filtered]
+      })
+
+      setTypedPrivateMessage('')
+      setSelectedFile(null)
+      setFilePreview(null)
+      if (chatFileInputRef.current) chatFileInputRef.current.value = ''
+
+      await fetch('/api/mp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to: selectedUserForMP.id,
-          message: typedPrivateMessage || '',
+          message: textToSend || '',
           fileId: uploadedFileId,
           fileUrl: uploadedFileUrl,
           fileName: uploadedFileName,
         }),
       })
-
-      if (res.ok) {
-        const now = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-
-        setAllUsers((prev) => {
-          const filtered = prev.filter((u) => String(u.id) !== String(selectedUserForMP.id))
-          const current = prev.find((u) => String(u.id) === String(selectedUserForMP.id))
-          const updatedContact: DirectoryUser = {
-            ...(current || { id: selectedUserForMP.id, prenom: selectedUserForMP.prenom, nom: selectedUserForMP.nom }),
-            lastMessageText: typedPrivateMessage || '📁 Fichier partagé',
-            lastMessageTime: now,
-            isPending: false,
-            _rawTimestamp: Date.now(),
-          }
-          return [updatedContact, ...filtered]
-        })
-
-        setSelectedUserForMP((prev: any) => prev ? { ...prev, isPending: false, lastMessageText: typedPrivateMessage, lastMessageTime: now } : null)
-
-        setDirectMessages((prev) => [
-          ...prev,
-          {
-            user: `${me.prenom} ${me.nom}`,
-            text: typedPrivateMessage || '',
-            time: now,
-            from: String(me.id),
-            to: String(selectedUserForMP.id),
-            fileUrl: uploadedFileUrl,
-            fileName: uploadedFileName,
-          },
-        ])
-        setTypedPrivateMessage('')
-        setSelectedFile(null)
-        setFilePreview(null)
-        if (chatFileInputRef.current) chatFileInputRef.current.value = ''
-      }
     } catch (err) { console.error(err) } finally { setIsUploadingFile(false) }
   }
 
@@ -559,7 +571,6 @@ export function MessagesAndChatPage() {
                         {selectedDiscussion.categorie && categoryBadges[selectedDiscussion.categorie] && (
                           <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${categoryBadges[selectedDiscussion.categorie].cls}`}>{categoryBadges[selectedDiscussion.categorie].label}</span>
                         )}
-                        {selectedDiscussion.tags && <span className="text-[9px] font-bold bg-gray-200 text-gray-600 px-2 py-0.5 rounded-md">🏷️ {selectedDiscussion.tags}</span>}
                       </div>
                       <h3 className="text-sm font-black text-gray-900 leading-snug">{selectedDiscussion.titre}</h3>
                       <p className="text-xs text-gray-600 font-medium leading-relaxed whitespace-pre-wrap">{selectedDiscussion.contenu}</p>
@@ -590,17 +601,20 @@ export function MessagesAndChatPage() {
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6 h-[550px]">
             <div className="md:col-span-8 bg-white border border-gray-200 rounded-3xl p-5 flex flex-col justify-between overflow-hidden h-full">
               <div className="flex-1 overflow-y-auto pr-1 space-y-3">
-                {chatMessages.map((msg, index) => (
-                  <div key={index} className={`flex flex-col ${msg.user === `${me?.prenom} ${me?.nom}` ? 'items-end' : 'items-start'}`}>
-                    <div className="flex items-baseline gap-2 px-1">
-                      <span className="text-[9px] font-black text-gray-400 uppercase tracking-wide">{msg.user}</span>
-                      <span className="text-[7px] text-gray-300 font-bold">{msg.time}</span>
+                {chatMessages.map((msg, index) => {
+                  const isMe = String(msg.from) === String(me?.id)
+                  return (
+                    <div key={index} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                      <div className="flex items-baseline gap-2 px-1">
+                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-wide">{msg.user}</span>
+                        <span className="text-[7px] text-gray-300 font-bold">{msg.time}</span>
+                      </div>
+                      <div className={`p-3 max-w-[80%] rounded-2xl text-xs font-medium ${isMe ? 'bg-gray-900 text-white rounded-br-none' : 'bg-gray-100 text-gray-800 rounded-bl-none'} shadow-3xs`}>
+                        {msg.text}
+                      </div>
                     </div>
-                    <div className={`p-3 max-w-[80%] rounded-2xl text-xs font-medium ${msg.user === `${me?.prenom} ${me?.nom}` ? 'bg-gray-900 text-white rounded-br-none' : 'bg-gray-100 text-gray-800 rounded-bl-none'} shadow-3xs`}>
-                      {msg.text}
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
                 <div ref={chatEndRef} />
               </div>
               <form onSubmit={handleSendLiveChatMessage} className="pt-3 border-t border-gray-100 flex gap-2">
@@ -659,46 +673,48 @@ export function MessagesAndChatPage() {
                       <span className={`w-2 h-2 rounded-full flex-shrink-0 ${onlineUsers.some((u) => String(u.id) === String(selectedUserForMP.id)) ? 'bg-emerald-500 animate-pulse' : 'bg-gray-300'}`} />
                       <h3 className="text-xs font-black text-gray-800 uppercase tracking-wider">Conversation avec {selectedUserForMP.prenom} {selectedUserForMP.nom}</h3>
                     </div>
-                    {/* 🎯 APERÇU DU TOUT DERNIER MESSAGE AJOUTÉ ICI DANS LE HEADER */}
                     {(selectedUserForMP as any).lastMessageText && !(selectedUserForMP as any).isPending && (
                       <p className="text-[11px] text-gray-400 mt-1 truncate max-w-[500px]">
-                        <span className="font-bold text-gray-500">Dernier échange :</span> "{ (selectedUserForMP as any).lastMessageText }"
+                        <span className="font-bold text-gray-500">Dernier échange :</span> "{(selectedUserForMP as any).lastMessageText}"
                       </p>
                     )}
                   </div>
 
                   <div className="flex-1 overflow-y-auto py-4 space-y-3 pr-1">
                     {loadingHistory ? (
-                      <div className="flex items-center justify-center h-full"><div className="text-[10px] text-gray-400 font-black uppercase tracking-widest animate-pulse">Chargement de la conversation...</div></div>
+                      <div className="flex items-center justify-center h-full">
+                        <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest animate-pulse">Chargement de la conversation...</div>
+                      </div>
                     ) : directMessages.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-full gap-2 text-center">
                         <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-2xl">💬</div>
                         <p className="text-xs font-bold text-gray-500">Envoyez un premier message à {selectedUserForMP.prenom} !</p>
                       </div>
-                    ) : (
-                      directMessages.map((msg, index) => {
-                        const isMe = String(msg.from) === String(me?.id)
-                        return (
-                          <div key={index} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                            <div className={`p-3 max-w-[80%] rounded-2xl text-xs font-medium shadow-3xs ${isMe ? 'bg-emerald-600 text-white rounded-br-none' : 'bg-gray-100 text-gray-800 rounded-bl-none'}`}>
-                              {msg.text}
-                              {msg.fileUrl && (
-                                <div className="mt-2 pt-2 border-t border-white/20">
-                                  {msg.fileUrl.match(/\.(jpeg|jpg|gif|png)$/i) ? (
-                                    <a href={msg.fileUrl} target="_blank" rel="noreferrer"><img src={msg.fileUrl} className="max-w-xs max-h-40 rounded-lg object-cover border border-black/10" alt="" /></a>
-                                  ) : (
-                                    <a href={msg.fileUrl} target="_blank" rel="noreferrer" className={`flex items-center gap-2 font-bold hover:underline ${isMe ? 'text-white' : 'text-emerald-700'}`}>
-                                      <i className="fa-solid fa-file-arrow-down text-sm" /><span className="text-[11px] truncate max-w-[200px]">{msg.fileName || 'Télécharger'}</span>
-                                    </a>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                            <span className="text-[8px] text-gray-400 font-bold mt-0.5 px-1">{msg.time}</span>
+                    ) : directMessages.map((msg, index) => {
+                      const isMe = String(msg.from) === String(me?.id)
+                      return (
+                        <div key={index} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                          <div className={`p-3 max-w-[80%] rounded-2xl text-xs font-medium shadow-3xs ${isMe ? 'bg-emerald-600 text-white rounded-br-none' : 'bg-gray-100 text-gray-800 rounded-bl-none'}`}>
+                            {msg.text}
+                            {msg.fileUrl && (
+                              <div className="mt-2 pt-2 border-t border-white/20">
+                                {msg.fileUrl.match(/\.(jpeg|jpg|gif|png)$/i) ? (
+                                  <a href={msg.fileUrl} target="_blank" rel="noreferrer">
+                                    <img src={msg.fileUrl} className="max-w-xs max-h-40 rounded-lg object-cover border border-black/10" alt="" />
+                                  </a>
+                                ) : (
+                                  <a href={msg.fileUrl} target="_blank" rel="noreferrer" className={`flex items-center gap-2 font-bold hover:underline ${isMe ? 'text-white' : 'text-emerald-700'}`}>
+                                    <i className="fa-solid fa-file-arrow-down text-sm" />
+                                    <span className="text-[11px] truncate max-w-[200px]">{msg.fileName || 'Télécharger'}</span>
+                                  </a>
+                                )}
+                              </div>
+                            )}
                           </div>
-                        )
-                      })
-                    )}
+                          <span className="text-[8px] text-gray-400 font-bold mt-0.5 px-1">{msg.time}</span>
+                        </div>
+                      )
+                    })}
                     <div ref={mpEndRef} />
                   </div>
 
@@ -707,16 +723,23 @@ export function MessagesAndChatPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-bold text-gray-700 truncate">{selectedFile.name}</p>
                       </div>
-                      <button type="button" onClick={() => { setSelectedFile(null); setFilePreview(null) }} className="text-gray-400 hover:text-red-500"><i className="fa-solid fa-circle-xmark text-base" /></button>
+                      <button type="button" onClick={() => { setSelectedFile(null); setFilePreview(null) }} className="text-gray-400 hover:text-red-500">
+                        <i className="fa-solid fa-circle-xmark text-base" />
+                      </button>
                     </div>
                   )}
 
                   <form onSubmit={handleSendPrivateMessage} className="pt-3 border-t border-gray-100 flex items-center gap-2">
                     <input type="file" ref={chatFileInputRef} onChange={handleChatFileChange} accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" className="hidden" />
-                    <button type="button" onClick={() => chatFileInputRef.current?.click()} className="w-10 h-10 bg-white border border-gray-200 rounded-xl flex items-center justify-center shadow-2xs"><i className="fa-solid fa-paperclip text-sm" /></button>
+                    <button type="button" onClick={() => chatFileInputRef.current?.click()} className="w-10 h-10 bg-white border border-gray-200 rounded-xl flex items-center justify-center shadow-2xs">
+                      <i className="fa-solid fa-paperclip text-sm" />
+                    </button>
                     <input type="text" placeholder={`Message à ${selectedUserForMP.prenom}...`} value={typedPrivateMessage} onChange={(e) => setTypedPrivateMessage(e.target.value)} disabled={isUploadingFile} className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-xs font-medium outline-none focus:bg-white focus:border-emerald-500 shadow-3xs" />
                     <button type="submit" disabled={(!typedPrivateMessage.trim() && !selectedFile) || isUploadingFile} className="h-10 px-5 bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase tracking-wider flex items-center gap-2 shadow-2xs">
-                      {isUploadingFile ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><span>Envoyer</span><i className="fa-solid fa-paper-plane" /></>}
+                      {isUploadingFile
+                        ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        : <><span>Envoyer</span><i className="fa-solid fa-paper-plane" /></>
+                      }
                     </button>
                   </form>
                 </>
