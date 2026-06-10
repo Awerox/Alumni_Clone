@@ -11,8 +11,6 @@ async function getUserFromToken(req: NextRequest, secret: string): Promise<any |
   if (!token) return null
   try {
     const decoded = verify(token, secret) as any
-    // FIX : on accepte aussi les tokens sans 'collection' explicite
-    // pour compatibilité avec d'anciens tokens émis sans ce champ
     if (decoded?.id) return decoded
     return null
   } catch { return null }
@@ -20,8 +18,23 @@ async function getUserFromToken(req: NextRequest, secret: string): Promise<any |
 
 export async function POST(req: NextRequest) {
   const payload = await getPayload({ config: configPromise })
-  const user = await getUserFromToken(req, payload.secret)
-  if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+  const userDecoded = await getUserFromToken(req, payload.secret)
+  if (!userDecoded) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+
+  // FIX CLÉ : récupérer le doc complet depuis la DB pour que req.user
+  // soit un objet Alumni valide reconnu par Payload et ses hooks
+  let userDoc: any
+  try {
+    userDoc = await payload.findByID({
+      collection: 'alumni',
+      id: String(userDecoded.id),
+      overrideAccess: true,
+    })
+  } catch {
+    return NextResponse.json({ error: 'Utilisateur introuvable' }, { status: 401 })
+  }
+
+  if (!userDoc) return NextResponse.json({ error: 'Utilisateur introuvable' }, { status: 401 })
 
   try {
     const body = await req.json()
@@ -33,8 +46,7 @@ export async function POST(req: NextRequest) {
     if (!body.couverture)          return NextResponse.json({ error: 'Photo de couverture requise' }, { status: 400 })
     if (!body.categorie)           return NextResponse.json({ error: 'Catégorie requise' }, { status: 400 })
 
-    // FIX : vérifier que le slug est disponible AVANT de tenter la création
-    // → message d'erreur clair sans exception Payload
+    // Vérification slug unique avant création
     const existingSlug = await payload.find({
       collection: 'articles',
       where: { slug: { equals: body.slug.trim() } },
@@ -43,18 +55,16 @@ export async function POST(req: NextRequest) {
     })
     if (existingSlug.docs.length > 0) {
       return NextResponse.json({
-        error: `Le slug "${body.slug.trim()}" est déjà utilisé par un autre article. Modifiez légèrement le titre ou l'URL.`
+        error: `Le slug "${body.slug.trim()}" est déjà utilisé. Modifiez légèrement le titre ou l'URL.`
       }, { status: 400 })
-    }
-
-    const auteurId = Number(user.id)
-    if (isNaN(auteurId) || auteurId <= 0) {
-      return NextResponse.json({ error: 'Identifiant utilisateur invalide' }, { status: 401 })
     }
 
     const article = await payload.create({
       collection: 'articles',
       overrideAccess: true,
+      // FIX : injecter le user complet dans req pour que le beforeChange hook
+      // puisse lire req.user.id et assigner l'auteur correctement
+      req: { user: { ...userDoc, collection: 'alumni' } } as any,
       data: {
         titre:       body.titre.trim(),
         slug:        body.slug.trim(),
@@ -63,7 +73,7 @@ export async function POST(req: NextRequest) {
         categorie:   body.categorie,
         statut:      body.statut || 'brouillon',
         couverture:  Number(body.couverture),
-        auteur:      auteurId,
+        auteur:      Number(userDoc.id),
         ...(body.datePublication ? { datePublication: body.datePublication } : {}),
         ...(body.pieceJointe     ? { pieceJointe: Number(body.pieceJointe) } : {}),
       },
@@ -73,10 +83,9 @@ export async function POST(req: NextRequest) {
 
   } catch (err: any) {
     console.error('[POST /api/articles]', err)
-    // Filet de sécurité si la vérification préalable a raté
     if (err.message?.includes('unique') || err.message?.includes('slug')) {
       return NextResponse.json({
-        error: 'Ce slug est déjà utilisé. Modifiez le titre ou l\'URL de l\'article.'
+        error: 'Ce slug est déjà utilisé. Modifiez le titre ou l\'URL.'
       }, { status: 400 })
     }
     if (err.message?.includes('not allowed') || err.message?.includes('access')) {
