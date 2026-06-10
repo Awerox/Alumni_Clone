@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { getAuthUser } from '@/lib/auth'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
+import ArticleActions from './_components/ArticleActions'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,7 +34,6 @@ const CAT_COLORS: Record<string, string> = {
   bons_plans:        'bg-pink-500 text-white',
 }
 
-// 🎯 Publication automatique planifiée — vérifiée à chaque visite
 async function autoPublishScheduled(payload: any) {
   try {
     const now = new Date().toISOString()
@@ -80,7 +80,6 @@ export default async function BlogPage({ searchParams }: PageProps) {
     )
   }
 
-  // Auto-publier les articles planifiés dont la date est passée
   await autoPublishScheduled(payload)
 
   const resolvedParams = await searchParams
@@ -113,7 +112,6 @@ export default async function BlogPage({ searchParams }: PageProps) {
     <div className="min-h-screen bg-gray-50/50 font-sans text-left">
       <div className="max-w-7xl mx-auto px-4 py-10 space-y-6">
 
-        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black text-gray-900 tracking-tight">Actualités</h1>
@@ -125,7 +123,6 @@ export default async function BlogPage({ searchParams }: PageProps) {
           </Link>
         </div>
 
-        {/* Filtres */}
         <div className="bg-white border border-gray-200 rounded-2xl p-4 shadow-xs">
           <form method="GET" action="/blog" className="flex flex-wrap items-center gap-3">
             <input type="hidden" name="tab" value={currentTab} />
@@ -147,7 +144,6 @@ export default async function BlogPage({ searchParams }: PageProps) {
           </form>
         </div>
 
-        {/* Onglets */}
         <div className="flex items-center gap-1 bg-gray-100/80 p-1 rounded-2xl w-fit overflow-x-auto">
           {tabs.map((tab) => (
             <Link key={tab.value} href={`/blog?tab=${tab.value}${currentCat ? `&categorie=${currentCat}` : ''}`}
@@ -163,7 +159,6 @@ export default async function BlogPage({ searchParams }: PageProps) {
           {articlesList.docs.length} article{articlesList.docs.length > 1 ? 's' : ''}
         </p>
 
-        {/* Grille */}
         {articlesList.docs.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {articlesList.docs.map((article: any) => {
@@ -172,6 +167,9 @@ export default async function BlogPage({ searchParams }: PageProps) {
               const catLabel = CAT_LABELS[article.categorie] || article.categorie
               const isScheduled = article.statut === 'planifie'
               const publishDate = article.datePublication ? new Date(article.datePublication) : null
+              // Vérifie si l'utilisateur connecté est l'auteur
+              const auteurId = typeof article.auteur === 'object' ? article.auteur?.id : article.auteur
+              const isOwner = String(auteurId) === String(user.id)
 
               return (
                 <div key={article.id} className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-xs hover:shadow-md hover:-translate-y-1 transition-all duration-300 flex flex-col group">
@@ -210,12 +208,21 @@ export default async function BlogPage({ searchParams }: PageProps) {
                     )}
                   </div>
 
-                  <div className="px-4 pb-4">
+                  {/* Bouton lire */}
+                  <div className="px-4 pb-2">
                     <Link href={`/blog/${article.slug}`}
                       className="block text-center py-2 bg-gray-50 hover:bg-amber-500 hover:text-white text-gray-500 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all duration-200 border border-gray-100 hover:border-amber-500">
                       Lire l'article →
                     </Link>
                   </div>
+
+                  {/* Boutons modifier / supprimer — visibles uniquement pour l'auteur */}
+                  <ArticleActions
+                    articleId={article.id}
+                    slug={article.slug}
+                    statut={article.statut}
+                    isOwner={isOwner}
+                  />
                 </div>
               )
             })}
