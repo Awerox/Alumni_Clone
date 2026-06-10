@@ -1,9 +1,15 @@
-h1 {
-    color: #800020 !important;
-    text-decoration: underline !important;
-  }
+/* ✅ Directives Tailwind — OBLIGATOIRES pour le build local */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-  /* Empêche les images de tuiles Leaflet d'être écrasées par les configurations max-w de Tailwind */
+/* Styles globaux personnalisés */
+h1 {
+  color: #800020 !important;
+  text-decoration: underline !important;
+}
+
+/* Empêche les images de tuiles Leaflet d'être écrasées par les configurations max-w de Tailwind */
 .leaflet-container img {
   max-width: none !important;
   max-height: none !important;
