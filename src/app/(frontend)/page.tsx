@@ -189,7 +189,7 @@ export default async function HomePage() {
                         </div>
                       </div>
                       <div className="mt-3 pt-3 border-t border-gray-50">
-                        <Link href={`/directory/${alumnus.id}`}
+                        <Link href={`/profile/${alumnus.id}`}
                           className="block text-center py-1.5 bg-gray-50 hover:bg-purple-600 hover:text-white text-gray-500 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all duration-200 border border-gray-100 hover:border-purple-600">
                           Voir le profil →
                         </Link>
