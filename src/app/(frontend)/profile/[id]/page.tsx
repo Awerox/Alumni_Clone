@@ -83,6 +83,26 @@ export default async function PublicProfilePage({ params }: PageProps) {
     (typeof targetUser.photo === 'object' ? targetUser.photo?.url : null) ||
     `https://ui-avatars.com/api/?name=${encodeURIComponent(targetUser.prenom || '')}+${encodeURIComponent(targetUser.nom || '')}&size=150&background=800020&color=fff`
 
+  // ✅ Dernière connexion
+  const formatLastSeen = (dateStr?: string | null): string => {
+    if (!dateStr) return 'Jamais connecté'
+    const date = new Date(dateStr)
+    const diffMs = Date.now() - date.getTime()
+    const diffMin = Math.floor(diffMs / 60000)
+    const diffH = Math.floor(diffMs / 3600000)
+    const diffD = Math.floor(diffMs / 86400000)
+    if (diffMin < 2) return 'En ligne maintenant'
+    if (diffMin < 60) return `Vu il y a ${diffMin} min`
+    if (diffH < 24) return `Vu il y a ${diffH}h`
+    if (diffD === 1) return 'Vu hier'
+    if (diffD < 7) return `Vu il y a ${diffD} jours`
+    if (diffD < 30) return `Vu il y a ${Math.floor(diffD / 7)} semaine${Math.floor(diffD / 7) > 1 ? 's' : ''}`
+    return `Vu le ${date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`
+  }
+  const lastSeenLabel = formatLastSeen(targetUser.lastSeen)
+  const isRecentlyOnline = targetUser.lastSeen &&
+    (Date.now() - new Date(targetUser.lastSeen).getTime()) < 5 * 60 * 1000
+
   return (
     <div className="min-h-screen bg-[#F6F6FA] py-12 px-4 text-gray-800 antialiased selection:bg-gray-200 text-left font-sans">
       <div className="max-w-5xl mx-auto space-y-8">
@@ -145,6 +165,11 @@ export default async function PublicProfilePage({ params }: PageProps) {
                   {targetUser.ville}
                 </p>
               )}
+              {/* ✅ Dernière connexion */}
+              <div className="flex items-center justify-center sm:justify-start gap-1.5 text-[10px] font-semibold text-gray-400 mt-1">
+                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isRecentlyOnline ? 'bg-emerald-500 animate-pulse' : 'bg-gray-300'}`} />
+                {lastSeenLabel}
+              </div>
             </div>
 
             {/* Bouton de contact direct ré-aligné au centre du conteneur flex */}

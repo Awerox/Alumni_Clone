@@ -121,5 +121,17 @@ export const Alumni: CollectionConfig = {
     // Champs pour les réseaux sociaux fixes (Sidebar)
     { name: 'linkedin', type: 'text', label: 'Lien LinkedIn' },
     { name: 'instagram', type: 'text', label: 'Lien Instagram' },
+
+    // ✅ Dernière connexion — mis à jour automatiquement via /api/alumni/me
+    {
+      name: 'lastSeen',
+      type: 'date',
+      label: 'Dernière connexion',
+      admin: {
+        readOnly: true,
+        position: 'sidebar',
+        date: { pickerAppearance: 'default', displayFormat: 'dd/MM/yyyy HH:mm' },
+      },
+    },
   ],
 }

@@ -40,6 +40,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ user: null, message: 'User not found' }, { status: 404 })
     }
 
+    // ✅ Mettre à jour lastSeen en arrière-plan (ne bloque pas la réponse)
+    payload.update({
+      collection: 'alumni',
+      id: decoded.id,
+      overrideAccess: true,
+      data: { lastSeen: new Date().toISOString() } as any,
+    }).catch((e: any) => console.error('[lastSeen update]', e))
+
     return NextResponse.json({ user })
   } catch (err) {
     console.error('[/api/alumni/me]', err)
