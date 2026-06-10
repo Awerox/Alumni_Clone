@@ -4,9 +4,7 @@ import path from 'path'
 import { buildConfig } from 'payload'
 import { fileURLToPath } from 'url'
 import sharp from 'sharp'
-import { cloudinaryStorage } from 'payload-storage-cloudinary'
 
-// Import de tes collections d'origine
 import { Alumni } from './collections/Alumni'
 import { Jobs } from './collections/Jobs'
 import Groups from './collections/Groups'
@@ -18,18 +16,11 @@ import Offres from './collections/Offres'
 import Posts from './collections/Posts'
 import Discussions from './collections/Discussion'
 import Evenements from './collections/evenements'
-import DirectMessages from './collections/DirectMessages' 
+import DirectMessages from './collections/DirectMessages'
 import { PublicMessages } from './collections/PublicMessages'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
-
-// 🎯 SÉCURISATION DU BUILD : On vérifie si TOUTES les clés sont présentes
-const cloudName = process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_NAME
-const apiKey = process.env.CLOUDINARY_API_KEY
-const apiSecret = process.env.CLOUDINARY_API_SECRET
-
-const isCloudinaryReady = Boolean(cloudName && apiKey && apiSecret)
 
 export default buildConfig({
   admin: {
@@ -43,25 +34,18 @@ export default buildConfig({
     {
       ...Alumni,
       auth: {
-  tokenExpiration: 60 * 60 * 24 * 7,
-  cookieName: 'payload-alumni-token', // ✅ déjà bon
-  cookies: {
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'Lax',
-  },
-} as any,
+        ...(typeof Alumni.auth === 'object' && Alumni.auth !== null ? Alumni.auth : {}),
+        tokenExpiration: 60 * 60 * 24 * 7,
+        cookieName: 'payload-alumni-token',
+        cookies: {
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'Lax' as const,
+        },
+      } as any,
       fields: [
         ...(Alumni.fields || []),
-        {
-          name: 'subGoogle',
-          type: 'text',
-          admin: { readOnly: true, position: 'sidebar' },
-        },
-        {
-          name: 'subLinkedin',
-          type: 'text',
-          admin: { readOnly: true, position: 'sidebar' },
-        },
+        { name: 'subGoogle',   type: 'text', admin: { readOnly: true, position: 'sidebar' } },
+        { name: 'subLinkedin', type: 'text', admin: { readOnly: true, position: 'sidebar' } },
       ],
     },
     Media,
@@ -73,8 +57,8 @@ export default buildConfig({
     Offres,
     Evenements,
     Discussions,
-    DirectMessages, 
-    PublicMessages, 
+    DirectMessages,
+    PublicMessages,
   ],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '1234567890abcdef1234567890abcdef',
@@ -87,16 +71,5 @@ export default buildConfig({
     },
   }),
   sharp,
-  plugins: [
-  cloudinaryStorage({
-    cloudConfig: {
-      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-      api_key: process.env.CLOUDINARY_API_KEY,
-      api_secret: process.env.CLOUDINARY_API_SECRET,
-    },
-    collections: {
-      media: true,
-    },
-  }),
-],
+  plugins: [],
 })
