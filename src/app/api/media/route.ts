@@ -43,11 +43,10 @@ export async function POST(req: NextRequest) {
     // On injecte directement l'URL Cloudinary via SQL pour contourner
     // le système de fichiers local de Payload
     const doc = await payload.db.drizzle.execute(
-      `INSERT INTO media (alt, url, filename, mime_type, filesize, updated_at, created_at)
-       VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-       RETURNING id, alt, url, filename, mime_type, filesize`,
-      [alt, cloudinaryUrl, filename, mimeType, filesize]
-    ) as any
+  `INSERT INTO media (alt, url, filename, mime_type, filesize, updated_at, created_at)
+   VALUES ('${alt.replace(/'/g, "''")}', '${cloudinaryUrl}', '${filename.replace(/'/g, "''")}', '${mimeType}', ${filesize}, NOW(), NOW())
+   RETURNING id, alt, url, filename, mime_type, filesize`
+) as any
 
     const row = doc.rows?.[0] || doc[0]
 
