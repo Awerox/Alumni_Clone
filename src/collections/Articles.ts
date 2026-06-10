@@ -1,12 +1,6 @@
 // collections/Articles.ts
-// 🎯 Pour ajouter une catégorie : ajouter un objet { label: '...', value: '...' }
-// dans le tableau ARTICLE_CATEGORIES ci-dessous, et mettre à jour catLabels
-// dans les pages frontend (blog/page.tsx, page.tsx).
-
 import type { CollectionConfig } from 'payload'
 
-// ─── Catégories centralisées ───────────────────────────────────────────────
-// ✅ C'est ici et uniquement ici qu'on ajoute/modifie les catégories
 export const ARTICLE_CATEGORIES = [
   { label: "Vie de l'établissement", value: 'vie_etablissement' },
   { label: "Portraits d'anciens",    value: 'portraits_anciens' },
@@ -14,7 +8,7 @@ export const ARTICLE_CATEGORIES = [
   { label: 'Événements',             value: 'evenements' },
   { label: 'Insertion professionnelle', value: 'insertion_pro' },
   { label: 'Orientation',            value: 'orientation' },
-  { label: "Boîte à outils",         value: 'boite_outils' },
+  { label: 'Boîte à outils',         value: 'boite_outils' },
   { label: 'Bons plans',             value: 'bons_plans' },
 ]
 
@@ -23,7 +17,7 @@ const Articles: CollectionConfig = {
   admin: {
     useAsTitle: 'titre',
     group: 'Contenu',
-    defaultColumns: ['titre', 'categorie', 'statut', 'auteur', 'createdAt'],
+    defaultColumns: ['titre', 'categorie', 'statut', 'datePublication', 'auteur', 'createdAt'],
   },
   access: {
     read: () => true,
@@ -53,7 +47,8 @@ const Articles: CollectionConfig = {
     { name: 'titre',       type: 'text',     required: true, label: "Titre de l'article" },
     { name: 'slug',        type: 'text',     required: true, unique: true, label: 'Slug URL' },
     { name: 'description', type: 'textarea', required: true, label: 'Description courte (carte)' },
-    { name: 'contenu',     type: 'richText', required: true, label: "Contenu de l'article" },
+    // contenu stocké en HTML (généré par Tiptap côté frontend)
+    { name: 'contenu',     type: 'textarea', required: true, label: "Contenu HTML de l'article" },
     {
       name: 'categorie',
       type: 'select',
@@ -64,13 +59,26 @@ const Articles: CollectionConfig = {
     {
       name: 'statut',
       type: 'select',
-      defaultValue: 'publie',
+      defaultValue: 'brouillon',
       label: 'Statut',
       options: [
-        { label: 'Publié',                  value: 'publie' },
-        { label: 'Brouillon',               value: 'brouillon' },
+        { label: 'Publié',                   value: 'publie' },
+        { label: 'Brouillon',                value: 'brouillon' },
+        { label: 'Publication planifiée',    value: 'planifie' },
         { label: 'En attente de validation', value: 'attente' },
       ],
+    },
+    {
+      // Date/heure de publication planifiée
+      // Si statut = 'planifie' et datePublication <= now → publié automatiquement à la lecture
+      name: 'datePublication',
+      type: 'date',
+      label: 'Date de publication planifiée',
+      admin: {
+        date: { pickerAppearance: 'dayAndTime' },
+        description: 'Laisser vide pour publier immédiatement. Utilisé uniquement si statut = "Publication planifiée".',
+        condition: (data) => data?.statut === 'planifie',
+      },
     },
     {
       name: 'couverture',
@@ -78,6 +86,12 @@ const Articles: CollectionConfig = {
       relationTo: 'media',
       required: true,
       label: 'Photo de couverture',
+    },
+    {
+      name: 'pieceJointe',
+      type: 'upload',
+      relationTo: 'media',
+      label: 'Pièce jointe (PDF, document…)',
     },
     {
       name: 'auteur',

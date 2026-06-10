@@ -1,6 +1,4 @@
 // app/api/articles/route.ts
-// Route custom pour créer des articles avec token OAuth
-
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
@@ -21,17 +19,15 @@ async function getUserFromToken(req: NextRequest, secret: string): Promise<any |
 export async function POST(req: NextRequest) {
   const payload = await getPayload({ config: configPromise })
   const user = await getUserFromToken(req, payload.secret)
-
-  if (!user) {
-    return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
-  }
+  if (!user) return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
 
   try {
     const body = await req.json()
 
     if (!body.titre?.trim()) return NextResponse.json({ error: 'Titre requis' }, { status: 400 })
-    if (!body.slug?.trim()) return NextResponse.json({ error: 'Slug requis' }, { status: 400 })
+    if (!body.slug?.trim())  return NextResponse.json({ error: 'Slug requis' }, { status: 400 })
     if (!body.description?.trim()) return NextResponse.json({ error: 'Description requise' }, { status: 400 })
+    if (!body.contenu?.trim()) return NextResponse.json({ error: 'Contenu requis' }, { status: 400 })
     if (!body.couverture) return NextResponse.json({ error: 'Photo de couverture requise' }, { status: 400 })
     if (!body.categorie) return NextResponse.json({ error: 'Catégorie requise' }, { status: 400 })
 
@@ -39,21 +35,22 @@ export async function POST(req: NextRequest) {
       collection: 'articles',
       overrideAccess: true,
       data: {
-        titre: body.titre.trim(),
-        slug: body.slug.trim(),
-        description: body.description.trim(),
-        contenu: body.contenu,
-        categorie: body.categorie,
-        statut: body.statut || 'publie',
-        couverture: Number(body.couverture),
-        auteur: Number(user.id),
+        titre:           body.titre.trim(),
+        slug:            body.slug.trim(),
+        description:     body.description.trim(),
+        contenu:         body.contenu,
+        categorie:       body.categorie,
+        statut:          body.statut || 'brouillon',
+        couverture:      Number(body.couverture),
+        auteur:          Number(user.id),
+        ...(body.datePublication ? { datePublication: body.datePublication } : {}),
+        ...(body.pieceJointe ? { pieceJointe: Number(body.pieceJointe) } : {}),
       },
     })
 
     return NextResponse.json({ doc: article }, { status: 201 })
   } catch (err: any) {
     console.error('[POST /api/articles]', err)
-    // Gestion erreur slug duplicate
     if (err.message?.includes('unique')) {
       return NextResponse.json({ error: 'Ce slug est déjà utilisé, modifiez le titre.' }, { status: 400 })
     }
@@ -64,7 +61,6 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const payload = await getPayload({ config: configPromise })
   const { searchParams } = new URL(req.url)
-
   try {
     const articles = await payload.find({
       collection: 'articles',

@@ -384,24 +384,23 @@ export interface Article {
   titre: string;
   slug: string;
   description: string;
-  contenu: {
-    root: {
-      type: string;
-      children: {
-        type: any;
-        version: number;
-        [k: string]: unknown;
-      }[];
-      direction: ('ltr' | 'rtl') | null;
-      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
-      indent: number;
-      version: number;
-    };
-    [k: string]: unknown;
-  };
-  categorie: 'vie_etablissement' | 'portraits_anciens' | 'international' | 'evenements';
-  statut?: ('publie' | 'brouillon' | 'attente') | null;
+  contenu: string;
+  categorie:
+    | 'vie_etablissement'
+    | 'portraits_anciens'
+    | 'international'
+    | 'evenements'
+    | 'insertion_pro'
+    | 'orientation'
+    | 'boite_outils'
+    | 'bons_plans';
+  statut?: ('publie' | 'brouillon' | 'planifie' | 'attente') | null;
+  /**
+   * Laisser vide pour publier immédiatement. Utilisé uniquement si statut = "Publication planifiée".
+   */
+  datePublication?: string | null;
   couverture: number | Media;
+  pieceJointe?: (number | null) | Media;
   auteur?: (number | null) | Alumnus;
   updatedAt: string;
   createdAt: string;
@@ -834,7 +833,9 @@ export interface ArticlesSelect<T extends boolean = true> {
   contenu?: T;
   categorie?: T;
   statut?: T;
+  datePublication?: T;
   couverture?: T;
+  pieceJointe?: T;
   auteur?: T;
   updatedAt?: T;
   createdAt?: T;
