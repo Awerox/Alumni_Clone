@@ -1,4 +1,4 @@
-/* ✅ Directives Tailwind — build local */
+/* ✅ Directives Tailwind build local — coexiste avec le CDN */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

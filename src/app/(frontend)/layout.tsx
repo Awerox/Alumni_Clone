@@ -3,7 +3,7 @@ import React from 'react'
 import type { Metadata } from 'next'
 import Navbar from '@/components/Navbar'
 import MiniMessenger from '@/components/MiniMessenger'
-import './globals.css'  // ✅ même dossier que layout.tsx
+import './globals.css'
 
 export const metadata: Metadata = {
   title: 'Bessières Alumni | Réseau des anciens de l\'ENC',
@@ -20,7 +20,24 @@ export default function FrontendLayout({ children }: { children: React.ReactNode
           crossOrigin="anonymous"
           referrerPolicy="no-referrer"
         />
-        {/* ✅ CDN supprimé — Tailwind via build local (globals.css) */}
+        {/* ✅ CDN en fallback — sera remplacé par le build local une fois confirmé */}
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              tailwind.config = {
+                theme: {
+                  extend: {
+                    colors: {
+                      enc: '#800020',
+                      orange_bessieres: '#f59e0b',
+                    }
+                  }
+                }
+              }
+            `,
+          }}
+        />
       </head>
       <body className="bg-gray-50 antialiased min-h-screen flex flex-col">
         <Navbar />
