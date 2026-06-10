@@ -22,7 +22,8 @@ export async function POST(req: NextRequest) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    const filename = file.name
+    const ext = file.name.split('.').pop() || 'jpg'
+const filename = `${file.name.replace(/\.[^/.]+$/, '')}-${Date.now()}.${ext}`
     const mimeType = file.type
     const filesize = buffer.length
 
