@@ -112,7 +112,7 @@ export default function DirectoryMap({ alumni }: { alumni: Alumnus[] }) {
                       )}
                       <p className="text-[10px] text-gray-400 font-semibold">📍 {alumnus.ville}</p>
                       <Link
-                        href={`/directory/${alumnus.id}`}
+                        href={`/profile/${alumnus.id}`}
                         className="block text-center bg-enc text-white text-[10px] font-black uppercase tracking-wider py-2 px-3 rounded-lg !mt-3 no-underline hover:bg-opacity-90 transition-colors"
                       >
                         Voir le profil

@@ -145,7 +145,7 @@ export default async function MentoringPage({
                   <p className="text-xs text-gray-500 line-clamp-2 font-medium">
                     {mentor.bio || 'Aucune description disponible.'}
                   </p>
-                  <Link href={`/directory/${mentor.id}`}
+                  <Link href={`/profile/${mentor.id}`}
                     className="block text-center py-2 bg-gray-50 hover:bg-purple-50 text-gray-600 hover:text-purple-700 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all">
                     Voir le profil
                   </Link>
