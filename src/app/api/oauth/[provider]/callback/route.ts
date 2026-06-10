@@ -1,9 +1,15 @@
 // app/api/oauth/[provider]/callback/route.ts
-
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import { sign } from 'jsonwebtoken'
+import { v2 as cloudinary } from 'cloudinary'
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || '',
+  api_key:    process.env.CLOUDINARY_API_KEY || '',
+  api_secret: process.env.CLOUDINARY_API_SECRET || '',
+})
 
 interface OAuthUserData {
   email: string
@@ -13,29 +19,15 @@ interface OAuthUserData {
   avatarUrl: string
 }
 
+// ✅ FIX normalizeName : ne jamais retourner nom vide
 function normalizeName(given?: string, family?: string, full?: string) {
-  // Nettoyage des valeurs
   const g = given?.trim() || ''
   const f = family?.trim() || ''
-  
-  // Cas idéal : given_name ET family_name fournis par le provider
   if (g && f) return { prenom: g, nom: f }
-  
-  // Fallback sur le nom complet
   const parts = (full?.trim() || '').split(/\s+/).filter(Boolean)
-  if (parts.length >= 2) {
-    return {
-      prenom: parts[0],
-      nom: parts.slice(1).join(' '),  // Tout ce qui suit = nom de famille
-    }
-  }
-  if (parts.length === 1) {
-    // Un seul mot → prénom uniquement, nom vide plutôt que doublon
-    return { prenom: parts[0], nom: '' }
-  }
-  
-  // Fallback ultime
-  return { prenom: g || 'Prénom', nom: f || '' }
+  if (parts.length >= 2) return { prenom: parts[0], nom: parts.slice(1).join(' ') }
+  if (parts.length === 1) return { prenom: parts[0], nom: parts[0] } // doublon plutôt que vide
+  return { prenom: 'Prénom', nom: 'Nom' }
 }
 
 async function fetchGoogleUser(code: string, baseUrl: string): Promise<OAuthUserData> {
@@ -82,6 +74,7 @@ async function fetchLinkedInUser(code: string, baseUrl: string): Promise<OAuthUs
   return { email: u.email, prenom, nom, providerId: u.sub, avatarUrl: u.picture || '' }
 }
 
+// ✅ FIX uploadAvatar : utilise Cloudinary + SQL direct comme le reste du projet
 async function uploadAvatar(
   payload: Awaited<ReturnType<typeof getPayload>>,
   avatarUrl: string,
@@ -93,14 +86,33 @@ async function uploadAvatar(
     const res = await fetch(avatarUrl)
     if (!res.ok) return null
     const buffer = Buffer.from(await res.arrayBuffer())
-    const uploaded = await payload.create({
-      collection: 'media',
-      overrideAccess: true,
-      data: { alt: `Photo de profil de ${prenom} ${nom}` },
-      file: { data: buffer, name: `oauth-avatar-${providerId}.jpg`, mimetype: 'image/jpeg', size: buffer.length },
+    const timestamp = Date.now()
+    const filename = `oauth-avatar-${providerId}-${timestamp}.jpg`
+    const publicId = `media/oauth-avatar-${providerId}-${timestamp}`
+
+    const cloudinaryUrl = await new Promise<string>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { resource_type: 'auto', public_id: publicId, overwrite: false },
+        (error, result) => {
+          if (error || !result) return reject(error ?? new Error('Cloudinary upload failed'))
+          resolve(result.secure_url)
+        },
+      )
+      stream.end(buffer)
     })
-    return String(uploaded.id)
-  } catch { return null }
+
+    const alt = `Photo de profil de ${prenom} ${nom}`.replace(/'/g, "''")
+    const result = await payload.db.drizzle.execute(
+      `INSERT INTO media (alt, url, filename, mime_type, filesize, updated_at, created_at)
+       VALUES ('${alt}', '${cloudinaryUrl}', '${filename}', 'image/jpeg', ${buffer.length}, NOW(), NOW())
+       RETURNING id`
+    ) as any
+    const row = result.rows?.[0] || result[0]
+    return row?.id ? String(row.id) : null
+  } catch (e) {
+    console.error('[uploadAvatar]', e)
+    return null // Ne jamais bloquer le flow OAuth pour une photo
+  }
 }
 
 export async function GET(
@@ -118,7 +130,6 @@ export async function GET(
   }
 
   const payload = await getPayload({ config: configPromise })
-  // 🎯 Secret brut — utilisé partout de façon cohérente
   const secret = payload.secret
 
   try {
@@ -166,49 +177,40 @@ export async function GET(
 
     // ── 4. Création ou mise à jour ────────────────────────────────────────
     if (isNewUser) {
-      // Nouveau compte OAuth — on crée avec un mot de passe stable
       const stablePassword = `OA-${providerId}-${secret.slice(0, 8)}`
       targetUser = await payload.create({
         collection: 'alumni',
         overrideAccess: true,
         data: {
-          email, prenom, nom,
+          email,
+          prenom,
+          nom: nom || prenom, // ✅ jamais vide (required: true dans Alumni.ts)
           password: stablePassword,
           statut: 'etudiant',
           [fieldToMatch]: providerId,
-          photo: savedMediaId ? Number(savedMediaId) : null,
+          ...(photoToAssign ? { photo: photoToAssign } : {}),
         },
       })
       console.log(`[OAuth/${provider}] ✅ Nouveau compte créé id=${targetUser.id}`)
     } else {
-      // Compte existant — on lie le provider SANS toucher au mot de passe
-      // Cela préserve le mot de passe original de l'utilisateur
       targetUser = await payload.update({
         collection: 'alumni',
         id: targetUser!.id,
         overrideAccess: true,
         data: {
           [fieldToMatch]: providerId,
-          // Pas de password ici — on ne l'écrase jamais sur un compte existant
           ...(photoToAssign && !targetUser!.photo ? { photo: photoToAssign } : {}),
         },
       })
       console.log(`[OAuth/${provider}] ✅ Compte existant lié id=${targetUser.id}`)
     }
 
-    // ── 5. Génération JWT avec secret brut ────────────────────────────────
-    // On utilise le secret brut directement — cohérent avec /api/alumni/me
+    // ── 5. JWT ────────────────────────────────────────────────────────────
     const token = sign(
-      {
-        id: String(targetUser.id),
-        collection: 'alumni',
-        email: targetUser.email,
-      },
+      { id: String(targetUser.id), collection: 'alumni', email: targetUser.email },
       secret,
       { expiresIn: '7d' },
     )
-
-    console.log(`[OAuth/${provider}] ✅ Token signé pour id=${targetUser.id}`)
 
     // ── 6. Cookie + redirection ───────────────────────────────────────────
     const redirectTo = isNewUser ? '/onboarding' : '/'
@@ -221,6 +223,9 @@ export async function GET(
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7,
     })
+
+    // ✅ Empêcher le cache de rejouer le callback
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate')
 
     return response
 

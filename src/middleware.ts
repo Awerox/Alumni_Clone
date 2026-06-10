@@ -1,7 +1,8 @@
+// middleware.ts
 import { NextRequest, NextResponse } from 'next/server'
 
 export function middleware(req: NextRequest) {
-  // ⚠️ Ne pas interférer avec les uploads multipart
+  // ✅ Ne pas interférer avec les uploads multipart
   const contentType = req.headers.get('content-type') || ''
   if (contentType.includes('multipart/form-data')) {
     return NextResponse.next()
@@ -24,5 +25,11 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/api/:path*', '/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: [
+    // ✅ FIX : exclure les callbacks OAuth du middleware
+    // Sans ça, le middleware peut déclencher une 2e requête sur le callback
+    // ce qui consomme le code Google une 2e fois → invalid_grant
+    '/api/((?!oauth/google/callback|oauth/linkedin/callback).*)',
+    '/((?!_next/static|_next/image|favicon.ico).*)',
+  ],
 }
