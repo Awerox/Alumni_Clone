@@ -90,35 +90,30 @@ export default async function PublicProfilePage({ params }: PageProps) {
       <div className="min-h-screen bg-[#F4F4F8] text-gray-800 antialiased text-left font-sans">
 
         {/* ── HERO HEADER ── */}
-        <div className="relative bg-[#800020] overflow-hidden">
-          {/* Motif de fond */}
+        <div className="relative bg-[#800020]">
           <div className="absolute inset-0 bg-[radial-gradient(#ffffff12_1px,transparent_1px)] [background-size:20px_20px]" />
           <div className="absolute inset-0 bg-gradient-to-br from-[#800020] via-[#900025] to-[#600018]" />
 
-          <div className="relative max-w-5xl mx-auto px-6 pt-8 pb-2">
+          <div className="relative max-w-5xl mx-auto px-6 pt-8 pb-10">
             {/* Retour */}
-            <Link
-              href="/directory"
-              className="anim-fade-in inline-flex items-center gap-2 text-white/60 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors mb-8"
-            >
-              <i className="fa-solid fa-arrow-left text-[10px]" />
-              Annuaire
+            <Link href="/directory"
+              className="anim-fade-in inline-flex items-center gap-2 text-white/60 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors mb-8">
+              <i className="fa-solid fa-arrow-left text-[10px]" /> Annuaire
             </Link>
 
-            {/* Contenu hero */}
-            <div className="flex flex-col sm:flex-row items-end gap-6 pb-2">
-              {/* Avatar */}
+            {/* Contenu hero — tout reste DANS le hero, pas de débordement */}
+            <div className="flex flex-col sm:flex-row items-center gap-6">
+              {/* Avatar entièrement dans le hero */}
               <div className="anim-scale-in flex-shrink-0 relative">
-                <div className="w-36 h-36 sm:w-40 sm:h-40 rounded-2xl border-4 border-white/20 shadow-2xl overflow-hidden bg-white/10 translate-y-10">
+                <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl border-4 border-white/30 shadow-2xl overflow-hidden">
                   <img src={avatarSrc} alt="" className="w-full h-full object-cover object-center" />
                 </div>
-                {/* Indicateur en ligne */}
-                <span className={`absolute bottom-10 right-0 w-4 h-4 rounded-full border-2 border-[#800020] ${isOnline ? 'bg-emerald-400' : 'bg-gray-400'}`} />
+                <span className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-[#800020] ${isOnline ? 'bg-emerald-400' : 'bg-gray-400'}`} />
               </div>
 
               {/* Infos */}
-              <div className="anim-fade-up delay-1 flex-1 pb-8 sm:pb-10 min-w-0">
-                <div className="flex flex-wrap items-center gap-2 mb-2">
+              <div className="anim-fade-up delay-1 flex-1 min-w-0 text-center sm:text-left">
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mb-2">
                   <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
                     {targetUser.prenom} {targetUser.nom}
                   </h1>
@@ -128,14 +123,12 @@ export default async function PublicProfilePage({ params }: PageProps) {
                     </span>
                   )}
                 </div>
-
                 <p className="text-white/70 text-sm font-semibold mb-3">
                   {targetUser.poste && targetUser.entreprise
                     ? `${targetUser.poste} · ${targetUser.entreprise}`
                     : 'École Nationale de Commerce · ENC Bessières'}
                 </p>
-
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
                   <span className="bg-white/15 text-white/90 font-black uppercase text-[9px] px-2.5 py-1 rounded-full tracking-wider backdrop-blur-sm">
                     {targetUser.statut === 'alumni' ? 'Alumni' : 'Étudiant'}
                     {targetUser.promotion ? ` · Promo ${targetUser.promotion}` : ''}
@@ -153,22 +146,22 @@ export default async function PublicProfilePage({ params }: PageProps) {
                 </div>
               </div>
 
-              {/* Bouton contact */}
-              <div className="anim-fade-up delay-2 pb-8 sm:pb-10 flex-shrink-0">
-                <a
-                  href={`mailto:${targetUser.email}`}
+              {/* ✅ Bouton MP — redirige vers la conversation privée */}
+              <div className="anim-fade-up delay-2 flex-shrink-0">
+                <Link
+                  href={`/messages?userId=${targetUser.id}&prenom=${encodeURIComponent(targetUser.prenom)}&nom=${encodeURIComponent(targetUser.nom)}`}
                   className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-[#800020] font-black rounded-xl text-xs uppercase tracking-wider hover:bg-gray-50 transition-all shadow-lg"
                 >
-                  <i className="fa-regular fa-envelope" />
+                  <i className="fa-regular fa-comment-dots" />
                   Contacter
-                </a>
+                </Link>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Spacer pour l'avatar qui déborde */}
-        <div className="h-14" />
+        {/* Petit espace après le hero */}
+        <div className="h-6" />
 
         {/* ── CONTENU ── */}
         <div className="max-w-5xl mx-auto px-4 sm:px-6 pb-16 space-y-6">
