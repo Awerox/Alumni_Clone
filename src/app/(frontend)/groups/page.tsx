@@ -4,6 +4,7 @@ import configPromise from '@payload-config'
 import Link from 'next/link'
 import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
+import GroupsFilters from './GroupsFilters'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -55,18 +56,6 @@ const CATEGORIE_COLORS: Record<string, string> = {
   autre: 'bg-gray-100 text-gray-600',
 }
 
-const CATEGORIES_SELECT = [
-  { value: '', label: 'Toutes les catégories' },
-  { value: 'etudiant', label: 'Étudiants' },
-  { value: 'alumni', label: 'Alumni' },
-  { value: 'enseignant', label: 'Enseignants' },
-  { value: 'administratif', label: 'Administratif' },
-  { value: 'club', label: 'Club' },
-  { value: 'projet', label: 'Projet' },
-  { value: 'promo', label: 'Promotion' },
-  { value: 'autre', label: 'Autre' },
-]
-
 // ─── Server Action ────────────────────────────────────────────────────────────
 
 async function deleteGroupAction(formData: FormData) {
@@ -92,12 +81,12 @@ function EmptyState({ tab }: { tab: string }) {
     },
     mes_groupes: {
       title: "Vous n'avez pas encore de groupe",
-      sub: "Rejoignez un groupe existant ou créez le vôtre.",
+      sub: 'Rejoignez un groupe existant ou créez le vôtre.',
       cta: 'Créer un groupe',
     },
     attente: {
-      title: "Aucun groupe en attente",
-      sub: "Tous les groupes ont été traités.",
+      title: 'Aucun groupe en attente',
+      sub: 'Tous les groupes ont été traités.',
     },
   }
   const m = messages[tab] ?? messages.tous
@@ -185,8 +174,6 @@ export default async function GroupsPage({
     )
   }
 
-  const hasActiveFilters = searchQuery !== '' || categorieFilter !== ''
-
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
@@ -232,61 +219,11 @@ export default async function GroupsPage({
         </div>
 
         {/* ── Filtres ───────────────────────────────────────── */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          {/* Recherche */}
-          <div className="relative flex-1">
-            <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center">
-              <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-              </svg>
-            </div>
-            <form method="GET" action="/groups">
-              <input type="hidden" name="tab" value={currentTab} />
-              {categorieFilter && <input type="hidden" name="categorie" value={categorieFilter} />}
-              <input
-                type="search"
-                name="q"
-                defaultValue={searchQuery}
-                placeholder="Rechercher un groupe…"
-                className="w-full rounded-xl border border-gray-200 bg-white pl-9 pr-4 py-2.5 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-colors"
-              />
-            </form>
-          </div>
-
-          {/* Filtre catégorie */}
-          <form method="GET" action="/groups" className="flex gap-2">
-            <input type="hidden" name="tab" value={currentTab} />
-            {searchQuery && <input type="hidden" name="q" value={searchQuery} />}
-            <select
-              name="categorie"
-              defaultValue={categorieFilter}
-              onChange={(e) => (e.target.form as HTMLFormElement)?.submit()}
-              className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-colors pr-8 text-gray-700"
-            >
-              {CATEGORIES_SELECT.map((c) => (
-                <option key={c.value} value={c.value}>{c.label}</option>
-              ))}
-            </select>
-            <noscript>
-              <button type="submit" className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm">
-                Filtrer
-              </button>
-            </noscript>
-          </form>
-
-          {/* Effacer les filtres */}
-          {hasActiveFilters && (
-            <Link
-              href={`/groups?tab=${currentTab}`}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-600 hover:bg-gray-50 shadow-sm transition-colors whitespace-nowrap"
-            >
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-              Effacer les filtres
-            </Link>
-          )}
-        </div>
+        <GroupsFilters
+          tab={currentTab}
+          initialQ={searchQuery}
+          initialCategorie={categorieFilter}
+        />
 
         {/* ── Liste des groupes ─────────────────────────────── */}
         {displayedGroups.length === 0 ? (
