@@ -58,8 +58,37 @@ export default async function PublicProfilePage({ params }: PageProps) {
   const isOnline = targetUser.lastSeen &&
     (Date.now() - new Date(targetUser.lastSeen).getTime()) < 5 * 60 * 1000
 
+
+  const animStyles = `
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    @keyframes scaleIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+    .anim-fade-up  { animation: fadeUp  0.5s ease both; }
+    .anim-fade-in  { animation: fadeIn  0.4s ease both; }
+    .anim-scale-in { animation: scaleIn 0.4s ease both; }
+    .d1 { animation-delay: 0.05s; }
+    .d2 { animation-delay: 0.12s; }
+    .d3 { animation-delay: 0.20s; }
+    .d4 { animation-delay: 0.28s; }
+    .d5 { animation-delay: 0.36s; }
+    .d6 { animation-delay: 0.44s; }
+    .card-hover { transition: box-shadow 0.25s, transform 0.25s; }
+    .card-hover:hover { box-shadow: 0 8px 32px rgba(128,0,32,0.10); transform: translateY(-2px); }
+  `
+
   return (
-    <div className="min-h-screen bg-[#F6F6FA] py-12 px-4 text-gray-800 antialiased selection:bg-gray-200 text-left font-sans">
+    <>
+      <style>{animStyles}</style>
+      <div className="min-h-screen bg-[#F6F6FA] py-12 px-4 text-gray-800 antialiased selection:bg-gray-200 text-left font-sans">
       <div className="max-w-5xl mx-auto space-y-8">
 
         {/* Retour */}
@@ -68,7 +97,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
         </Link>
 
         {/* ── HEADER ── */}
-        <div className="bg-white rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
+        <div className="anim-scale-in bg-white rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
           {/* Bannière bordeaux — assez haute pour contenir la photo */}
           <div className="h-52 bg-[#800020] relative flex items-center px-8 gap-6">
             <div className="absolute inset-0 bg-[radial-gradient(#ffffff15_1px,transparent_1px)] [background-size:16px_16px] opacity-40" />
@@ -76,7 +105,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
 
             {/* Photo entièrement dans la bannière */}
             <div className="relative z-10 flex-shrink-0">
-              <div className="w-32 h-32 rounded-2xl border-4 border-white/30 shadow-2xl overflow-hidden">
+              <div className="anim-scale-in d1 w-32 h-32 rounded-2xl border-4 border-white/30 shadow-2xl overflow-hidden">
                 <img src={avatarSrc} alt="" className="w-full h-full object-cover object-center" />
               </div>
               {/* Indicateur en ligne */}
@@ -84,7 +113,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
             </div>
 
             {/* Infos identité */}
-            <div className="relative z-10 flex-1 min-w-0">
+            <div className="anim-fade-up d1 relative z-10 flex-1 min-w-0">
               <div className="flex flex-wrap items-center gap-2 mb-1.5">
                 <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
                   {targetUser.prenom} {targetUser.nom}
@@ -119,7 +148,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
             </div>
 
             {/* ✅ Bouton MP */}
-            <div className="relative z-10 flex-shrink-0">
+            <div className="anim-fade-in d2 relative z-10 flex-shrink-0">
               <Link
                 href={`/messages?userId=${targetUser.id}&prenom=${encodeURIComponent(targetUser.prenom)}&nom=${encodeURIComponent(targetUser.nom)}`}
                 className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-[#800020] font-black rounded-xl text-xs uppercase tracking-wider hover:bg-gray-50 transition-all shadow-lg"
@@ -133,7 +162,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
 
         {/* Bandeau mentor */}
         {targetUser.isMentor && (
-          <div className="p-4 bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200/60 rounded-2xl flex items-start gap-4 shadow-2xs">
+          <div className="anim-fade-up d2 p-4 bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200/60 rounded-2xl flex items-start gap-4 shadow-2xs">
             <div className="w-10 h-10 rounded-xl bg-amber-400 flex items-center justify-center flex-shrink-0 shadow-sm">
               <i className="fa-solid fa-star text-white text-sm" />
             </div>
@@ -152,7 +181,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
           {/* COLONNE GAUCHE */}
           <div className="md:col-span-4 space-y-8">
 
-            <div className="bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
+            <div className="anim-fade-up d3 card-hover bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
               <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
                 <i className="fa-solid fa-link text-[#800020] text-xs" /> Réseaux & Portfolio
               </h3>
@@ -174,7 +203,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
             </div>
 
             {/* Infos */}
-            <div className="bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
+            <div className="anim-fade-up d4 card-hover bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
               <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
                 <i className="fa-solid fa-circle-info text-[#800020] text-xs" /> Informations
               </h3>
@@ -196,7 +225,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
           {/* COLONNE DROITE */}
           <div className="md:col-span-8 space-y-8">
 
-            <section className="bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
+            <section className="anim-fade-up d3 card-hover bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
               <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 mb-4">
                 <i className="fa-solid fa-user text-[#800020]" /> À propos de moi
               </h3>
@@ -208,7 +237,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
               )}
             </section>
 
-            <section className="bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
+            <section className="anim-fade-up d4 card-hover bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
               <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 mb-6">
                 <i className="fa-solid fa-briefcase text-[#800020]" /> Parcours Professionnel
               </h3>
@@ -235,7 +264,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
               )}
             </section>
 
-            <section className="bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
+            <section className="anim-fade-up d5 card-hover bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
               <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 mb-6">
                 <i className="fa-solid fa-graduation-cap text-[#800020]" /> Formations & Cursus
               </h3>
@@ -261,7 +290,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
               )}
             </section>
 
-            <section className="bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
+            <section className="anim-fade-up d6 card-hover bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
               <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 mb-4">
                 <i className="fa-solid fa-heart text-[#800020]" /> Centres d'intérêt
               </h3>
@@ -282,5 +311,6 @@ export default async function PublicProfilePage({ params }: PageProps) {
         </div>
       </div>
     </div>
+    </>
   )
 }

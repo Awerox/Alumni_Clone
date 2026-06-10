@@ -517,6 +517,27 @@ export default function ProfilePage() {
     (typeof user.photo === 'object' ? user.photo?.url : null) ||
     `https://ui-avatars.com/api/?name=${encodeURIComponent(user.prenom || '')}+${encodeURIComponent(user.nom || '')}&size=400&background=800020&color=fff`
 
+  const animStyles = `
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes scaleIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+    .anim-fade-up  { animation: fadeUp  0.5s ease both; }
+    .anim-scale-in { animation: scaleIn 0.4s ease both; }
+    .d1 { animation-delay: 0.05s; }
+    .d2 { animation-delay: 0.12s; }
+    .d3 { animation-delay: 0.20s; }
+    .d4 { animation-delay: 0.28s; }
+    .d5 { animation-delay: 0.36s; }
+    .d6 { animation-delay: 0.44s; }
+    .card-hover { transition: box-shadow 0.25s, transform 0.25s; }
+    .card-hover:hover { box-shadow: 0 8px 32px rgba(128,0,32,0.10); transform: translateY(-2px); }
+  `
+
   return (
     <div className="min-h-screen bg-[#F6F6FA] py-12 px-4 text-gray-800 antialiased selection:bg-gray-200">
       <input
@@ -534,72 +555,72 @@ export default function ProfilePage() {
         className="hidden"
       />
 
+      <style>{animStyles}</style>
+
       <div className="max-w-5xl mx-auto space-y-8">
-        {/* ── HEADER ─────────────────────────────────────────────────────────── */}
-        <div className="bg-white rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
-          {/* Bannière avec avatar ancré en absolu */}
-          <div className="h-36 bg-[#800020] relative">
+        {/* ── HEADER ── */}
+        <div className="anim-scale-in bg-white rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
+          {/* Bannière bordeaux avec photo intégrée */}
+          <div className="h-52 bg-[#800020] relative flex items-center px-8 gap-6">
             <div className="absolute inset-0 bg-[radial-gradient(#ffffff15_1px,transparent_1px)] [background-size:16px_16px] opacity-40" />
-            {/* Avatar positionné en bas-gauche de la bannière, débordant vers le bas */}
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="absolute -bottom-12 left-8 w-24 h-24 rounded-2xl border-4 border-white shadow-2xl overflow-hidden cursor-pointer group bg-gray-200 z-20 flex-shrink-0"
-              style={{ aspectRatio: '1 / 1' }}
-            >
-              <img
-                src={avatarSrc}
-                alt="Photo de profil"
-                className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-105"
-                style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-              <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center text-white gap-1 backdrop-blur-[2px]">
-                <i className="fa-solid fa-camera text-base" />
-                <span className="text-[8px] font-black uppercase tracking-wider">Modifier</span>
+            <div className="absolute inset-0 bg-gradient-to-br from-[#800020] via-[#900025] to-[#600018]" />
+
+            {/* Photo cliquable pour modifier */}
+            <div className="relative z-10 flex-shrink-0">
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="anim-scale-in d1 w-32 h-32 rounded-2xl border-4 border-white/30 shadow-2xl overflow-hidden cursor-pointer group"
+              >
+                <img
+                  src={avatarSrc}
+                  alt="Photo de profil"
+                  className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-105"
+                />
+                <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center text-white gap-1 backdrop-blur-[2px]">
+                  <i className="fa-solid fa-camera text-base" />
+                  <span className="text-[8px] font-black uppercase tracking-wider">Modifier</span>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Zone texte — entièrement dans la zone blanche */}
-          <div className="pt-16 px-8 pb-7">
-            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-              {/* Infos */}
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2 mb-1">
-                  <h1 className="text-2xl font-black tracking-tight text-gray-900 leading-tight">
-                    {user.prenom} {user.nom}
-                  </h1>
-                  <span className="inline-block bg-[#800020]/10 text-[#800020] font-black uppercase text-[9px] px-2.5 py-1 rounded-lg tracking-wider whitespace-nowrap">
-                    {user.statut === 'alumni' ? 'Alumni' : 'Étudiant'} · Promo {user.promotion}
+            {/* Infos */}
+            <div className="anim-fade-up d1 relative z-10 flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                  {user.prenom} {user.nom}
+                </h1>
+                <span className="bg-white/15 text-white/90 font-black uppercase text-[9px] px-2.5 py-1 rounded-full tracking-wider backdrop-blur-sm">
+                  {user.statut === 'alumni' ? 'Alumni' : 'Étudiant'}
+                  {user.promotion ? ` · Promo ${user.promotion}` : ''}
+                </span>
+                {user.isMentor && (
+                  <span className="inline-flex items-center gap-1 bg-amber-400 text-white font-black uppercase text-[9px] px-2.5 py-1 rounded-full tracking-wider shadow-sm">
+                    <i className="fa-solid fa-star text-[8px]" /> Mentor
                   </span>
-                  {user.isMentor && (
-                    <span className="inline-flex items-center gap-1.5 bg-amber-400 text-white font-black uppercase text-[9px] px-2.5 py-1 rounded-lg tracking-wider shadow-sm whitespace-nowrap">
-                      <i className="fa-solid fa-star text-[8px]" />
-                      Mentor
-                    </span>
-                  )}
-                </div>
-                <p className="text-sm text-gray-400 font-medium">
-                  {user.poste && user.entreprise
-                    ? `${user.poste} · ${user.entreprise}`
-                    : 'École Nationale de Commerce · ENC Bessières'}
-                </p>
-                {user.ville && (
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    <i className="fa-solid fa-location-dot text-[#800020] mr-1 text-[10px]" />
-                    {user.ville}
-                  </p>
                 )}
               </div>
-              {/* Bouton */}
-              <div className="flex-shrink-0">
-                <button
-                  onClick={() => router.push('/profile/edit')}
-                  className="px-5 py-2.5 bg-[#800020] hover:bg-[#600018] text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-colors shadow-sm whitespace-nowrap"
-                >
-                  <i className="fa-solid fa-pen-to-square mr-1.5" />
-                  Modifier le profil
-                </button>
-              </div>
+              <p className="text-white/70 text-sm font-semibold mb-2">
+                {user.poste && user.entreprise
+                  ? `${user.poste} · ${user.entreprise}`
+                  : 'École Nationale de Commerce · ENC Bessières'}
+              </p>
+              {user.ville && (
+                <span className="flex items-center gap-1 text-white/60 text-[11px] font-semibold">
+                  <i className="fa-solid fa-location-dot text-white/40 text-[10px]" />
+                  {user.ville}
+                </span>
+              )}
+            </div>
+
+            {/* Bouton modifier */}
+            <div className="anim-fade-up d2 relative z-10 flex-shrink-0">
+              <button
+                onClick={() => router.push('/profile/edit')}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-[#800020] font-black rounded-xl text-xs uppercase tracking-wider hover:bg-gray-50 transition-all shadow-lg"
+              >
+                <i className="fa-solid fa-pen-to-square" />
+                Modifier le profil
+              </button>
             </div>
           </div>
         </div>
@@ -625,7 +646,7 @@ export default function ProfilePage() {
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
           {/* COLONNE GAUCHE */}
           <div className="md:col-span-4 space-y-8">
-            <div className="bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
+            <div className="anim-fade-up d3 card-hover bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
               <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
                 <i className="fa-solid fa-address-book text-[#800020] text-xs" /> Informations
               </h3>
@@ -643,7 +664,7 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80 space-y-4">
+            <div className="anim-fade-up d4 card-hover bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80 space-y-4">
               <div className="flex justify-between items-center border-b border-gray-50 pb-3">
                 <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.15em]">
                   Réseaux & Documents
@@ -701,7 +722,7 @@ export default function ProfilePage() {
 
           {/* COLONNE DROITE */}
           <div className="md:col-span-8 space-y-8">
-            <section className="bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
+            <section className="anim-fade-up d3 card-hover bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
                   <i className="fa-solid fa-user text-[#800020]" /> À propos de moi
@@ -732,7 +753,7 @@ export default function ProfilePage() {
               )}
             </section>
 
-            <section className="bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
+            <section className="anim-fade-up d4 card-hover bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
                   <i className="fa-solid fa-briefcase text-[#800020]" /> Parcours Professionnel
@@ -800,7 +821,7 @@ export default function ProfilePage() {
               )}
             </section>
 
-            <section className="bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
+            <section className="anim-fade-up d5 card-hover bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
                   <i className="fa-solid fa-graduation-cap text-[#800020]" /> Formations & Cursus
@@ -856,7 +877,7 @@ export default function ProfilePage() {
               </div>
             </section>
 
-            <section className="bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
+            <section className="anim-fade-up d6 card-hover bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
                   <i className="fa-solid fa-heart text-[#800020]" /> Centres d'intérêt
