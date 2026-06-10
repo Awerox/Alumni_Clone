@@ -1,12 +1,9 @@
-// app/(frontend)/layout.tsx
+// src/app/(frontend)/layout.tsx
 import React from 'react'
 import type { Metadata } from 'next'
-import '@/app/(payload)/admin/importMap.js'  // garde si tu l'avais
 import Navbar from '@/components/Navbar'
 import MiniMessenger from '@/components/MiniMessenger'
-
-// ✅ Import du CSS global (contient le build Tailwind)
-import '../globals.css'
+import './globals.css'  // ✅ même dossier que layout.tsx
 
 export const metadata: Metadata = {
   title: 'Bessières Alumni | Réseau des anciens de l\'ENC',
@@ -16,7 +13,6 @@ export default function FrontendLayout({ children }: { children: React.ReactNode
   return (
     <html lang="fr">
       <head>
-        {/* Font Awesome */}
         <link
           rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
@@ -24,7 +20,7 @@ export default function FrontendLayout({ children }: { children: React.ReactNode
           crossOrigin="anonymous"
           referrerPolicy="no-referrer"
         />
-        {/* ✅ SUPPRIMÉ : cdn.tailwindcss.com — remplacé par le build local via globals.css */}
+        {/* ✅ CDN supprimé — Tailwind via build local (globals.css) */}
       </head>
       <body className="bg-gray-50 antialiased min-h-screen flex flex-col">
         <Navbar />

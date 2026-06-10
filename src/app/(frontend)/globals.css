@@ -1,21 +1,13 @@
-/* ✅ Directives Tailwind — OBLIGATOIRES pour le build local */
+/* ✅ Directives Tailwind — build local */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Styles globaux personnalisés */
-h1 {
-  color: #800020 !important;
-  text-decoration: underline !important;
-}
-
-/* Empêche les images de tuiles Leaflet d'être écrasées par les configurations max-w de Tailwind */
+/* Leaflet */
 .leaflet-container img {
   max-width: none !important;
   max-height: none !important;
 }
-
-/* Fluidité pour l'affichage de la carte */
 .leaflet-pane {
   z-index: 1 !important;
 }
