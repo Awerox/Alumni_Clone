@@ -10,6 +10,22 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET || '',
 })
 
+/** Slugifie un nom de fichier pour Cloudinary :
+ *  - retire l'extension
+ *  - remplace tout caractère non alphanumérique par un tiret
+ *  - collapse les tirets multiples
+ *  - limite à 60 chars pour éviter les URLs trop longues
+ */
+function slugifyFilename(name: string): string {
+  return name
+    .replace(/\.[^/.]+$/, '')           // retire l'extension
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')        // remplace espaces, accents, &, etc. par -
+    .replace(/^-+|-+$/g, '')            // retire les tirets en début/fin
+    .slice(0, 60)                        // limite la longueur
+    || 'file'                            // fallback si tout a été retiré
+}
+
 export async function POST(req: NextRequest) {
   try {
     const payload = await getPayload({ config: configPromise })
@@ -24,9 +40,13 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer())
     const ext = file.name.split('.').pop() || 'jpg'
     const timestamp = Date.now()
-    const baseName = file.name.replace(/\.[^/.]+$/, '')
-    const filename = `${baseName}-${timestamp}.${ext}`
-    const publicId = `media/${baseName}-${timestamp}`
+
+    // FIX CLÉ : slugifier le nom avant de construire public_id
+    // "Mob Psycho Exercise GIF - Discover & Share GIFs" → "mob-psycho-exercise-gif-discover-share-gifs"
+    const slugBase = slugifyFilename(file.name)
+    const filename = `${slugBase}-${timestamp}.${ext}`
+    const publicId = `media/${slugBase}-${timestamp}`   // aucun espace ni caractère interdit
+
     const mimeType = file.type
     const filesize = buffer.length
 
@@ -42,7 +62,7 @@ export async function POST(req: NextRequest) {
       stream.end(buffer)
     })
 
-    // 2. INSERT SQL direct
+    // 2. INSERT SQL direct (bypass Payload filesystem)
     const doc = await payload.db.drizzle.execute(
       `INSERT INTO media (alt, url, filename, mime_type, filesize, updated_at, created_at)
        VALUES ('${alt.replace(/'/g, "''")}', '${cloudinaryUrl}', '${filename.replace(/'/g, "''")}', '${mimeType}', ${filesize}, NOW(), NOW())
@@ -53,8 +73,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       doc: {
-        // FIX CLÉ : id retourné en Number — Payload relationship attend un entier,
-        // pas une string. C'était la cause du "field is invalid: Photo de profil".
         id: Number(row.id),
         alt: row.alt,
         url: row.url || cloudinaryUrl,
