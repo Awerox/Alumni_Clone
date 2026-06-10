@@ -7,9 +7,7 @@ import { notFound } from 'next/navigation'
 export const dynamic = 'force-dynamic'
 
 interface PageProps {
-  params: Promise<{
-    id: string
-  }>
+  params: Promise<{ id: string }>
 }
 
 export default async function PublicProfilePage({ params }: PageProps) {
@@ -17,73 +15,29 @@ export default async function PublicProfilePage({ params }: PageProps) {
   const payload = await getPayload({ config: configPromise })
 
   let targetUser: any = null
-
-  // 1. Récupération des données du membre sélectionné
   try {
-    targetUser = await payload.findByID({
-      collection: 'alumni',
-      id: id,
-      depth: 1,
-    })
-  } catch (error) {
-    console.error("Membre introuvable ou ID invalide:", error)
+    targetUser = await payload.findByID({ collection: 'alumni', id, depth: 1 })
+  } catch {
     notFound()
   }
-
-  if (!targetUser) {
-    notFound()
-  }
-
-  // Configuration des dictionnaires de correspondance (Mappers)
-  const remLabels: any = {
-    non_renseigne: 'Non renseigné',
-    stage_non_indemnise: 'Stage non-indemnisé',
-    stage_indemnise: 'Stage indemnisé',
-    moins_15k: '< 15k €',
-    '20_225k': '20-22,5K €',
-    '25_275k': '25-27,5K €',
-    '30_325k': '30-32,5K €',
-    '35-37,5K €': '35-37,5K €',
-    '40_45k': '40-45K €',
-    '45_50k': '45-50K €',
-    '50_55k': '50-55K €',
-    '60_65k': '60-65K €',
-    '70_75k': '70-75K €',
-  }
-
-  const expLabels: any = {
-    non_renseigne: 'Non renseigné',
-    '0_2_ans': '0-2 ans',
-    '2_4_ans': '2-4 ans',
-    '4_7_ans': '4-7 ans',
-    '7_10_ans': '7-10 ans',
-    plus_10_ans: '+ 10 ans',
-  }
+  if (!targetUser) notFound()
 
   const formatDiplome = (code?: string | null) => {
     if (!code) return 'Cursus non spécifié'
-    const mapping: { [key: string]: string } = {
-      bts_sio_slam: 'BTS SIO (SLAM)',
-      bts_sio_sisr: 'BTS SIO (SISR)',
-      bts_assurance: 'BTS Assurance',
-      bts_cg: 'BTS CG',
-      bts_communication: 'BTS Communication',
-      bts_ci: 'BTS Commerce International',
-      bts_gpme: 'BTS GPME',
-      bts_mco: 'BTS MCO',
-      bts_ndrc: 'BTS NDRC',
-      bts_sam: 'BTS SAM',
-      bts_tourisme: 'BTS Tourisme',
-      dcg: 'DCG',
+    const mapping: Record<string, string> = {
+      bts_sio_slam: 'BTS SIO (SLAM)', bts_sio_sisr: 'BTS SIO (SISR)',
+      bts_assurance: 'BTS Assurance', bts_cg: 'BTS CG',
+      bts_communication: 'BTS Communication', bts_ci: 'BTS Commerce International',
+      bts_gpme: 'BTS GPME', bts_mco: 'BTS MCO', bts_ndrc: 'BTS NDRC',
+      bts_sam: 'BTS SAM', bts_tourisme: 'BTS Tourisme', dcg: 'DCG',
     }
     return mapping[code] || code.replace(/_/g, ' ')
   }
 
   const avatarSrc =
     (typeof targetUser.photo === 'object' ? targetUser.photo?.url : null) ||
-    `https://ui-avatars.com/api/?name=${encodeURIComponent(targetUser.prenom || '')}+${encodeURIComponent(targetUser.nom || '')}&size=150&background=800020&color=fff`
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(targetUser.prenom || '')}+${encodeURIComponent(targetUser.nom || '')}&size=200&background=800020&color=fff`
 
-  // ✅ Dernière connexion
   const formatLastSeen = (dateStr?: string | null): string => {
     if (!dateStr) return 'Jamais connecté'
     const date = new Date(dateStr)
@@ -96,238 +50,319 @@ export default async function PublicProfilePage({ params }: PageProps) {
     if (diffH < 24) return `Vu il y a ${diffH}h`
     if (diffD === 1) return 'Vu hier'
     if (diffD < 7) return `Vu il y a ${diffD} jours`
-    if (diffD < 30) return `Vu il y a ${Math.floor(diffD / 7)} semaine${Math.floor(diffD / 7) > 1 ? 's' : ''}`
-    return `Vu le ${date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}`
+    if (diffD < 30) return `Vu il y a ${Math.floor(diffD / 7)} sem.`
+    return `Vu le ${date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}`
   }
+
   const lastSeenLabel = formatLastSeen(targetUser.lastSeen)
-  const isRecentlyOnline = targetUser.lastSeen &&
+  const isOnline = targetUser.lastSeen &&
     (Date.now() - new Date(targetUser.lastSeen).getTime()) < 5 * 60 * 1000
 
   return (
-    <div className="min-h-screen bg-[#F6F6FA] py-12 px-4 text-gray-800 antialiased selection:bg-gray-200 text-left font-sans">
-      <div className="max-w-5xl mx-auto space-y-8">
-        
-        {/* Bouton Retour à l'annuaire */}
-        <div className="mb-2">
-          <Link href="/directory" className="text-xs font-black uppercase text-gray-400 hover:text-[#800020] transition-colors flex items-center gap-1 tracking-wider">
-            ➔ Retour à l'annuaire
-          </Link>
-        </div>
+    <>
+      {/* ── Animations CSS globales ── */}
+      <style>{`
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(24px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to   { opacity: 1; }
+        }
+        @keyframes scaleIn {
+          from { opacity: 0; transform: scale(0.92); }
+          to   { opacity: 1; transform: scale(1); }
+        }
+        .anim-fade-up   { animation: fadeUp  0.5s ease both; }
+        .anim-fade-in   { animation: fadeIn  0.4s ease both; }
+        .anim-scale-in  { animation: scaleIn 0.4s ease both; }
+        .delay-1 { animation-delay: 0.05s; }
+        .delay-2 { animation-delay: 0.12s; }
+        .delay-3 { animation-delay: 0.20s; }
+        .delay-4 { animation-delay: 0.28s; }
+        .delay-5 { animation-delay: 0.36s; }
+        .delay-6 { animation-delay: 0.44s; }
+        .card-hover { transition: box-shadow 0.2s, transform 0.2s; }
+        .card-hover:hover { box-shadow: 0 8px 32px rgba(128,0,32,0.08); transform: translateY(-2px); }
+      `}</style>
 
-        {/* ── HEADER DU PROFIL PUBLIC RE-STYLISÉ SANS CHEVAUCHEMENT ── */}
-        <div className="bg-white rounded-3xl shadow-xl shadow-gray-200/50 border border-gray-100 overflow-hidden">
-          <div className="h-44 bg-[#800020] relative">
-            <div className="absolute inset-0 bg-[radial-gradient(#ffffff15_1px,transparent_1px)] [background-size:16px_16px] opacity-40" />
-          </div>
-          
-          {/* Ajustement de l'alignement vertical sur sm:items-center pour repousser le texte vers le bas */}
-          <div className="px-8 pb-8 flex flex-col sm:flex-row items-center sm:items-center -mt-16 sm:-mt-20 gap-6 relative z-10">
-            
-            {/* Photo de profil sans distorsion */}
-            <div className="w-[140px] h-[140px] rounded-3xl border-4 border-white shadow-2xl overflow-hidden bg-white flex-shrink-0 z-20 relative">
-              <img
-                src={avatarSrc}
-                className="w-full h-full absolute inset-0 object-cover object-center"
-                alt=""
-              />
-            </div>
+      <div className="min-h-screen bg-[#F4F4F8] text-gray-800 antialiased text-left font-sans">
 
-            {/* Zone Identité ajustée avec espacement interne (pt-4) pour éviter le débordement */}
-            <div className="flex-1 text-center sm:text-left pt-4 sm:pt-6 min-w-0 space-y-2">
-              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
-                <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-gray-900 leading-tight">
-                  {targetUser.prenom} {targetUser.nom}
-                </h1>
-                
-                {/* Alignement des badges d'états à côté du nom sans rupture */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="inline-block bg-gray-100 text-gray-700 font-black uppercase text-[9px] px-2.5 py-1 rounded-md tracking-wider">
-                    {targetUser.statut === 'alumni' ? 'Alumni' : 'Étudiant'} · Promo {targetUser.promotion || 'NC'}
-                  </span>
+        {/* ── HERO HEADER ── */}
+        <div className="relative bg-[#800020] overflow-hidden">
+          {/* Motif de fond */}
+          <div className="absolute inset-0 bg-[radial-gradient(#ffffff12_1px,transparent_1px)] [background-size:20px_20px]" />
+          <div className="absolute inset-0 bg-gradient-to-br from-[#800020] via-[#900025] to-[#600018]" />
+
+          <div className="relative max-w-5xl mx-auto px-6 pt-8 pb-0">
+            {/* Retour */}
+            <Link
+              href="/directory"
+              className="anim-fade-in inline-flex items-center gap-2 text-white/60 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors mb-8"
+            >
+              <i className="fa-solid fa-arrow-left text-[10px]" />
+              Annuaire
+            </Link>
+
+            {/* Contenu hero */}
+            <div className="flex flex-col sm:flex-row items-end gap-6 pb-0">
+              {/* Avatar */}
+              <div className="anim-scale-in flex-shrink-0 relative">
+                <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-2xl border-4 border-white/20 shadow-2xl overflow-hidden bg-white/10 translate-y-8">
+                  <img src={avatarSrc} alt="" className="w-full h-full object-cover object-center" />
+                </div>
+                {/* Indicateur en ligne */}
+                <span className={`absolute bottom-10 right-0 w-4 h-4 rounded-full border-2 border-[#800020] ${isOnline ? 'bg-emerald-400' : 'bg-gray-400'}`} />
+              </div>
+
+              {/* Infos */}
+              <div className="anim-fade-up delay-1 flex-1 pb-8 sm:pb-10 min-w-0">
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight">
+                    {targetUser.prenom} {targetUser.nom}
+                  </h1>
                   {targetUser.isMentor && (
-                    <span className="inline-flex items-center gap-1 bg-gradient-to-r from-amber-400 to-amber-500 text-white font-black uppercase text-[9px] px-2.5 py-1 rounded-md tracking-wider shadow-sm border border-amber-300/40">
-                      <i className="fa-solid fa-star text-[8px]" />
-                      Mentor
+                    <span className="inline-flex items-center gap-1 bg-amber-400 text-white font-black uppercase text-[9px] px-2.5 py-1 rounded-full tracking-wider shadow-sm">
+                      <i className="fa-solid fa-star text-[8px]" /> Mentor
                     </span>
                   )}
                 </div>
-              </div>
-              
-              <p className="text-sm text-gray-500 font-semibold leading-none">
-                {targetUser.poste && targetUser.entreprise
-                  ? `${targetUser.poste} @ ${targetUser.entreprise}`
-                  : 'École Nationale de Commerce · ENC Bessières'}
-              </p>
-              
-              {targetUser.ville && (
-                <p className="text-xs text-gray-400 font-medium flex items-center justify-center sm:justify-start gap-1">
-                  <i className="fa-solid fa-location-dot text-[#800020] text-[11px]" />
-                  {targetUser.ville}
-                </p>
-              )}
-              {/* ✅ Dernière connexion */}
-              <div className="flex items-center justify-center sm:justify-start gap-1.5 text-[10px] font-semibold text-gray-400 mt-1">
-                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${isRecentlyOnline ? 'bg-emerald-500 animate-pulse' : 'bg-gray-300'}`} />
-                {lastSeenLabel}
-              </div>
-            </div>
 
-            {/* Bouton de contact direct ré-aligné au centre du conteneur flex */}
-            <div className="pt-2 sm:pt-6 self-center sm:self-center">
-              <a
-                href={`mailto:${targetUser.email}`}
-                className="px-5 py-2.5 bg-gray-900 hover:bg-gray-800 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-colors shadow-sm flex items-center gap-2"
-              >
-                <i className="fa-regular fa-envelope" />
-                Contacter l'alumni
-              </a>
+                <p className="text-white/70 text-sm font-semibold mb-3">
+                  {targetUser.poste && targetUser.entreprise
+                    ? `${targetUser.poste} · ${targetUser.entreprise}`
+                    : 'École Nationale de Commerce · ENC Bessières'}
+                </p>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="bg-white/15 text-white/90 font-black uppercase text-[9px] px-2.5 py-1 rounded-full tracking-wider backdrop-blur-sm">
+                    {targetUser.statut === 'alumni' ? 'Alumni' : 'Étudiant'}
+                    {targetUser.promotion ? ` · Promo ${targetUser.promotion}` : ''}
+                  </span>
+                  {targetUser.ville && (
+                    <span className="flex items-center gap-1 text-white/60 text-[11px] font-semibold">
+                      <i className="fa-solid fa-location-dot text-white/40 text-[10px]" />
+                      {targetUser.ville}
+                    </span>
+                  )}
+                  <span className="flex items-center gap-1.5 text-[11px] font-semibold text-white/60">
+                    <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-white/30'}`} />
+                    {lastSeenLabel}
+                  </span>
+                </div>
+              </div>
+
+              {/* Bouton contact */}
+              <div className="anim-fade-up delay-2 pb-8 sm:pb-10 flex-shrink-0">
+                <a
+                  href={`mailto:${targetUser.email}`}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-[#800020] font-black rounded-xl text-xs uppercase tracking-wider hover:bg-gray-50 transition-all shadow-lg"
+                >
+                  <i className="fa-regular fa-envelope" />
+                  Contacter
+                </a>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Bandeau d'information Mentor */}
-        {targetUser.isMentor && (
-          <div className="p-4 bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200/60 rounded-2xl flex items-start gap-4 shadow-2xs">
-            <div className="w-10 h-10 rounded-xl bg-amber-400 flex items-center justify-center flex-shrink-0 shadow-sm">
-              <i className="fa-solid fa-star text-white text-sm" />
+        {/* Spacer pour l'avatar qui déborde */}
+        <div className="h-10" />
+
+        {/* ── CONTENU ── */}
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 pb-16 space-y-6">
+
+          {/* Bandeau mentor */}
+          {targetUser.isMentor && (
+            <div className="anim-fade-up delay-2 p-4 bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200/60 rounded-2xl flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-amber-400 flex items-center justify-center flex-shrink-0">
+                <i className="fa-solid fa-star text-white" />
+              </div>
+              <div>
+                <p className="text-xs font-black text-amber-800 uppercase tracking-wider">Membre Mentor</p>
+                <p className="text-xs text-amber-700/80 font-medium mt-0.5">
+                  {targetUser.prenom} est disponible pour accompagner les étudiants et jeunes alumni.
+                </p>
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-black text-amber-800 uppercase tracking-wider mb-0.5">
-                Membre Mentor
-              </p>
-              <p className="text-xs text-amber-700/80 font-medium leading-relaxed">
-                {targetUser.prenom} est disponible pour transmettre son expérience terrain et accompagner un camarade.
-              </p>
-            </div>
-          </div>
-        )}
+          )}
 
-        {/* ── GRILLE CONTENU DU PROFIL ── */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-          
-          {/* COLONNE GAUCHE : LIENS & RÉSEAUX */}
-          <div className="md:col-span-4 space-y-8">
-            <div className="bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
-              <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                <i className="fa-solid fa-link text-[#800020] text-xs" /> Réseaux & Portfolio
-              </h3>
-              {targetUser.socialLinks && targetUser.socialLinks.length > 0 ? (
-                <div className="space-y-2 pt-2">
-                  {targetUser.socialLinks.map((link: any, i: number) => (
-                    <a
-                      key={i}
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-3 p-3 bg-gray-50 hover:bg-gray-100/80 rounded-xl border border-gray-100 transition-colors group"
-                    >
-                      <div className="w-7 h-7 bg-white border border-gray-200 text-gray-700 rounded-lg flex items-center justify-center text-sm group-hover:text-[#800020]">
-                        <i className={link.icon} />
-                      </div>
-                      <span className="text-xs font-bold text-gray-700 truncate">{link.label}</span>
-                    </a>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-center text-xs text-gray-400 italic py-4">Aucun lien public partagé.</p>
-              )}
-            </div>
-          </div>
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
 
-          {/* COLONNE DROITE : BIO, EXPÉRIENCES & FORMATIONS */}
-          <div className="md:col-span-8 space-y-8">
-            
-            {/* Résumé / Biographie */}
-            <section className="bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
-              <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 mb-4">
-                <i className="fa-solid fa-user text-[#800020]" /> À propos de moi
-              </h3>
-              {targetUser.bio ? (
-                <div
-                  className="text-sm text-gray-600 leading-relaxed bg-gray-50 p-5 rounded-2xl border border-gray-100 min-h-[60px] prose prose-sm max-w-none break-words"
-                  dangerouslySetInnerHTML={{ __html: targetUser.bio }}
-                />
-              ) : (
-                <p className="text-xs text-gray-400 italic py-2">Ce membre n'a pas encore rédigé de résumé de profil.</p>
-              )}
-            </section>
+            {/* ── COLONNE GAUCHE ── */}
+            <div className="md:col-span-4 space-y-6">
 
-            {/* Parcours Professionnel */}
-            <section className="bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
-              <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 mb-6">
-                <i className="fa-solid fa-briefcase text-[#800020]" /> Parcours Professionnel
-              </h3>
-              {targetUser.experiences && targetUser.experiences.length > 0 ? (
-                <div className="space-y-4">
-                  {targetUser.experiences.map((exp: any, i: number) => (
-                    <div key={i} className="flex justify-between items-start p-4 bg-gray-50/50 rounded-2xl border border-gray-100">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-black text-gray-900 uppercase text-xs tracking-tight">{exp.poste}</p>
-                          {exp.typeContrat && <span className="bg-gray-200/80 text-gray-700 font-black text-[8px] px-1.5 py-0.5 rounded uppercase tracking-wide">{exp.typeContrat}</span>}
-                          {exp.isCurrent && <span className="bg-emerald-100 text-emerald-800 font-bold text-[8px] px-1.5 py-0.5 rounded uppercase">Actuel</span>}
+              {/* Réseaux & Portfolio */}
+              <div className="anim-fade-up delay-3 card-hover bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                  <i className="fa-solid fa-link text-[#800020] text-xs" /> Réseaux & Portfolio
+                </h3>
+                {targetUser.socialLinks?.length > 0 ? (
+                  <div className="space-y-2">
+                    {targetUser.socialLinks.map((link: any, i: number) => (
+                      <a key={i} href={link.url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-3 p-3 bg-gray-50 hover:bg-[#800020]/5 rounded-xl border border-gray-100 transition-colors group">
+                        <div className="w-7 h-7 bg-white border border-gray-200 text-gray-500 rounded-lg flex items-center justify-center text-sm group-hover:text-[#800020] group-hover:border-[#800020]/20 transition-colors">
+                          <i className={link.icon} />
                         </div>
-                        <p className="text-xs text-gray-600 font-bold">{exp.entreprise} {exp.localite && <span className="text-gray-400 font-medium ml-1">📍 {exp.localite}</span>}</p>
-                        <p className="text-[9px] text-gray-400 font-black uppercase tracking-wider">
-                          <i className="fa-regular fa-calendar-days mr-1" /> {exp.dateDebut} — {exp.isCurrent ? 'Présent' : exp.dateFin || '---'}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-gray-400 italic bg-gray-50 p-4 rounded-xl text-center">Aucune expérience professionnelle renseignée.</p>
-              )}
-            </section>
-
-            {/* Formations & Cursus */}
-            <section className="bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
-              <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 mb-6">
-                <i className="fa-solid fa-graduation-cap text-[#800020]" /> Formations & Cursus
-              </h3>
-              {targetUser.formations && targetUser.formations.length > 0 ? (
-                <div className="space-y-4">
-                  {targetUser.formations.map((form: any, i: number) => (
-                    <div key={i} className="flex justify-between items-start p-4 bg-gray-50/50 rounded-2xl border border-gray-100">
-                      <div className="flex gap-4">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-base shadow-inner ${form.isENC ? 'bg-[#800020] text-white' : 'bg-zinc-100 text-[#800020]'}`}>
-                          <i className={form.isENC ? 'fa-solid fa-award' : 'fa-solid fa-landmark'} />
-                        </div>
-                        <div>
-                          <p className="font-black text-gray-900 text-xs uppercase tracking-tight">{form.nom}</p>
-                          <p className="text-xs font-bold text-gray-400 uppercase">{form.etablissement} {form.campus ? ` • ${form.campus}` : form.localiteEtablissement ? ` • ${form.localiteEtablissement}` : ''}</p>
-                          <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider">Promotion : {form.annee}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-gray-400 italic bg-gray-50 p-4 rounded-xl text-center">Aucun cursus scolaire partagé.</p>
-              )}
-            </section>
-
-            {/* Centres d'intérêt */}
-            <section className="bg-white p-6 rounded-3xl shadow-xl shadow-gray-200/40 border border-gray-100/80">
-              <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 mb-4">
-                <i className="fa-solid fa-heart text-[#800020]" /> Centres d'intérêt
-              </h3>
-              <div className="flex flex-wrap gap-2.5">
-                {targetUser.interets && targetUser.interets.length > 0 ? (
-                  targetUser.interets.map((int: any, i: number) => (
-                    <div key={i} className="px-3 py-1.5 bg-gray-50 text-gray-800 border border-gray-100 rounded-xl font-bold text-[9px] uppercase">
-                      {int.nom}
-                    </div>
-                  ))
+                        <span className="text-xs font-bold text-gray-600 truncate group-hover:text-gray-900 transition-colors">{link.label}</span>
+                        <i className="fa-solid fa-arrow-up-right-from-square text-[9px] text-gray-300 ml-auto group-hover:text-[#800020] transition-colors" />
+                      </a>
+                    ))}
+                  </div>
                 ) : (
-                  <p className="text-gray-400 text-xs italic">Aucun centre d'intérêt renseigné.</p>
+                  <p className="text-center text-xs text-gray-400 italic py-4">Aucun lien public partagé.</p>
                 )}
               </div>
-            </section>
 
+              {/* Infos rapides */}
+              {(targetUser.diplome || targetUser.promotion || targetUser.ville) && (
+                <div className="anim-fade-up delay-4 card-hover bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                  <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                    <i className="fa-solid fa-circle-info text-[#800020] text-xs" /> Informations
+                  </h3>
+                  <div className="space-y-3">
+                    {targetUser.diplome && (
+                      <div className="flex items-start gap-3">
+                        <div className="w-7 h-7 bg-[#800020]/8 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <i className="fa-solid fa-graduation-cap text-[#800020] text-[10px]" />
+                        </div>
+                        <div>
+                          <p className="text-[9px] font-black text-gray-400 uppercase tracking-wide">Diplôme</p>
+                          <p className="text-xs font-bold text-gray-700">{formatDiplome(targetUser.diplome)}</p>
+                        </div>
+                      </div>
+                    )}
+                    {targetUser.ville && (
+                      <div className="flex items-start gap-3">
+                        <div className="w-7 h-7 bg-[#800020]/8 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <i className="fa-solid fa-location-dot text-[#800020] text-[10px]" />
+                        </div>
+                        <div>
+                          <p className="text-[9px] font-black text-gray-400 uppercase tracking-wide">Localisation</p>
+                          <p className="text-xs font-bold text-gray-700">{targetUser.ville}</p>
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex items-start gap-3">
+                      <div className="w-7 h-7 bg-[#800020]/8 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <i className="fa-solid fa-clock text-[#800020] text-[10px]" />
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-wide">Dernière connexion</p>
+                        <p className="text-xs font-bold text-gray-700">{lastSeenLabel}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ── COLONNE DROITE ── */}
+            <div className="md:col-span-8 space-y-6">
+
+              {/* Bio */}
+              <section className="anim-fade-up delay-3 card-hover bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 mb-4">
+                  <i className="fa-solid fa-user text-[#800020]" /> À propos
+                </h3>
+                {targetUser.bio ? (
+                  <div
+                    className="text-sm text-gray-600 leading-relaxed bg-gray-50 p-5 rounded-2xl border border-gray-100 prose prose-sm max-w-none break-words"
+                    dangerouslySetInnerHTML={{ __html: targetUser.bio }}
+                  />
+                ) : (
+                  <p className="text-xs text-gray-400 italic py-2">Ce membre n'a pas encore rédigé de présentation.</p>
+                )}
+              </section>
+
+              {/* Expériences */}
+              <section className="anim-fade-up delay-4 card-hover bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 mb-5">
+                  <i className="fa-solid fa-briefcase text-[#800020]" /> Parcours professionnel
+                </h3>
+                {targetUser.experiences?.length > 0 ? (
+                  <div className="space-y-3">
+                    {targetUser.experiences.map((exp: any, i: number) => (
+                      <div key={i} className="flex gap-4 p-4 bg-gray-50/60 rounded-2xl border border-gray-100 hover:border-[#800020]/15 transition-colors">
+                        <div className="w-10 h-10 rounded-xl bg-[#800020]/8 flex items-center justify-center flex-shrink-0">
+                          <i className="fa-solid fa-building text-[#800020] text-sm" />
+                        </div>
+                        <div className="flex-1 min-w-0 space-y-0.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-black text-gray-900 uppercase text-xs tracking-tight">{exp.poste}</p>
+                            {exp.typeContrat && (
+                              <span className="bg-gray-200/80 text-gray-600 font-black text-[8px] px-1.5 py-0.5 rounded uppercase">{exp.typeContrat}</span>
+                            )}
+                            {exp.isCurrent && (
+                              <span className="bg-emerald-100 text-emerald-700 font-black text-[8px] px-1.5 py-0.5 rounded uppercase">Actuel</span>
+                            )}
+                          </div>
+                          <p className="text-xs font-semibold text-gray-600">
+                            {exp.entreprise}
+                            {exp.localite && <span className="text-gray-400 ml-1.5">· {exp.localite}</span>}
+                          </p>
+                          <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wide">
+                            {exp.dateDebut} → {exp.isCurrent ? 'Présent' : exp.dateFin || '—'}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400 italic text-center py-4">Aucune expérience renseignée.</p>
+                )}
+              </section>
+
+              {/* Formations */}
+              <section className="anim-fade-up delay-5 card-hover bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 mb-5">
+                  <i className="fa-solid fa-graduation-cap text-[#800020]" /> Formations & Cursus
+                </h3>
+                {targetUser.formations?.length > 0 ? (
+                  <div className="space-y-3">
+                    {targetUser.formations.map((form: any, i: number) => (
+                      <div key={i} className="flex gap-4 p-4 bg-gray-50/60 rounded-2xl border border-gray-100 hover:border-[#800020]/15 transition-colors">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${form.isENC ? 'bg-[#800020] text-white' : 'bg-gray-100 text-[#800020]'}`}>
+                          <i className={form.isENC ? 'fa-solid fa-award' : 'fa-solid fa-landmark'} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-black text-gray-900 text-xs uppercase tracking-tight">{form.nom}</p>
+                          <p className="text-xs font-semibold text-gray-400 uppercase mt-0.5">
+                            {form.etablissement}
+                            {form.campus ? ` · ${form.campus}` : ''}
+                          </p>
+                          <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider">Promo {form.annee}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400 italic text-center py-4">Aucun cursus partagé.</p>
+                )}
+              </section>
+
+              {/* Centres d'intérêt */}
+              {targetUser.interets?.length > 0 && (
+                <section className="anim-fade-up delay-6 card-hover bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                  <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2 mb-4">
+                    <i className="fa-solid fa-heart text-[#800020]" /> Centres d'intérêt
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {targetUser.interets.map((int: any, i: number) => (
+                      <span key={i} className="px-3 py-1.5 bg-[#800020]/6 text-[#800020] border border-[#800020]/12 rounded-xl font-black text-[9px] uppercase tracking-wider hover:bg-[#800020]/10 transition-colors cursor-default">
+                        {int.nom}
+                      </span>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   )
 }
