@@ -184,12 +184,13 @@ export async function GET(
         data: {
           email,
           prenom,
-          nom: nom || prenom, // ✅ jamais vide (required: true dans Alumni.ts)
+          nom: nom || prenom,
           password: stablePassword,
           statut: 'etudiant',
           [fieldToMatch]: providerId,
+          lastSeen: new Date().toISOString(),
           ...(photoToAssign ? { photo: photoToAssign } : {}),
-        },
+        } as any,
       })
       console.log(`[OAuth/${provider}] ✅ Nouveau compte créé id=${targetUser.id}`)
     } else {
@@ -199,8 +200,9 @@ export async function GET(
         overrideAccess: true,
         data: {
           [fieldToMatch]: providerId,
+          lastSeen: new Date().toISOString(),
           ...(photoToAssign && !targetUser!.photo ? { photo: photoToAssign } : {}),
-        },
+        } as any,
       })
       console.log(`[OAuth/${provider}] ✅ Compte existant lié id=${targetUser.id}`)
     }

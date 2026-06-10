@@ -1,6 +1,4 @@
 // app/api/alumni/login/route.ts
-// Redirige vers la route native Payload pour le login email/mdp
-
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
@@ -18,7 +16,6 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Login via Payload local — pas de fetch interne
     const result = await payload.login({
       collection: 'alumni',
       data: { email, password },
@@ -31,12 +28,21 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // ✅ Mettre à jour lastSeen en arrière-plan
+    if (result.user?.id) {
+      payload.update({
+        collection: 'alumni',
+        id: result.user.id,
+        overrideAccess: true,
+        data: { lastSeen: new Date().toISOString() } as any,
+      }).catch((e: any) => console.error('[lastSeen login]', e))
+    }
+
     const response = NextResponse.json({
       token: result.token,
       user: result.user,
     })
 
-    // Pose le cookie de session
     response.cookies.set('payload-alumni-token', result.token, {
       path: '/',
       httpOnly: true,
