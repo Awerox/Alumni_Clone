@@ -95,7 +95,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
           <div className="absolute inset-0 bg-[radial-gradient(#ffffff12_1px,transparent_1px)] [background-size:20px_20px]" />
           <div className="absolute inset-0 bg-gradient-to-br from-[#800020] via-[#900025] to-[#600018]" />
 
-          <div className="relative max-w-5xl mx-auto px-6 pt-8 pb-0">
+          <div className="relative max-w-5xl mx-auto px-6 pt-8 pb-2">
             {/* Retour */}
             <Link
               href="/directory"
@@ -106,10 +106,10 @@ export default async function PublicProfilePage({ params }: PageProps) {
             </Link>
 
             {/* Contenu hero */}
-            <div className="flex flex-col sm:flex-row items-end gap-6 pb-0">
+            <div className="flex flex-col sm:flex-row items-end gap-6 pb-2">
               {/* Avatar */}
               <div className="anim-scale-in flex-shrink-0 relative">
-                <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-2xl border-4 border-white/20 shadow-2xl overflow-hidden bg-white/10 translate-y-8">
+                <div className="w-36 h-36 sm:w-40 sm:h-40 rounded-2xl border-4 border-white/20 shadow-2xl overflow-hidden bg-white/10 translate-y-10">
                   <img src={avatarSrc} alt="" className="w-full h-full object-cover object-center" />
                 </div>
                 {/* Indicateur en ligne */}
@@ -168,7 +168,7 @@ export default async function PublicProfilePage({ params }: PageProps) {
         </div>
 
         {/* Spacer pour l'avatar qui déborde */}
-        <div className="h-10" />
+        <div className="h-14" />
 
         {/* ── CONTENU ── */}
         <div className="max-w-5xl mx-auto px-4 sm:px-6 pb-16 space-y-6">
