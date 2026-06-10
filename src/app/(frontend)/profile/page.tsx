@@ -466,7 +466,11 @@ export default function ProfilePage() {
         setStep(1)
         setTempData({})
         setErrorMessage(null)
-        fetchProfile()
+        // ✅ FIX C : si la photo vient d'être mise à jour, vider savedAvatar
+        // pour que le prochain render lise user.photo.url (URL Cloudinary fraîche)
+        // plutôt que l'ancien blob local
+        if ('photo' in updatedFields) setSavedAvatar(null)
+        await fetchProfile()
       }
     } catch (err) {
       console.error(err)

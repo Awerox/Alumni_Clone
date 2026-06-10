@@ -23,13 +23,16 @@ export async function POST(req: NextRequest) {
 
     const buffer = Buffer.from(await file.arrayBuffer())
     const ext = file.name.split('.').pop() || 'jpg'
-const filename = `${file.name.replace(/\.[^/.]+$/, '')}-${Date.now()}.${ext}`
+    // ✅ FIX 1 : timestamp unique calculé une seule fois
+    const timestamp = Date.now()
+    const baseName = file.name.replace(/\.[^/.]+$/, '')
+    const filename = `${baseName}-${timestamp}.${ext}`
+    const publicId = `media/${baseName}-${timestamp}` // même timestamp, pas de doublon
     const mimeType = file.type
     const filesize = buffer.length
 
-    // 1. Upload vers Cloudinary d'abord
+    // 1. Upload vers Cloudinary
     const cloudinaryUrl = await new Promise<string>((resolve, reject) => {
-      const publicId = `media/${filename.replace(/\.[^/.]+$/, '')}-${Date.now()}`
       const stream = cloudinary.uploader.upload_stream(
         { resource_type: 'auto', public_id: publicId, overwrite: false },
         (error, result) => {
@@ -40,20 +43,19 @@ const filename = `${file.name.replace(/\.[^/.]+$/, '')}-${Date.now()}.${ext}`
       stream.end(buffer)
     })
 
-    // 2. Créer le doc Media dans Payload SANS passer le fichier
-    // On injecte directement l'URL Cloudinary via SQL pour contourner
-    // le système de fichiers local de Payload
+    // 2. INSERT SQL direct (bypass Payload filesystem)
     const doc = await payload.db.drizzle.execute(
-  `INSERT INTO media (alt, url, filename, mime_type, filesize, updated_at, created_at)
-   VALUES ('${alt.replace(/'/g, "''")}', '${cloudinaryUrl}', '${filename.replace(/'/g, "''")}', '${mimeType}', ${filesize}, NOW(), NOW())
-   RETURNING id, alt, url, filename, mime_type, filesize`
-) as any
+      `INSERT INTO media (alt, url, filename, mime_type, filesize, updated_at, created_at)
+       VALUES ('${alt.replace(/'/g, "''")}', '${cloudinaryUrl}', '${filename.replace(/'/g, "''")}', '${mimeType}', ${filesize}, NOW(), NOW())
+       RETURNING id, alt, url, filename, mime_type, filesize`
+    ) as any
 
     const row = doc.rows?.[0] || doc[0]
 
     return NextResponse.json({
       doc: {
-        id: row.id,
+        // ✅ FIX 2 : id retourné en string pour compatibilité Payload relationship
+        id: String(row.id),
         alt: row.alt,
         url: row.url || cloudinaryUrl,
         filename: row.filename,
