@@ -499,7 +499,7 @@ export default function EditGroupPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     async function fetchGroup() {
       try {
-        const res = await fetch(`/api/groups/${params.id}?depth=1`)
+        const res = await fetch(`/api/groups/${params.id}?depth=1`, { credentials: 'include' })
         if (!res.ok) throw new Error('Groupe introuvable')
         const data: GroupData = await res.json()
 
@@ -560,7 +560,7 @@ export default function EditGroupPage({ params }: { params: { id: string } }) {
   async function uploadMedia(blob: Blob, filename: string): Promise<string> {
     const formData = new FormData()
     formData.append('file', blob, filename)
-    const res = await fetch('/api/media', { method: 'POST', body: formData })
+    const res = await fetch('/api/media', { method: 'POST', body: formData, credentials: 'include' })
     if (!res.ok) throw new Error('Erreur lors de l\'upload de l\'image')
     const data = await res.json()
     return data.doc?.id ?? data.id
@@ -600,6 +600,7 @@ export default function EditGroupPage({ params }: { params: { id: string } }) {
 
       const res = await fetch(`/api/groups/${params.id}`, {
         method: 'PATCH',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
@@ -732,14 +733,24 @@ export default function EditGroupPage({ params }: { params: { id: string } }) {
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Description</label>
                 <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20 transition-colors">
                   <div className="flex items-center gap-1 px-3 py-2 bg-gray-50 border-b border-gray-100">
-                    {['B', 'I', 'U'].map((f) => (
+                    {([
+                      { cmd: 'bold', label: 'B', title: 'Gras' },
+                      { cmd: 'italic', label: 'I', title: 'Italique' },
+                      { cmd: 'underline', label: 'U', title: 'Souligné' },
+                    ] as const).map(({ cmd, label, title }) => (
                       <button
-                        key={f}
+                        key={cmd}
                         type="button"
+                        title={title}
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          document.execCommand(cmd, false)
+                          const el = document.querySelector('[contenteditable]') as HTMLDivElement
+                          if (el) setDescription(el.innerHTML)
+                        }}
                         className="rounded px-2 py-1 text-xs font-bold text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors"
-                        title={f}
                       >
-                        {f}
+                        {label}
                       </button>
                     ))}
                     <div className="w-px h-4 bg-gray-200 mx-1" />
@@ -753,12 +764,12 @@ export default function EditGroupPage({ params }: { params: { id: string } }) {
                       </button>
                     ))}
                   </div>
-                  <textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    rows={4}
-                    placeholder="Décrivez l'objectif et la communauté de ce groupe…"
-                    className="w-full px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 bg-white outline-none resize-none"
+                  <div
+                    contentEditable
+                    suppressContentEditableWarning
+                    onInput={(e) => setDescription((e.currentTarget as HTMLDivElement).innerHTML)}
+                    className="w-full px-3 py-2.5 text-sm text-gray-900 bg-white outline-none min-h-[100px] prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{ __html: description }}
                   />
                 </div>
               </div>

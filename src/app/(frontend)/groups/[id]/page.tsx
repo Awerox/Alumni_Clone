@@ -373,9 +373,10 @@ export default async function GroupDetailPage({
                 <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400 mb-3">
                   À propos
                 </h2>
-                <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
-                  {group.description}
-                </p>
+                <div
+                  className="text-gray-700 leading-relaxed prose prose-sm max-w-none"
+                  dangerouslySetInnerHTML={{ __html: group.description }}
+                />
               </div>
             )}
 
