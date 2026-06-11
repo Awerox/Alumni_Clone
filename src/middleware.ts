@@ -1,6 +1,12 @@
 // middleware.ts
 import { NextRequest, NextResponse } from 'next/server'
 
+// Routes qui nécessitent une connexion
+const PROTECTED_PATTERNS = [
+  /^\/groups\/new$/,
+  /^\/groups\/[^\/]+\/edit$/,
+]
+
 export function middleware(req: NextRequest) {
   // ✅ Ne pas interférer avec les uploads multipart
   const contentType = req.headers.get('content-type') || ''
@@ -8,9 +14,20 @@ export function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
-  const response = NextResponse.next()
+  const { pathname } = req.nextUrl
   const alumniToken = req.cookies.get('payload-alumni-token')?.value
   const nativeToken = req.cookies.get('payload-token')?.value
+  const isAuthenticated = !!(alumniToken || nativeToken)
+
+  // 🔒 Redirection vers /login si route protégée et non connecté
+  if (PROTECTED_PATTERNS.some((p) => p.test(pathname)) && !isAuthenticated) {
+    const loginUrl = req.nextUrl.clone()
+    loginUrl.pathname = '/login'
+    loginUrl.searchParams.set('redirect', pathname)
+    return NextResponse.redirect(loginUrl)
+  }
+
+  const response = NextResponse.next()
 
   if (alumniToken && !nativeToken) {
     response.cookies.set('payload-token', alumniToken, {

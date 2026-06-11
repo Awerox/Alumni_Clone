@@ -1,6 +1,15 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+// Style pour le placeholder du contenteditable (injecté une fois côté client)
+const EDITOR_PLACEHOLDER_STYLE = `
+  [contenteditable][data-placeholder]:empty:before {
+    content: attr(data-placeholder);
+    color: #9ca3af;
+    pointer-events: none;
+  }
+`
+
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Cropper from 'react-easy-crop'
@@ -481,6 +490,17 @@ function ImageUploadField({
 export default function CreateGroupPage() {
   const router = useRouter()
 
+  // Injecte le style placeholder pour le contenteditable
+  useEffect(() => {
+    const id = 'enc-editor-style'
+    if (!document.getElementById(id)) {
+      const style = document.createElement('style')
+      style.id = id
+      style.textContent = EDITOR_PLACEHOLDER_STYLE
+      document.head.appendChild(style)
+    }
+  }, [])
+
   // Champs texte
   const [titre, setTitre] = useState('')
   const [categorie, setCategorie] = useState('')
@@ -507,11 +527,60 @@ export default function CreateGroupPage() {
   const [restrictCategories, setRestrictCategories] = useState<string[]>([])
   const [restrictPromotions, setRestrictPromotions] = useState<string[]>([])
 
+  // Slug
+  const [slugEdited, setSlugEdited] = useState(false)
+  const [customSlug, setCustomSlug] = useState('')
+  const [slugError, setSlugError] = useState<string | null>(null)
+  const [slugChecking, setSlugChecking] = useState(false)
+  const slugCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const titleCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   // Soumission
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const slug = slugify(titre)
+  // Slug calculé : auto depuis titre tant que non édité manuellement
+  const slug = slugEdited ? customSlug : slugify(titre)
+
+  // Vérifie l'unicité du slug
+  const checkSlug = useCallback(async (value: string) => {
+    if (!value) return
+    setSlugChecking(true)
+    setSlugError(null)
+    try {
+      const res = await fetch(
+        `/api/groups?where[slug][equals]=${encodeURIComponent(value)}&limit=1`,
+      )
+      const data = await res.json()
+      if ((data.totalDocs ?? data.docs?.length ?? 0) > 0) {
+        setSlugError('Ce slug est déjà utilisé par un autre groupe.')
+      }
+    } catch {
+      // silencieux
+    } finally {
+      setSlugChecking(false)
+    }
+  }, [])
+
+  const handleSlugChange = (value: string) => {
+    const clean = value.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/--+/g, '-').replace(/^-|-$/g, '')
+    setCustomSlug(clean)
+    setSlugEdited(true)
+    setSlugError(null)
+    if (slugCheckTimer.current) clearTimeout(slugCheckTimer.current)
+    slugCheckTimer.current = setTimeout(() => checkSlug(clean), 500)
+  }
+
+  const handleTitreChange = (value: string) => {
+    setTitre(value)
+    if (!slugEdited) {
+      const auto = slugify(value)
+      setSlugError(null)
+      if (titleCheckTimer.current) clearTimeout(titleCheckTimer.current)
+      titleCheckTimer.current = setTimeout(() => checkSlug(auto), 600)
+    }
+  }
+
 
   // ── Gestion des images ───────────────────────────────────
   function openCrop(type: 'miniature' | 'banniere', file: File) {
@@ -559,6 +628,8 @@ export default function CreateGroupPage() {
     setError(null)
 
     if (!titre.trim()) { setError('Le titre est obligatoire.'); return }
+    if (slugError) { setError('Le slug est déjà utilisé, veuillez en choisir un autre.'); return }
+    if (!slug) { setError('Le slug est obligatoire.'); return }
     if (!miniatureBlob) { setError('La miniature est obligatoire.'); return }
     if (!banniereBlob) { setError("L'image d'en-tête est obligatoire."); return }
 
@@ -652,7 +723,7 @@ export default function CreateGroupPage() {
                   <input
                     type="text"
                     value={titre}
-                    onChange={(e) => setTitre(e.target.value)}
+                    onChange={(e) => handleTitreChange(e.target.value)}
                     placeholder="Nom du groupe…"
                     required
                     className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-colors"
@@ -661,14 +732,39 @@ export default function CreateGroupPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
                     Slug
-                    <span className="ml-1.5 text-xs text-gray-400 font-normal">auto-généré</span>
+                    <span className="ml-1.5 text-xs text-gray-400 font-normal">personnalisable</span>
                   </label>
-                  <input
-                    type="text"
-                    value={slug}
-                    disabled
-                    className="w-full rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5 text-sm text-gray-400 font-mono cursor-not-allowed"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={slug}
+                      onChange={(e) => handleSlugChange(e.target.value)}
+                      placeholder="mon-groupe"
+                      className={`w-full rounded-xl border px-3 py-2.5 text-sm font-mono shadow-sm outline-none transition-colors pr-8 ${
+                        slugError
+                          ? 'border-red-400 bg-red-50 focus:ring-2 focus:ring-red-400/20'
+                          : 'border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20'
+                      }`}
+                    />
+                    <div className="absolute inset-y-0 right-2.5 flex items-center pointer-events-none">
+                      {slugChecking && (
+                        <div className="h-3.5 w-3.5 rounded-full border-2 border-indigo-400 border-t-transparent animate-spin" />
+                      )}
+                      {!slugChecking && !slugError && slug && (
+                        <svg className="h-4 w-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                        </svg>
+                      )}
+                      {!slugChecking && slugError && (
+                        <svg className="h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+                  {slugError && (
+                    <p className="mt-1 text-xs text-red-600">{slugError}</p>
+                  )}
                 </div>
               </div>
 
@@ -696,29 +792,74 @@ export default function CreateGroupPage() {
                   Description <span className="text-red-500">*</span>
                 </label>
                 <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20 transition-colors">
-                  {/* Barre d'outils décorative */}
+                  {/* Barre d'outils fonctionnelle */}
                   <div className="flex items-center gap-1 px-3 py-2 bg-gray-50 border-b border-gray-100">
-                    {['B', 'I', 'U'].map((f) => (
-                      <button key={f} type="button"
-                        className="rounded px-2 py-1 text-xs font-bold text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors"
-                      >{f}</button>
+                    {([
+                      { cmd: 'bold', label: 'B', style: 'font-bold', title: 'Gras' },
+                      { cmd: 'italic', label: 'I', style: 'italic', title: 'Italique' },
+                      { cmd: 'underline', label: 'U', style: 'underline', title: 'Souligné' },
+                    ] as const).map(({ cmd, label, style, title }) => (
+                      <button
+                        key={cmd}
+                        type="button"
+                        title={title}
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          document.execCommand(cmd, false)
+                          const el = document.getElementById('desc-editor')
+                          if (el) setDescription(el.innerHTML)
+                        }}
+                        className={`rounded px-2 py-1 text-xs text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors ${style}`}
+                      >
+                        {label}
+                      </button>
                     ))}
                     <div className="w-px h-4 bg-gray-200 mx-1" />
-                    {['≡', '•', '№'].map((f) => (
-                      <button key={f} type="button"
-                        className="rounded px-2 py-1 text-sm text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors"
-                      >{f}</button>
-                    ))}
+                    <button
+                      type="button"
+                      title="Liste ordonnée"
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        document.execCommand('insertOrderedList', false)
+                        const el = document.getElementById('desc-editor')
+                        if (el) setDescription(el.innerHTML)
+                      }}
+                      className="rounded px-2 py-1 text-sm text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors"
+                    >≡</button>
+                    <button
+                      type="button"
+                      title="Liste à puces"
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        document.execCommand('insertUnorderedList', false)
+                        const el = document.getElementById('desc-editor')
+                        if (el) setDescription(el.innerHTML)
+                      }}
+                      className="rounded px-2 py-1 text-sm text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors"
+                    >•</button>
                   </div>
-                  <textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    rows={4}
-                    required
-                    placeholder="Décrivez l'objectif et la communauté de ce groupe…"
-                    className="w-full px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 bg-white outline-none resize-none"
+                  <div
+                    id="desc-editor"
+                    contentEditable
+                    suppressContentEditableWarning
+                    onInput={(e) => setDescription((e.currentTarget as HTMLDivElement).innerHTML)}
+                    className="w-full px-3 py-2.5 text-sm text-gray-900 bg-white outline-none min-h-[100px] prose prose-sm max-w-none"
+                    data-placeholder="Décrivez l'objectif et la communauté de ce groupe…"
+                    style={{ minHeight: 100 }}
                   />
                 </div>
+                {/* Champ caché pour la validation HTML5 */}
+                {!description.replace(/<[^>]*>/g, '').trim() && (
+                  <input
+                    type="text"
+                    required
+                    value=""
+                    onChange={() => {}}
+                    className="sr-only"
+                    tabIndex={-1}
+                    aria-hidden="true"
+                  />
+                )}
               </div>
             </div>
 
@@ -761,7 +902,7 @@ export default function CreateGroupPage() {
                   {
                     value: true,
                     label: 'Groupe public',
-                    desc: 'Visible et rejoignable par tous',
+                    desc: 'Le groupe peut être rejoint par n\'importe quel membre du réseau.',
                     icon: (
                       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418" />
@@ -771,7 +912,7 @@ export default function CreateGroupPage() {
                   {
                     value: false,
                     label: 'Groupe privé',
-                    desc: 'Contenu réservé aux membres acceptés',
+                    desc: 'Les membres peuvent demander à rejoindre, mais le contenu est restreint aux membres acceptés.',
                     icon: (
                       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />

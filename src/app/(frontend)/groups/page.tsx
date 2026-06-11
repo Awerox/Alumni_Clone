@@ -2,8 +2,8 @@ import React from 'react'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import Link from 'next/link'
-import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
+import { getAuthUser } from '@/lib/auth'
 import GroupsFilters from './GroupsFilters'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -125,8 +125,31 @@ export default async function GroupsPage({
   const payload = await getPayload({ config: configPromise })
 
   // Auth
-  const headersList = await headers()
-  const { user } = await payload.auth({ headers: headersList as unknown as Headers })
+  const { user } = await getAuthUser()
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center p-8 bg-white border border-gray-200 rounded-3xl shadow-sm max-w-sm">
+          <div className="mx-auto h-14 w-14 rounded-2xl bg-indigo-50 flex items-center justify-center mb-4">
+            <svg className="h-7 w-7 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+            </svg>
+          </div>
+          <p className="text-sm font-semibold text-gray-800">Accès réservé aux membres</p>
+          <p className="text-xs text-gray-400 mt-1 mb-5">
+            Connectez-vous pour accéder aux groupes de la communauté ENC.
+          </p>
+          <Link
+            href="/login?redirect=/groups"
+            className="inline-flex items-center justify-center w-full gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors shadow-sm"
+          >
+            Se connecter
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   const currentTab = searchParams.tab ?? 'tous'
   const searchQuery = searchParams.q?.toLowerCase().trim() ?? ''

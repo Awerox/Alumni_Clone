@@ -248,6 +248,7 @@ export interface Alumnus {
   isMentor?: boolean | null;
   linkedin?: string | null;
   instagram?: string | null;
+  lastSeen?: string | null;
   subGoogle?: string | null;
   subLinkedin?: string | null;
   updatedAt: string;
@@ -278,6 +279,9 @@ export interface Media {
   alt?: string | null;
   updatedAt: string;
   createdAt: string;
+  /**
+   * URL Cloudinary (auto)
+   */
   url?: string | null;
   thumbnailURL?: string | null;
   filename?: string | null;
@@ -711,6 +715,7 @@ export interface AlumniSelect<T extends boolean = true> {
   isMentor?: T;
   linkedin?: T;
   instagram?: T;
+  lastSeen?: T;
   subGoogle?: T;
   subLinkedin?: T;
   updatedAt?: T;
