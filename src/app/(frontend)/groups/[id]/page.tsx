@@ -162,6 +162,36 @@ export default async function GroupDetailPage({
   const owner = isCreator || isAdmin
 
   const members = (group.membres ?? []) as AlumniMember[]
+
+  // ── Contrôle d'accès groupe privé ────────────────────────────────────────
+  if (!group.isPublic) {
+    const isMember = currentUserId && members.some(
+      (m) => String(typeof m === 'object' ? (m as AlumniMember).id : m) === currentUserId
+    )
+    if (!isCreator && !isAdmin && !isMember) {
+      return (
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+          <div className="text-center p-8 bg-white border border-gray-200 rounded-3xl shadow-sm max-w-sm w-full">
+            <div className="mx-auto h-14 w-14 rounded-2xl bg-red-50 flex items-center justify-center mb-4">
+              <svg className="h-7 w-7 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+              </svg>
+            </div>
+            <p className="text-sm font-semibold text-gray-800 mb-1">Groupe privé</p>
+            <p className="text-xs text-gray-400 mb-5">
+              Ce groupe est réservé à ses membres. Contactez le créateur pour rejoindre.
+            </p>
+            <Link
+              href="/groups"
+              className="inline-flex items-center justify-center w-full gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors shadow-sm"
+            >
+              ← Retour aux groupes
+            </Link>
+          </div>
+        </div>
+      )
+    }
+  }
   const creatorObj = typeof group.createur === 'object' && group.createur !== null
     ? (group.createur as AlumniMember)
     : null
@@ -205,8 +235,9 @@ export default async function GroupDetailPage({
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header identité */}
-        <div className="relative -mt-12 mb-6 flex items-end gap-4">
-          <div className="flex-shrink-0 h-24 w-24 rounded-2xl ring-4 ring-white shadow-lg overflow-hidden bg-white">
+        {/* Miniature qui sort de la bannière */}
+        <div className="relative -mt-12 mb-4 flex items-end gap-4">
+          <div className="flex-shrink-0 h-24 w-24 rounded-2xl ring-4 ring-white shadow-lg overflow-hidden bg-white flex-none">
             {group.miniature?.url ? (
               <img src={group.miniature.url} alt={group.miniature.alt ?? group.titre} className="h-full w-full object-cover" />
             ) : (
@@ -217,23 +248,24 @@ export default async function GroupDetailPage({
               </div>
             )}
           </div>
-          <div className="pb-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-2 mb-1">
-              {catLabel && (
-                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${catColor}`}>{catLabel}</span>
-              )}
-              <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${group.isPublic ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                {group.isPublic ? 'Public' : 'Privé'}
-              </span>
-            </div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 leading-tight truncate">{group.titre}</h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              {members.length} membre{members.length !== 1 ? 's' : ''}
-              {creatorObj && (
-                <> · Créé par <span className="font-medium text-gray-700">{[creatorObj.prenom, creatorObj.nom].filter(Boolean).join(' ') || 'Inconnu'}</span></>
-              )}
-            </p>
+        </div>
+        {/* Titre et infos sous la miniature */}
+        <div className="mb-6 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 mb-1.5">
+            {catLabel && (
+              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${catColor}`}>{catLabel}</span>
+            )}
+            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${group.isPublic ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+              {group.isPublic ? 'Public' : 'Privé'}
+            </span>
           </div>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 leading-tight">{group.titre}</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {members.length} membre{members.length !== 1 ? 's' : ''}
+            {creatorObj && (
+              <> · Créé par <span className="font-medium text-gray-700">{[creatorObj.prenom, creatorObj.nom].filter(Boolean).join(' ') || 'Inconnu'}</span></>
+            )}
+          </p>
         </div>
 
         {/* Layout deux colonnes */}
