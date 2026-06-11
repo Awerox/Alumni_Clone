@@ -6,31 +6,18 @@ export const Groups: CollectionConfig = {
     useAsTitle: 'titre',
     defaultColumns: ['titre', 'categorie', 'isPublic', 'createdAt'],
   },
-  // 🔐 SÉCURITÉ : RESTRICTIONS D'ACCÈS
   access: {
-    read: () => true, // Tout le monde peut voir les groupes
-    create: ({ req: { user } }) => !!user, // Il faut être connecté pour créer
-
-    // 🔥 SEUL LE CRÉATEUR (ou un Admin) PEUT MODIFIER LE GROUPE
+    read: () => true,
+    create: ({ req: { user } }) => !!user,
     update: ({ req: { user } }) => {
       if (!user) return false
-      if (user.collection === 'users') return true // Les Admins ont tous les droits
-      return {
-        createur: {
-          equals: user.id, // Verrouille l'accès au créateur uniquement
-        },
-      }
+      if (user.collection === 'users') return true
+      return { createur: { equals: user.id } }
     },
-
-    // 🔥 SEUL LE CRÉATEUR (ou un Admin) PEUT SUPPRIMER LE GROUPE
     delete: ({ req: { user } }) => {
       if (!user) return false
       if (user.collection === 'users') return true
-      return {
-        createur: {
-          equals: user.id,
-        },
-      }
+      return { createur: { equals: user.id } }
     },
   },
   hooks: {
@@ -47,7 +34,6 @@ export const Groups: CollectionConfig = {
         return data
       },
     ],
-    // 🤖 AUTOMATISATION : Enregistre l'ID de la personne qui crée le groupe
     beforeChange: [
       ({ req, operation, data }) => {
         if (operation === 'create' && req.user && req.user.collection === 'alumni') {
@@ -66,10 +52,15 @@ export const Groups: CollectionConfig = {
       label: 'Catégorie du groupe',
       required: true,
       options: [
-        { label: 'Projets Informatiques (SIO)', value: 'bts_sio' },
-        { label: 'Entrepreneuriat & Startups', value: 'entrepreneuriat' },
-        { label: 'Vie Étudiante & Associations', value: 'vie_etudiante' },
-        { label: 'Entraide & Mentorat', value: 'entraide' },
+        { label: 'Académique',    value: 'academique' },
+        { label: 'Culturel',      value: 'culturel' },
+        { label: 'Artistique',    value: 'artistique' },
+        { label: 'Sportif',       value: 'sportif' },
+        { label: 'Environnement', value: 'environnement' },
+        { label: 'Solidarité',    value: 'solidarite' },
+        { label: 'Professionnel', value: 'professionnel' },
+        { label: 'Loisir',        value: 'loisir' },
+        { label: 'Autre',         value: 'autre' },
       ],
     },
     { name: 'description', type: 'textarea', label: 'Description du groupe', required: true },
@@ -84,17 +75,14 @@ export const Groups: CollectionConfig = {
       name: 'banniere',
       type: 'upload',
       relationTo: 'media',
-      label: 'Image d’en-tête / Bannière',
+      label: "Image d'en-tête / Bannière",
       required: true,
     },
     { name: 'isPublic', type: 'checkbox', label: 'Groupe Public', defaultValue: true },
-
-    // Champs de restriction
-    { name: 'restrictDiplome', type: 'text', label: 'Restriction Diplôme' },
-    { name: 'restrictCampus', type: 'text', label: 'Restriction Campus' },
+    { name: 'restrictDiplome',   type: 'text', label: 'Restriction Diplôme' },
+    { name: 'restrictCampus',    type: 'text', label: 'Restriction Campus' },
     { name: 'restrictCategorie', type: 'text', label: 'Restriction Catégorie' },
     { name: 'restrictPromotion', type: 'text', label: 'Restriction Promotion' },
-
     {
       name: 'membres',
       type: 'relationship',
@@ -102,8 +90,6 @@ export const Groups: CollectionConfig = {
       hasMany: true,
       label: 'Membres inscrits',
     },
-
-    // 👤 NOUVEAU CHAMP : Stocke le propriétaire du groupe
     {
       name: 'createur',
       type: 'relationship',

@@ -45,25 +45,27 @@ interface Group {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const CATEGORIE_LABELS: Record<string, string> = {
-  etudiant: 'Étudiants',
-  alumni: 'Alumni',
-  enseignant: 'Enseignants',
-  administratif: 'Administratif',
-  club: 'Club',
-  projet: 'Projet',
-  promo: 'Promotion',
-  autre: 'Autre',
+  academique:    'Académique',
+  culturel:      'Culturel',
+  artistique:    'Artistique',
+  sportif:       'Sportif',
+  environnement: 'Environnement',
+  solidarite:    'Solidarité',
+  professionnel: 'Professionnel',
+  loisir:        'Loisir',
+  autre:         'Autre',
 }
 
 const CATEGORIE_COLORS: Record<string, string> = {
-  etudiant: 'bg-blue-100 text-blue-800',
-  alumni: 'bg-purple-100 text-purple-800',
-  enseignant: 'bg-amber-100 text-amber-800',
-  administratif: 'bg-slate-100 text-slate-700',
-  club: 'bg-green-100 text-green-800',
-  projet: 'bg-orange-100 text-orange-800',
-  promo: 'bg-pink-100 text-pink-800',
-  autre: 'bg-gray-100 text-gray-700',
+  academique:    'bg-blue-100 text-blue-800',
+  culturel:      'bg-purple-100 text-purple-800',
+  artistique:    'bg-pink-100 text-pink-800',
+  sportif:       'bg-green-100 text-green-800',
+  environnement: 'bg-emerald-100 text-emerald-800',
+  solidarite:    'bg-orange-100 text-orange-800',
+  professionnel: 'bg-indigo-100 text-indigo-800',
+  loisir:        'bg-amber-100 text-amber-800',
+  autre:         'bg-gray-100 text-gray-700',
 }
 
 function formatRestriction(value?: string): string[] {

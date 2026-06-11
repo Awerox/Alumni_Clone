@@ -42,13 +42,14 @@ interface GroupData {
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
 const CATEGORIES = [
-  { value: 'etudiant', label: 'Étudiants' },
-  { value: 'alumni', label: 'Alumni' },
-  { value: 'enseignant', label: 'Enseignants' },
-  { value: 'administratif', label: 'Administratif' },
-  { value: 'club', label: 'Club' },
-  { value: 'projet', label: 'Projet' },
-  { value: 'promo', label: 'Promotion' },
+  { value: 'academique', label: 'Académique' },
+  { value: 'culturel', label: 'Culturel' },
+  { value: 'artistique', label: 'Artistique' },
+  { value: 'sportif', label: 'Sportif' },
+  { value: 'environnement', label: 'Environnement' },
+  { value: 'solidarite', label: 'Solidarité' },
+  { value: 'professionnel', label: 'Professionnel' },
+  { value: 'loisir', label: 'Loisir' },
   { value: 'autre', label: 'Autre' },
 ]
 

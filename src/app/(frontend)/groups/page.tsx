@@ -35,25 +35,27 @@ interface Group {
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
 const CATEGORIE_LABELS: Record<string, string> = {
-  etudiant: 'Étudiants',
-  alumni: 'Alumni',
-  enseignant: 'Enseignants',
-  administratif: 'Administratif',
-  club: 'Club',
-  projet: 'Projet',
-  promo: 'Promotion',
-  autre: 'Autre',
+  academique:    'Académique',
+  culturel:      'Culturel',
+  artistique:    'Artistique',
+  sportif:       'Sportif',
+  environnement: 'Environnement',
+  solidarite:    'Solidarité',
+  professionnel: 'Professionnel',
+  loisir:        'Loisir',
+  autre:         'Autre',
 }
 
 const CATEGORIE_COLORS: Record<string, string> = {
-  etudiant: 'bg-blue-100 text-blue-700',
-  alumni: 'bg-purple-100 text-purple-700',
-  enseignant: 'bg-amber-100 text-amber-700',
-  administratif: 'bg-slate-100 text-slate-600',
-  club: 'bg-green-100 text-green-700',
-  projet: 'bg-orange-100 text-orange-700',
-  promo: 'bg-pink-100 text-pink-700',
-  autre: 'bg-gray-100 text-gray-600',
+  academique:    'bg-blue-100 text-blue-700',
+  culturel:      'bg-purple-100 text-purple-700',
+  artistique:    'bg-pink-100 text-pink-700',
+  sportif:       'bg-green-100 text-green-700',
+  environnement: 'bg-emerald-100 text-emerald-700',
+  solidarite:    'bg-orange-100 text-orange-700',
+  professionnel: 'bg-indigo-100 text-indigo-700',
+  loisir:        'bg-amber-100 text-amber-700',
+  autre:         'bg-gray-100 text-gray-600',
 }
 
 // ─── Server Action ────────────────────────────────────────────────────────────
