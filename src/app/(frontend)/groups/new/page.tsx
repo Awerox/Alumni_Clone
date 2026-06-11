@@ -541,7 +541,9 @@ export default function CreateGroupPage() {
   const [error, setError] = useState<string | null>(null)
 
   // Slug calculé : auto depuis titre tant que non édité manuellement
-  const slug = slugEdited ? customSlug : slugify(titre)
+  const slug = slugEdited
+    ? customSlug
+    : slugify(titre) || titre.toLowerCase().replace(/[^a-z0-9]/gi, '-').replace(/^-+|-+$/g, '') || ''
 
   // Vérifie l'unicité du slug
   const checkSlug = useCallback(async (value: string) => {
@@ -630,15 +632,20 @@ export default function CreateGroupPage() {
 
     if (!titre.trim()) { setError('Le titre est obligatoire.'); return }
     if (slugError) { setError('Le slug est déjà utilisé, veuillez en choisir un autre.'); return }
-    if (!slug) { setError('Le slug est obligatoire.'); return }
+    const finalSlug = slug.trim()
+    if (!finalSlug) { setError('Le slug est obligatoire.'); return }
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(finalSlug)) {
+      setError('Le slug ne peut contenir que des lettres minuscules, chiffres et tirets.')
+      return
+    }
     if (!miniatureBlob) { setError('La miniature est obligatoire.'); return }
     if (!banniereBlob) { setError("L'image d'en-tête est obligatoire."); return }
 
     setSubmitting(true)
     try {
       const [miniatureId, banniereId] = await Promise.all([
-        uploadMedia(miniatureBlob, `miniature-${slug}.jpg`),
-        uploadMedia(banniereBlob, `banniere-${slug}.jpg`),
+        uploadMedia(miniatureBlob, `miniature-${finalSlug}.jpg`),
+        uploadMedia(banniereBlob, `banniere-${finalSlug}.jpg`),
       ])
 
       const res = await fetch('/api/groups', {
@@ -647,7 +654,7 @@ export default function CreateGroupPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           titre: titre.trim(),
-          slug,
+          slug: finalSlug,
           categorie: categorie || undefined,
           description: description.trim() || undefined,
           isPublic,

@@ -23,8 +23,19 @@ export const Groups: CollectionConfig = {
   hooks: {
     beforeValidate: [
       ({ data }) => {
-        if (data && !data.slug && data.titre) {
+        if (!data) return data
+        // Auto-génère le slug depuis le titre si absent
+        if (!data.slug && data.titre) {
           data.slug = data.titre
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/(^-|-$)+/g, '')
+        }
+        // Nettoie le slug fourni (retire accents, espaces, majuscules)
+        if (data.slug) {
+          data.slug = String(data.slug)
             .toLowerCase()
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '')
