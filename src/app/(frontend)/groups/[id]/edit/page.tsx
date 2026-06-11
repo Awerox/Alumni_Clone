@@ -480,6 +480,7 @@ function DescriptionEditor({
       onInput={() => {
         if (ref.current) onChange(ref.current.innerHTML)
       }}
+      id="edit-desc-editor"
       className="w-full px-3 py-2.5 text-sm text-gray-900 bg-white outline-none min-h-[100px] prose prose-sm max-w-none"
       data-placeholder="Décrivez l'objectif et la communauté de ce groupe…"
     />
