@@ -271,7 +271,7 @@ export default async function GroupsPage({
                   className="group flex flex-col sm:flex-row items-stretch bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md hover:border-gray-300 transition-all duration-200 overflow-hidden"
                 >
                   {/* Miniature gauche */}
-                  <div className="relative w-full sm:w-24 h-32 sm:h-24 sm:self-center flex-shrink-0 bg-gray-100 overflow-hidden rounded-xl sm:ml-3 sm:my-3">
+                  <div className="relative w-full sm:w-44 h-40 sm:h-auto flex-shrink-0 bg-gray-100 overflow-hidden">
                     {miniatureUrl ? (
                       <img
                         src={miniatureUrl}
@@ -327,12 +327,9 @@ export default async function GroupsPage({
                         </h2>
                         {/* Description */}
                         {group.description && (
-                          <p
-                            className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed"
-                            dangerouslySetInnerHTML={{
-                              __html: group.description.replace(/<[^>]*>/g, ' ').trim()
-                            }}
-                          />
+                          <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">
+                            {group.description.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()}
+                          </p>
                         )}
                       </div>
                     </div>

@@ -453,8 +453,9 @@ function ImageUploadField({
 
 // ─── Page d'édition ───────────────────────────────────────────────────────────
 
-export default function EditGroupPage({ params }: { params: { id: string } }) {
+export default function EditGroupPage({ params }: { params: Promise<{ id: string }> | { id: string } }) {
   const router = useRouter()
+  const [groupId, setGroupId] = useState<string>('')
 
   // État chargement initial
   const [loading, setLoading] = useState(true)
@@ -499,10 +500,15 @@ export default function EditGroupPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     async function fetchGroup() {
       try {
-        const res = await fetch(`/api/groups/${params.id}?depth=1`, { credentials: 'include' })
+        // ✅ Compatibilité Next.js 15 : params peut être une Promise
+        const resolvedParams = params instanceof Promise ? await params : params
+        const groupId = resolvedParams.id
+        const res = await fetch(`/api/groups/${groupId}?depth=1`, { credentials: 'include' })
         if (!res.ok) throw new Error('Groupe introuvable')
         const data: GroupData = await res.json()
+        // groupId disponible via closure
 
+        setGroupId(groupId)
         setTitre(data.titre ?? '')
         setSlug(data.slug ?? '')
         setCategorie(data.categorie ?? '')
@@ -523,7 +529,7 @@ export default function EditGroupPage({ params }: { params: { id: string } }) {
       }
     }
     fetchGroup()
-  }, [params.id])
+  }, [])
 
   // ── Crop helpers ─────────────────────────────────────────
   function openCrop(type: 'miniature' | 'banniere', src: string) {
@@ -598,7 +604,7 @@ export default function EditGroupPage({ params }: { params: { id: string } }) {
       if (!miniaturePreview && !miniatureUrl) body.miniature = null
       if (!bannierePreview && !banniereUrl) body.banniere = null
 
-      const res = await fetch(`/api/groups/${params.id}`, {
+      const res = await fetch(`/api/groups/${groupId}`, {
         method: 'PATCH',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -611,7 +617,7 @@ export default function EditGroupPage({ params }: { params: { id: string } }) {
       }
 
       setSuccess(true)
-      setTimeout(() => router.push(`/groups/${params.id}`), 1200)
+      setTimeout(() => router.push(`/groups/${groupId}`), 1200)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Une erreur est survenue.')
     } finally {
@@ -662,7 +668,7 @@ export default function EditGroupPage({ params }: { params: { id: string } }) {
           {/* En-tête */}
           <div className="flex items-center gap-3 mb-8">
             <a
-              href={`/groups/${params.id}`}
+              href={`/groups/${groupId}`}
               className="rounded-lg p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -917,7 +923,7 @@ export default function EditGroupPage({ params }: { params: { id: string } }) {
             {/* ── Actions ───────────────────────────────────── */}
             <div className="flex items-center justify-between gap-3 pb-4">
               <a
-                href={`/groups/${params.id}`}
+                href={`/groups/${groupId}`}
                 className="rounded-xl px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 transition-colors shadow-sm"
               >
                 Annuler
