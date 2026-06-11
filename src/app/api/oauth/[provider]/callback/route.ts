@@ -21,15 +21,6 @@ interface OAuthUserData {
 
 // ✅ FIX normalizeName : ne jamais retourner nom vide
 function normalizeName(given?: string, family?: string, full?: string) {
-<<<<<<< Updated upstream
-  const g = given?.trim() || ''
-  const f = family?.trim() || ''
-  if (g && f) return { prenom: g, nom: f }
-  const parts = (full?.trim() || '').split(/\s+/).filter(Boolean)
-  if (parts.length >= 2) return { prenom: parts[0], nom: parts.slice(1).join(' ') }
-  if (parts.length === 1) return { prenom: parts[0], nom: parts[0] } // doublon plutôt que vide
-  return { prenom: 'Prénom', nom: 'Nom' }
-=======
   const parts = (full?.trim() ?? '').split(/\s+/).filter(Boolean)
   const prenom = given?.trim() || parts[0] || ''
   // Ne jamais utiliser parts[0] comme fallback pour le nom : ce serait le prénom en double
@@ -38,7 +29,6 @@ function normalizeName(given?: string, family?: string, full?: string) {
     prenom: prenom || 'Prénom',
     nom: nom || 'Nom',
   }
->>>>>>> Stashed changes
 }
 
 async function fetchGoogleUser(code: string, baseUrl: string): Promise<OAuthUserData> {
