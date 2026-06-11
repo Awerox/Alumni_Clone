@@ -451,6 +451,41 @@ function ImageUploadField({
   )
 }
 
+// ─── DescriptionEditor ───────────────────────────────────────────────────────
+// Utilise une ref pour éviter le reset de curseur à chaque frappe
+
+function DescriptionEditor({
+  initialValue,
+  onChange,
+}: {
+  initialValue: string
+  onChange: (html: string) => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const initialized = useRef(false)
+
+  // Initialise le contenu UNE SEULE FOIS quand la valeur arrive
+  useEffect(() => {
+    if (ref.current && !initialized.current && initialValue) {
+      ref.current.innerHTML = initialValue
+      initialized.current = true
+    }
+  }, [initialValue])
+
+  return (
+    <div
+      ref={ref}
+      contentEditable
+      suppressContentEditableWarning
+      onInput={() => {
+        if (ref.current) onChange(ref.current.innerHTML)
+      }}
+      className="w-full px-3 py-2.5 text-sm text-gray-900 bg-white outline-none min-h-[100px] prose prose-sm max-w-none"
+      data-placeholder="Décrivez l'objectif et la communauté de ce groupe…"
+    />
+  )
+}
+
 // ─── Page d'édition ───────────────────────────────────────────────────────────
 
 export default function EditGroupPage({ params }: { params: Promise<{ id: string }> | { id: string } }) {
@@ -751,7 +786,7 @@ export default function EditGroupPage({ params }: { params: Promise<{ id: string
                         onMouseDown={(e) => {
                           e.preventDefault()
                           document.execCommand(cmd, false)
-                          const el = document.querySelector('[contenteditable]') as HTMLDivElement
+                          const el = document.getElementById('edit-desc-editor') as HTMLDivElement
                           if (el) setDescription(el.innerHTML)
                         }}
                         className="rounded px-2 py-1 text-xs font-bold text-gray-500 hover:bg-gray-200 hover:text-gray-700 transition-colors"
@@ -770,12 +805,9 @@ export default function EditGroupPage({ params }: { params: Promise<{ id: string
                       </button>
                     ))}
                   </div>
-                  <div
-                    contentEditable
-                    suppressContentEditableWarning
-                    onInput={(e) => setDescription((e.currentTarget as HTMLDivElement).innerHTML)}
-                    className="w-full px-3 py-2.5 text-sm text-gray-900 bg-white outline-none min-h-[100px] prose prose-sm max-w-none"
-                    dangerouslySetInnerHTML={{ __html: description }}
+                  <DescriptionEditor
+                    initialValue={description}
+                    onChange={setDescription}
                   />
                 </div>
               </div>
