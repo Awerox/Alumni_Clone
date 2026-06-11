@@ -332,7 +332,16 @@ export interface Group {
   id: number;
   titre: string;
   slug: string;
-  categorie: 'bts_sio' | 'entrepreneuriat' | 'vie_etudiante' | 'entraide';
+  categorie:
+    | 'academique'
+    | 'culturel'
+    | 'artistique'
+    | 'sportif'
+    | 'environnement'
+    | 'solidarite'
+    | 'professionnel'
+    | 'loisir'
+    | 'autre';
   description: string;
   miniature: number | Media;
   banniere: number | Media;

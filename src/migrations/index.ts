@@ -4,6 +4,7 @@ import * as migration_20260526_133224 from './20260526_133224';
 import * as migration_20260610_003253 from './20260610_003253';
 import * as migration_20260610_201312 from './20260610_201312';
 import * as migration_20260610_202519 from './20260610_202519';
+import * as migration_20260611_095817_update_groups_categorie_enum from './20260611_095817_update_groups_categorie_enum';
 
 export const migrations = [
   {
@@ -34,6 +35,11 @@ export const migrations = [
   {
     up: migration_20260610_202519.up,
     down: migration_20260610_202519.down,
-    name: '20260610_202519'
+    name: '20260610_202519',
+  },
+  {
+    up: migration_20260611_095817_update_groups_categorie_enum.up,
+    down: migration_20260611_095817_update_groups_categorie_enum.down,
+    name: '20260611_095817_update_groups_categorie_enum'
   },
 ];
