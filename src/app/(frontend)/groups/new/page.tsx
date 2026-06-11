@@ -618,7 +618,7 @@ export default function CreateGroupPage() {
   async function uploadMedia(blob: Blob, filename: string): Promise<string> {
     const formData = new FormData()
     formData.append('file', blob, filename)
-    const res = await fetch('/api/media', { method: 'POST', body: formData })
+    const res = await fetch('/api/media', { method: 'POST', body: formData, credentials: 'include' })
     if (!res.ok) throw new Error("Erreur lors de l'upload de l'image")
     const data = await res.json()
     return data.doc?.id ?? data.id
@@ -643,6 +643,7 @@ export default function CreateGroupPage() {
 
       const res = await fetch('/api/groups', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           titre: titre.trim(),
