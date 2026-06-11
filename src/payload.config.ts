@@ -18,6 +18,7 @@ import Discussions from './collections/Discussion'
 import Evenements from './collections/evenements'
 import DirectMessages from './collections/DirectMessages'
 import { PublicMessages } from './collections/PublicMessages'
+import { GroupRequests } from './collections/GroupRequests'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -59,6 +60,7 @@ export default buildConfig({
     Discussions,
     DirectMessages,
     PublicMessages,
+    GroupRequests,
   ],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '1234567890abcdef1234567890abcdef',

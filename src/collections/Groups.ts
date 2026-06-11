@@ -11,12 +11,12 @@ export const Groups: CollectionConfig = {
     create: ({ req: { user } }) => !!user,
     update: ({ req: { user } }) => {
       if (!user) return false
-      if (user.collection === 'users') return true
+      if ((user as any).collection === 'users') return true
       return { createur: { equals: user.id } }
     },
     delete: ({ req: { user } }) => {
       if (!user) return false
-      if (user.collection === 'users') return true
+      if ((user as any).collection === 'users') return true
       return { createur: { equals: user.id } }
     },
   },
@@ -24,7 +24,6 @@ export const Groups: CollectionConfig = {
     beforeValidate: [
       ({ data }) => {
         if (!data) return data
-        // Auto-génère le slug depuis le titre si absent
         if (!data.slug && data.titre) {
           data.slug = data.titre
             .toLowerCase()
@@ -33,7 +32,6 @@ export const Groups: CollectionConfig = {
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/(^-|-$)+/g, '')
         }
-        // Nettoie le slug fourni (retire accents, espaces, majuscules)
         if (data.slug) {
           data.slug = String(data.slug)
             .toLowerCase()
@@ -47,7 +45,7 @@ export const Groups: CollectionConfig = {
     ],
     beforeChange: [
       ({ req, operation, data }) => {
-        if (operation === 'create' && req.user && req.user.collection === 'alumni') {
+        if (operation === 'create' && req.user && (req.user as any).collection === 'alumni') {
           data.createur = req.user.id
         }
         return data
@@ -86,13 +84,13 @@ export const Groups: CollectionConfig = {
       name: 'banniere',
       type: 'upload',
       relationTo: 'media',
-      label: "Image d'en-tête / Bannière",
+      label: "Image d'en-tete / Banniere",
       required: true,
     },
     { name: 'isPublic', type: 'checkbox', label: 'Groupe Public', defaultValue: true },
-    { name: 'restrictDiplome',   type: 'text', label: 'Restriction Diplôme' },
+    { name: 'restrictDiplome',   type: 'text', label: 'Restriction Diplome' },
     { name: 'restrictCampus',    type: 'text', label: 'Restriction Campus' },
-    { name: 'restrictCategorie', type: 'text', label: 'Restriction Catégorie' },
+    { name: 'restrictCategorie', type: 'text', label: 'Restriction Categorie' },
     { name: 'restrictPromotion', type: 'text', label: 'Restriction Promotion' },
     {
       name: 'membres',
@@ -102,12 +100,22 @@ export const Groups: CollectionConfig = {
       label: 'Membres inscrits',
     },
     {
+      name: 'admins',
+      type: 'relationship',
+      relationTo: 'alumni',
+      hasMany: true,
+      label: 'Administrateurs du groupe',
+      admin: {
+        description: 'Membres ayant le droit d accepter/refuser les demandes',
+      },
+    },
+    {
       name: 'createur',
       type: 'relationship',
       relationTo: 'alumni',
       admin: {
         position: 'sidebar',
-        description: 'Le créateur du groupe (Attribué automatiquement)',
+        description: 'Le createur du groupe (Attribue automatiquement)',
       },
     },
   ],
