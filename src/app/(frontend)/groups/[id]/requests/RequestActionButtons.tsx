@@ -8,17 +8,36 @@ export default function RequestActionButtons({
   rejectAction,
 }: {
   acceptAction: () => Promise<void>
-  rejectAction: () => Promise<void>
+  rejectAction: (motif?: string) => Promise<void>
 }) {
   const router = useRouter()
   const [pending, setPending] = useState<'accept' | 'reject' | null>(null)
-  const [done, setDone] = useState(false)
+  const [done, setDone] = useState<'accept' | 'reject' | null>(null)
 
-  async function handle(type: 'accept' | 'reject', action: () => Promise<void>) {
-    setPending(type)
+  async function handleAccept() {
+    setPending('accept')
     try {
-      await action()
-      setDone(true)
+      await acceptAction()
+      setDone('accept')
+      router.refresh()
+    } finally {
+      setPending(null)
+    }
+  }
+
+  async function handleReject() {
+    // Demande un motif optionnel — non bloquant si laissé vide
+    const motif = prompt(
+      "Motif du refus (optionnel — sera visible par la personne concernée) :",
+      ''
+    )
+    // prompt() retourne null uniquement si l'utilisateur clique sur Annuler
+    if (motif === null) return
+
+    setPending('reject')
+    try {
+      await rejectAction(motif.trim() || undefined)
+      setDone('reject')
       router.refresh()
     } finally {
       setPending(null)
@@ -26,9 +45,11 @@ export default function RequestActionButtons({
   }
 
   if (done) {
+    const label = done === 'accept' ? 'Acceptée ✓' : 'Refusée ✕'
+    const colorClass = done === 'accept' ? 'text-emerald-600' : 'text-red-500'
     return (
-      <div className="text-xs font-bold text-gray-400 px-3 py-2">
-        Traité ✓
+      <div className={`text-xs font-black uppercase tracking-wider px-3 py-2 ${colorClass}`}>
+        {label}
       </div>
     )
   }
@@ -38,7 +59,7 @@ export default function RequestActionButtons({
       <button
         type="button"
         disabled={pending !== null}
-        onClick={() => handle('reject', rejectAction)}
+        onClick={handleReject}
         className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-50"
       >
         {pending === 'reject' ? '…' : 'Refuser'}
@@ -46,7 +67,7 @@ export default function RequestActionButtons({
       <button
         type="button"
         disabled={pending !== null}
-        onClick={() => handle('accept', acceptAction)}
+        onClick={handleAccept}
         className="rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors disabled:opacity-50"
       >
         {pending === 'accept' ? '…' : 'Accepter'}

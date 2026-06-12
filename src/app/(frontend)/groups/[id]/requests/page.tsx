@@ -10,7 +10,7 @@ import RequestActionButtons from './RequestActionButtons'
 
 // ─── Server Actions ───────────────────────────────────────────────────────────
 
-async function handleRequestAction(requestId: string, action: 'accepted' | 'rejected') {
+async function handleRequestAction(requestId: string, action: 'accepted' | 'rejected', motif?: string) {
   'use server'
   const { user } = await getAuthUser()
   if (!user) throw new Error('Non authentifié')
@@ -45,7 +45,10 @@ async function handleRequestAction(requestId: string, action: 'accepted' | 'reje
     collection: 'group-requests' as any,
     id: requestId,
     overrideAccess: true,
-    data: { statut: action } as any,
+    data: {
+      statut: action,
+      ...(action === 'rejected' ? { motif: motif?.trim() || undefined } : {}),
+    } as any,
   })
 
   revalidatePath(`/groups/${groupId}/requests`)
@@ -141,8 +144,8 @@ export default async function GroupRequestsPage({
                 const demandeur = typeof req.demandeur === 'object' ? req.demandeur : null
                 const fullName = demandeur ? [demandeur.prenom, demandeur.nom].filter(Boolean).join(' ') || 'Inconnu' : 'Inconnu'
                 const initials = demandeur ? ((demandeur.prenom?.[0] ?? '') + (demandeur.nom?.[0] ?? '')).toUpperCase() || '?' : '?'
-                const acceptAction = handleRequestAction.bind(null, String(req.id), 'accepted')
-                const rejectAction = handleRequestAction.bind(null, String(req.id), 'rejected')
+                const acceptAction = handleRequestAction.bind(null, String(req.id), 'accepted') as () => Promise<void>
+                const rejectAction = handleRequestAction.bind(null, String(req.id), 'rejected') as (motif?: string) => Promise<void>
 
                 return (
                   <div key={String(req.id)} className="rounded-2xl bg-white shadow-sm ring-1 ring-gray-100 p-5 flex items-center gap-4">

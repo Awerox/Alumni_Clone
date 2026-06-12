@@ -102,6 +102,7 @@ export const GroupRequests: CollectionConfig = {
         { label: 'En attente', value: 'pending' },
         { label: 'Acceptée', value: 'accepted' },
         { label: 'Refusée', value: 'rejected' },
+        { label: 'Retiré du groupe', value: 'removed' },
       ],
     },
     {
@@ -110,6 +111,14 @@ export const GroupRequests: CollectionConfig = {
       label: 'Message de présentation',
       admin: {
         description: 'Optionnel — message laissé par le demandeur',
+      },
+    },
+    {
+      name: 'motif',
+      type: 'textarea',
+      label: 'Motif (refus ou retrait)',
+      admin: {
+        description: 'Optionnel — raison donnée par le modérateur',
       },
     },
   ],

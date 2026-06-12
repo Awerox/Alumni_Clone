@@ -1,21 +1,32 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 export default function RemoveMemberButton({
   action,
   memberName,
 }: {
-  action: () => Promise<void>
+  action: (motif?: string) => Promise<void>
   memberName: string
 }) {
+  const router = useRouter()
   const [pending, setPending] = useState(false)
 
   async function handleClick() {
     if (!confirm(`Voulez-vous vraiment retirer ${memberName} de ce groupe ?`)) return
+
+    const motif = prompt(
+      `Raison du retrait de ${memberName} (optionnel — visible par la personne concernée) :`,
+      ''
+    )
+    // prompt() retourne null si annulé -> on annule l'action dans ce cas
+    if (motif === null) return
+
     setPending(true)
     try {
-      await action()
+      await action(motif.trim() || undefined)
+      router.refresh()
     } finally {
       setPending(false)
     }

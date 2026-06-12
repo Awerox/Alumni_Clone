@@ -142,7 +142,7 @@ async function cancelRequestAction(groupId: string) {
   revalidatePath(`/groups/${groupId}`)
 }
 
-async function removeMemberAction(groupId: string, memberId: string) {
+async function removeMemberAction(groupId: string, memberId: string, motif?: string) {
   'use server'
   const { user } = await getAuthUser()
   if (!user) throw new Error('Non authentifié')
@@ -186,7 +186,7 @@ async function removeMemberAction(groupId: string, memberId: string) {
       collection: 'group-requests' as any,
       id: (acceptedReq.docs[0] as any).id,
       overrideAccess: true,
-      data: { statut: 'rejected' } as any,
+      data: { statut: 'removed', motif: motif?.trim() || undefined } as any,
     })
   }
 
@@ -286,7 +286,8 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
   const hasAccess = group.isPublic || isCreator || isMember || isGroupAdmin || isPayloadAdmin
 
   // Statut demande d'accès
-  let requestStatus: 'none' | 'pending' | 'rejected' = 'none'
+  let requestStatus: 'none' | 'pending' | 'rejected' | 'removed' = 'none'
+  let requestMotif: string | undefined
   if (!hasAccess && currentUserId) {
     const existingReq = await payload.find({
       collection: 'group-requests' as any,
@@ -294,10 +295,13 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
       limit: 1, overrideAccess: true,
     })
     if (existingReq.docs.length > 0) {
-      const statutExistant = (existingReq.docs[0] as any).statut
+      const doc = existingReq.docs[0] as any
+      const statutExistant = doc.statut
       if (statutExistant === 'pending') requestStatus = 'pending'
       else if (statutExistant === 'rejected') requestStatus = 'rejected'
+      else if (statutExistant === 'removed') requestStatus = 'removed'
       else requestStatus = 'none' // 'accepted' mais retiré depuis -> permet de redemander
+      requestMotif = doc.motif || undefined
     }
   }
 
@@ -332,7 +336,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
             <img src={banniereUrl} alt="" className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-60" />
             {/* Image principale légèrement dézoomée */}
             <div className="absolute inset-0 overflow-hidden">
-              <img src={banniereUrl} alt="" className="w-full h-full object-cover scale-100" />
+              <img src={banniereUrl} alt="" className="w-full h-full object-cover scale-90" />
             </div>
           </>
         ) : (
@@ -487,8 +491,24 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
                       </div>
                     ) : requestStatus === 'rejected' ? (
                       <div className="space-y-3">
-                        <div className="flex items-center justify-center gap-2 py-3 bg-red-50 border border-red-200 text-red-700 text-xs font-bold rounded-xl">
-                          ✕ Demande refusée
+                        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-left">
+                          <p className="text-xs font-black uppercase tracking-wider mb-1">✕ Demande refusée</p>
+                          {requestMotif && (
+                            <p className="text-xs text-red-600/80 italic">"{requestMotif}"</p>
+                          )}
+                        </div>
+                        <RequestAccessButton action={requestAccessWithId} label="Renvoyer une demande" />
+                      </div>
+                    ) : requestStatus === 'removed' ? (
+                      <div className="space-y-3">
+                        <div className="bg-orange-50 border border-orange-200 text-orange-700 rounded-xl px-4 py-3 text-left">
+                          <p className="text-xs font-black uppercase tracking-wider mb-1">⚠ Retiré du groupe</p>
+                          <p className="text-xs text-orange-600/80">
+                            Un modérateur vous a retiré de ce groupe.
+                          </p>
+                          {requestMotif && (
+                            <p className="text-xs text-orange-600/80 italic mt-1">Motif : "{requestMotif}"</p>
+                          )}
                         </div>
                         <RequestAccessButton action={requestAccessWithId} label="Renvoyer une demande" />
                       </div>
@@ -566,7 +586,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
                       const initials = getInitials(m)
                       const fullName = [m.prenom, m.nom].filter(Boolean).join(' ') || 'Membre'
                       const isThisCreator = String(m.id) === creatorId
-                      const removeMemberWithId = removeMemberAction.bind(null, String(group.id), String(m.id))
+                      const removeMemberWithId = removeMemberAction.bind(null, String(group.id), String(m.id)) as (motif?: string) => Promise<void>
                       return (
                         <div key={String(m.id)}
                           className="flex items-center gap-3 px-5 py-3.5 hover:bg-amber-50/50 transition-colors duration-200 group">
