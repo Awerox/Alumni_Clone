@@ -273,8 +273,12 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
       where: { and: [{ groupe: { equals: Number(group.id) } }, { demandeur: { equals: Number(currentUserId) } }] },
       limit: 1, overrideAccess: true,
     })
-    if (existingReq.docs.length > 0)
-      requestStatus = (existingReq.docs[0] as any).statut === 'rejected' ? 'rejected' : 'pending'
+    if (existingReq.docs.length > 0) {
+      const statutExistant = (existingReq.docs[0] as any).statut
+      if (statutExistant === 'pending') requestStatus = 'pending'
+      else if (statutExistant === 'rejected') requestStatus = 'rejected'
+      else requestStatus = 'none' // 'accepted' mais retiré depuis -> permet de redemander
+    }
   }
 
   // Demandes en attente
