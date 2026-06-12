@@ -171,6 +171,25 @@ async function removeMemberAction(groupId: string, memberId: string) {
     data: { membres: updatedMembres },
   })
 
+  // Repasse en 'rejected' toute demande 'accepted' de ce membre pour ce groupe,
+  // pour permettre une redemande propre (visible par les modérateurs)
+  const groupIdNum = Number(groupId)
+  const memberIdNum = Number(memberId)
+  const acceptedReq = await payload.find({
+    collection: 'group-requests' as any,
+    where: { and: [{ groupe: { equals: groupIdNum } }, { demandeur: { equals: memberIdNum } }, { statut: { equals: 'accepted' } }] },
+    limit: 1,
+    overrideAccess: true,
+  })
+  if (acceptedReq.docs.length > 0) {
+    await payload.update({
+      collection: 'group-requests' as any,
+      id: (acceptedReq.docs[0] as any).id,
+      overrideAccess: true,
+      data: { statut: 'rejected' } as any,
+    })
+  }
+
   revalidatePath(`/groups/${groupId}`)
 }
 
