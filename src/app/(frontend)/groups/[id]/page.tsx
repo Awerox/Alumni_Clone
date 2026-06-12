@@ -8,6 +8,7 @@ import { getAuthUser } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import LeaveGroupButton from './LeaveGroupButton'
 import RemoveMemberButton from './RemoveMemberButton'
+import RequestAccessButton from './RequestAccessButton'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -463,32 +464,17 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
                         <div className="flex items-center justify-center gap-2 py-3 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-black uppercase tracking-wider rounded-xl">
                           ⏳ Demande en attente d'approbation
                         </div>
-                        <form action={cancelRequestWithId}>
-                          <button type="submit"
-                            className="w-full py-2.5 bg-white border border-gray-200 hover:bg-red-50 hover:border-red-200 hover:text-red-600 text-gray-500 text-xs font-black uppercase tracking-widest rounded-xl transition-all duration-200">
-                            ✕ Retirer ma demande
-                          </button>
-                        </form>
+                        <RequestAccessButton action={cancelRequestWithId} label="✕ Retirer ma demande" variant="secondary" />
                       </div>
                     ) : requestStatus === 'rejected' ? (
                       <div className="space-y-3">
                         <div className="flex items-center justify-center gap-2 py-3 bg-red-50 border border-red-200 text-red-700 text-xs font-bold rounded-xl">
                           ✕ Demande refusée
                         </div>
-                        <form action={requestAccessWithId}>
-                          <button type="submit"
-                            className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-gray-900 text-xs font-black uppercase tracking-widest rounded-xl transition-all duration-200 shadow-sm hover:-translate-y-0.5">
-                            Renvoyer une demande
-                          </button>
-                        </form>
+                        <RequestAccessButton action={requestAccessWithId} label="Renvoyer une demande" />
                       </div>
                     ) : (
-                      <form action={requestAccessWithId}>
-                        <button type="submit"
-                          className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-gray-900 text-xs font-black uppercase tracking-widest rounded-xl transition-all duration-200 shadow-sm hover:-translate-y-0.5 active:scale-[0.98]">
-                          ✦ Demander l'accès
-                        </button>
-                      </form>
+                      <RequestAccessButton action={requestAccessWithId} />
                     )}
                     <Link href="/groups" className="block text-xs text-gray-400 hover:text-gray-600 font-bold transition-colors">
                       ← Voir les autres groupes
