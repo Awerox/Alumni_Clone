@@ -124,14 +124,15 @@ async function cancelRequestAction(groupId: string) {
   const groupIdNum = Number(groupId)
   const userIdNum = Number(user.id)
 
+  // Recherche large (pas de filtre statut) pour éviter tout problème de correspondance
   const existing = await payload.find({
     collection: 'group-requests' as any,
-    where: { and: [{ groupe: { equals: groupIdNum } }, { demandeur: { equals: userIdNum } }, { statut: { equals: 'pending' } }] },
+    where: { and: [{ groupe: { equals: groupIdNum } }, { demandeur: { equals: userIdNum } }] },
     limit: 1,
     overrideAccess: true,
   })
 
-  if (existing.docs.length > 0) {
+  if (existing.docs.length > 0 && (existing.docs[0] as any).statut === 'pending') {
     await payload.delete({
       collection: 'group-requests' as any,
       id: (existing.docs[0] as any).id,
@@ -522,7 +523,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
                         <div className="flex items-center justify-center gap-2 py-3 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-black uppercase tracking-wider rounded-xl">
                           ⏳ Demande en attente d'approbation
                         </div>
-                        <RequestAccessButton action={cancelRequestWithId} label="✕ Retirer ma demande" variant="secondary" doneLabel="✕ Demande retirée" doneVariant="danger" />
+                        <RequestAccessButton action={cancelRequestWithId} label="✕ Retirer ma demande" variant="secondary" doneLabel="✕ Demande retirée" doneVariant="danger" persistDone={false} />
                       </div>
                     ) : requestStatus === 'rejected' ? (
                       <div className="space-y-3">

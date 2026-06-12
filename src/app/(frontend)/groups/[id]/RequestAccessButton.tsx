@@ -9,12 +9,17 @@ export default function RequestAccessButton({
   variant = 'primary',
   doneLabel = '✓ Demande envoyée',
   doneVariant = 'success',
+  persistDone = true,
+  doneDurationMs = 1500,
 }: {
   action: () => Promise<void>
   label?: string
   variant?: 'primary' | 'secondary'
   doneLabel?: string
   doneVariant?: 'success' | 'danger'
+  /** Si false, l'état "done" est temporaire et le bouton redevient cliquable après doneDurationMs */
+  persistDone?: boolean
+  doneDurationMs?: number
 }) {
   const router = useRouter()
   const [pending, setPending] = useState(false)
@@ -26,6 +31,9 @@ export default function RequestAccessButton({
       await action()
       setDone(true)
       router.refresh()
+      if (!persistDone) {
+        setTimeout(() => setDone(false), doneDurationMs)
+      }
     } finally {
       setPending(false)
     }
