@@ -523,7 +523,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
                         <div className="flex items-center justify-center gap-2 py-3 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-black uppercase tracking-wider rounded-xl">
                           ⏳ Demande en attente d'approbation
                         </div>
-                        <RequestAccessButton action={cancelRequestWithId} label="✕ Retirer ma demande" variant="secondary" doneLabel="✕ Demande retirée" doneVariant="danger" persistDone={false} />
+                        <RequestAccessButton key="cancel" action={cancelRequestWithId} label="✕ Retirer ma demande" variant="secondary" doneLabel="✕ Demande retirée" doneVariant="danger" persistDone={false} />
                       </div>
                     ) : requestStatus === 'rejected' ? (
                       <div className="space-y-3">
@@ -533,7 +533,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
                             <p className="text-xs text-red-600/80 italic">"{requestMotif}"</p>
                           )}
                         </div>
-                        <RequestAccessButton action={requestAccessWithId} label="Renvoyer une demande" />
+                        <RequestAccessButton key="resend" action={requestAccessWithId} label="Renvoyer une demande" />
                       </div>
                     ) : requestStatus === 'removed' ? (
                       <div className="space-y-3">
@@ -546,10 +546,10 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
                             <p className="text-xs text-orange-600/80 italic mt-1">Motif : "{requestMotif}"</p>
                           )}
                         </div>
-                        <RequestAccessButton action={requestAccessWithId} label="Renvoyer une demande" />
+                        <RequestAccessButton key="resend" action={requestAccessWithId} label="Renvoyer une demande" />
                       </div>
                     ) : (
-                      <RequestAccessButton action={requestAccessWithId} />
+                      <RequestAccessButton key="request" action={requestAccessWithId} />
                     )}
                     <Link href="/groups" className="block text-xs text-gray-400 hover:text-gray-600 font-bold transition-colors">
                       ← Voir les autres groupes
