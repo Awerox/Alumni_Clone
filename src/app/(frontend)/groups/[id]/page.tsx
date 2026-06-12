@@ -182,12 +182,47 @@ async function removeMemberAction(groupId: string, memberId: string, motif?: str
     overrideAccess: true,
   })
   if (acceptedReq.docs.length > 0) {
-    await payload.update({
-      collection: 'group-requests' as any,
-      id: (acceptedReq.docs[0] as any).id,
-      overrideAccess: true,
-      data: { statut: 'removed', motif: motif?.trim() || undefined } as any,
-    })
+    try {
+      await payload.update({
+        collection: 'group-requests' as any,
+        id: (acceptedReq.docs[0] as any).id,
+        overrideAccess: true,
+        data: { statut: 'removed', motif: motif?.trim() || undefined } as any,
+      })
+    } catch (err) {
+      // Fallback si le statut 'removed' n'existe pas encore en base (migration non appliquée)
+      // -> on repasse en 'rejected' pour rester cohérent et permettre une redemande
+      try {
+        await payload.update({
+          collection: 'group-requests' as any,
+          id: (acceptedReq.docs[0] as any).id,
+          overrideAccess: true,
+          data: { statut: 'rejected', motif: motif?.trim() || 'Retiré du groupe par un modérateur' } as any,
+        })
+      } catch (err2) {
+        console.error('[removeMemberAction] impossible de mettre à jour la demande:', err2)
+      }
+    }
+  } else {
+    // Aucune demande existante (ex: membre ajouté manuellement) -> on en crée une
+    // pour pouvoir notifier le membre et lui permettre de redemander l'accès.
+    try {
+      await payload.create({
+        collection: 'group-requests' as any,
+        overrideAccess: true,
+        data: { groupe: groupIdNum, demandeur: memberIdNum, statut: 'removed', motif: motif?.trim() || undefined } as any,
+      })
+    } catch (err) {
+      try {
+        await payload.create({
+          collection: 'group-requests' as any,
+          overrideAccess: true,
+          data: { groupe: groupIdNum, demandeur: memberIdNum, statut: 'rejected', motif: motif?.trim() || 'Retiré du groupe par un modérateur' } as any,
+        })
+      } catch (err2) {
+        console.error('[removeMemberAction] impossible de créer la demande:', err2)
+      }
+    }
   }
 
   revalidatePath(`/groups/${groupId}`)
