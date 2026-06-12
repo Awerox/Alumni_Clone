@@ -89,28 +89,13 @@ async function requestAccessAction(groupId: string) {
   })
   if (existing.docs.length > 0) return
 
-  // Si une demande "rejected" existe déjà, on la remet en pending au lieu d'en créer une nouvelle
-  const rejectedExisting = await payload.find({
+  // ✅ Chaque demande crée une nouvelle entrée pour conserver l'historique complet
+  // (toutes les demandes, refus, retraits, etc. restent visibles dans /requests)
+  await payload.create({
     collection: 'group-requests' as any,
-    where: { and: [{ groupe: { equals: groupIdNum } }, { demandeur: { equals: userIdNum } }] },
-    limit: 1,
     overrideAccess: true,
+    data: { groupe: groupIdNum, demandeur: userIdNum, statut: 'pending' } as any,
   })
-
-  if (rejectedExisting.docs.length > 0) {
-    await payload.update({
-      collection: 'group-requests' as any,
-      id: (rejectedExisting.docs[0] as any).id,
-      overrideAccess: true,
-      data: { statut: 'pending' } as any,
-    })
-  } else {
-    await payload.create({
-      collection: 'group-requests' as any,
-      overrideAccess: true,
-      data: { groupe: groupIdNum, demandeur: userIdNum, statut: 'pending' } as any,
-    })
-  }
 
   revalidatePath(`/groups/${groupId}`)
 }
@@ -129,6 +114,7 @@ async function cancelRequestAction(groupId: string) {
     collection: 'group-requests' as any,
     where: { and: [{ groupe: { equals: groupIdNum } }, { demandeur: { equals: userIdNum } }] },
     limit: 1,
+    sort: '-createdAt',
     overrideAccess: true,
   })
 
@@ -180,15 +166,18 @@ async function removeMemberAction(groupId: string, memberId: string, motif?: str
     collection: 'group-requests' as any,
     where: { and: [{ groupe: { equals: groupIdNum } }, { demandeur: { equals: memberIdNum } }, { statut: { equals: 'accepted' } }] },
     limit: 1,
+    sort: '-createdAt',
     overrideAccess: true,
   })
+  const moderateurIdNum = Number(user.id)
+
   if (acceptedReq.docs.length > 0) {
     try {
       await payload.update({
         collection: 'group-requests' as any,
         id: (acceptedReq.docs[0] as any).id,
         overrideAccess: true,
-        data: { statut: 'removed', motif: motif?.trim() || undefined } as any,
+        data: { statut: 'removed', motif: motif?.trim() || undefined, moderateur: moderateurIdNum } as any,
       })
     } catch (err) {
       // Fallback si le statut 'removed' n'existe pas encore en base (migration non appliquée)
@@ -198,7 +187,7 @@ async function removeMemberAction(groupId: string, memberId: string, motif?: str
           collection: 'group-requests' as any,
           id: (acceptedReq.docs[0] as any).id,
           overrideAccess: true,
-          data: { statut: 'rejected', motif: motif?.trim() || 'Retiré du groupe par un modérateur' } as any,
+          data: { statut: 'rejected', motif: motif?.trim() || 'Retiré du groupe par un modérateur', moderateur: moderateurIdNum } as any,
         })
       } catch (err2) {
         console.error('[removeMemberAction] impossible de mettre à jour la demande:', err2)
@@ -211,14 +200,14 @@ async function removeMemberAction(groupId: string, memberId: string, motif?: str
       await payload.create({
         collection: 'group-requests' as any,
         overrideAccess: true,
-        data: { groupe: groupIdNum, demandeur: memberIdNum, statut: 'removed', motif: motif?.trim() || undefined } as any,
+        data: { groupe: groupIdNum, demandeur: memberIdNum, statut: 'removed', motif: motif?.trim() || undefined, moderateur: moderateurIdNum } as any,
       })
     } catch (err) {
       try {
         await payload.create({
           collection: 'group-requests' as any,
           overrideAccess: true,
-          data: { groupe: groupIdNum, demandeur: memberIdNum, statut: 'rejected', motif: motif?.trim() || 'Retiré du groupe par un modérateur' } as any,
+          data: { groupe: groupIdNum, demandeur: memberIdNum, statut: 'rejected', motif: motif?.trim() || 'Retiré du groupe par un modérateur', moderateur: moderateurIdNum } as any,
         })
       } catch (err2) {
         console.error('[removeMemberAction] impossible de créer la demande:', err2)
@@ -328,7 +317,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
     const existingReq = await payload.find({
       collection: 'group-requests' as any,
       where: { and: [{ groupe: { equals: Number(group.id) } }, { demandeur: { equals: Number(currentUserId) } }] },
-      limit: 1, overrideAccess: true,
+      limit: 1, sort: '-createdAt', overrideAccess: true,
     })
     if (existingReq.docs.length > 0) {
       const doc = existingReq.docs[0] as any

@@ -1,4 +1,5 @@
 'use server'
+import React from 'react'
 
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
@@ -47,6 +48,7 @@ async function handleRequestAction(requestId: string, action: 'accepted' | 'reje
     overrideAccess: true,
     data: {
       statut: action,
+      moderateur: Number(user.id),
       ...(action === 'rejected' ? { motif: motif?.trim() || undefined } : {}),
     } as any,
   })
@@ -94,7 +96,7 @@ export default async function GroupRequestsPage({
       depth: 2,
       overrideAccess: true,
       sort: '-updatedAt',
-      limit: 20,
+      limit: 100,
     }),
   ])
 
@@ -165,6 +167,8 @@ export default async function GroupRequestsPage({
                       )}
                       <p className="text-xs text-gray-400 mt-1">
                         {new Date(req.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                        {' à '}
+                        {new Date(req.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
                     <RequestActionButtons acceptAction={acceptAction} rejectAction={rejectAction} />
@@ -175,34 +179,68 @@ export default async function GroupRequestsPage({
           )}
         </div>
 
-        {/* Demandes traitées */}
+        {/* Historique complet */}
         {handledReqs.docs.length > 0 && (
           <div className="space-y-4">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">
-              Traitées récemment
+              Historique ({handledReqs.docs.length})
             </h2>
             <div className="space-y-2">
               {handledReqs.docs.map((req: any) => {
                 const demandeur = typeof req.demandeur === 'object' ? req.demandeur : null
+                const moderateur = typeof req.moderateur === 'object' ? req.moderateur : null
                 const fullName = demandeur ? [demandeur.prenom, demandeur.nom].filter(Boolean).join(' ') || 'Inconnu' : 'Inconnu'
+                const moderateurName = moderateur ? [moderateur.prenom, moderateur.nom].filter(Boolean).join(' ') || 'Inconnu' : null
                 const initials = demandeur ? ((demandeur.prenom?.[0] ?? '') + (demandeur.nom?.[0] ?? '')).toUpperCase() || '?' : '?'
 
+                const dateStr = new Date(req.updatedAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
+                const timeStr = new Date(req.updatedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+
+                const badgeConfig: Record<string, { label: string; className: string }> = {
+                  accepted: { label: 'Acceptée', className: 'bg-emerald-100 text-emerald-700' },
+                  rejected: { label: 'Refusée', className: 'bg-red-100 text-red-700' },
+                  removed:  { label: 'Membre retiré', className: 'bg-orange-100 text-orange-700' },
+                }
+                const badge = badgeConfig[req.statut] ?? { label: req.statut, className: 'bg-gray-100 text-gray-600' }
+
+                // Texte d'action selon le statut
+                let actionText: React.ReactNode = null
+                if (req.statut === 'accepted') {
+                  actionText = moderateurName ? <>Acceptée par <span className="font-semibold text-gray-700">{moderateurName}</span></> : 'Acceptée'
+                } else if (req.statut === 'rejected') {
+                  actionText = moderateurName ? <>Refusée par <span className="font-semibold text-gray-700">{moderateurName}</span></> : 'Refusée'
+                } else if (req.statut === 'removed') {
+                  actionText = moderateurName ? <>Retiré par <span className="font-semibold text-gray-700">{moderateurName}</span></> : 'Retiré du groupe'
+                }
+
                 return (
-                  <div key={String(req.id)} className="rounded-xl bg-white shadow-sm ring-1 ring-gray-100 p-4 flex items-center gap-3 opacity-75">
-                    {demandeur?.photo?.url ? (
-                      <img src={demandeur.photo.url} alt={fullName} className="h-9 w-9 rounded-full object-cover flex-shrink-0" />
-                    ) : (
-                      <div className="h-9 w-9 rounded-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">{initials}</div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-700">{fullName}</p>
-                      <p className="text-xs text-gray-400">{new Date(req.updatedAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</p>
+                  <div key={String(req.id)} className="rounded-xl bg-white shadow-sm ring-1 ring-gray-100 p-4">
+                    <div className="flex items-center gap-3">
+                      {demandeur?.photo?.url ? (
+                        <img src={demandeur.photo.url} alt={fullName} className="h-9 w-9 rounded-full object-cover flex-shrink-0" />
+                      ) : (
+                        <div className="h-9 w-9 rounded-full bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">{initials}</div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-700">{fullName}</p>
+                        <p className="text-xs text-gray-400">
+                          {actionText} · {dateStr} à {timeStr}
+                        </p>
+                      </div>
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium flex-shrink-0 ${badge.className}`}>
+                        {badge.label}
+                      </span>
                     </div>
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                      req.statut === 'accepted' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
-                    }`}>
-                      {req.statut === 'accepted' ? 'Accepté' : 'Refusé'}
-                    </span>
+                    {req.motif && (
+                      <p className="text-xs text-gray-500 italic mt-2 ml-12 bg-gray-50 rounded-lg px-2.5 py-1.5">
+                        Motif : "{req.motif}"
+                      </p>
+                    )}
+                    {req.message && (
+                      <p className="text-xs text-gray-400 italic mt-2 ml-12">
+                        Message du demandeur : "{req.message}"
+                      </p>
+                    )}
                   </div>
                 )
               })}

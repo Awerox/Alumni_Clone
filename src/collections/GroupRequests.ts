@@ -121,6 +121,15 @@ export const GroupRequests: CollectionConfig = {
         description: 'Optionnel — raison donnée par le modérateur',
       },
     },
+    {
+      name: 'moderateur',
+      type: 'relationship',
+      relationTo: 'alumni',
+      label: 'Modérateur (action)',
+      admin: {
+        description: "Modérateur ayant accepté/refusé la demande ou retiré le membre",
+      },
+    },
   ],
   timestamps: true,
 }
