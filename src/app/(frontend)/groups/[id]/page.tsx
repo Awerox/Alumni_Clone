@@ -611,6 +611,8 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
                       const initials = getInitials(m)
                       const fullName = [m.prenom, m.nom].filter(Boolean).join(' ') || 'Membre'
                       const isThisCreator = String(m.id) === creatorId
+                      const thisModConfig = moderateurs.find((a: any) => String(typeof a.membre === 'object' ? a.membre.id : a.membre) === String(m.id))
+                      const isThisModerator = !!thisModConfig && !isThisCreator
                       const removeMemberWithId = removeMemberAction.bind(null, String(group.id), String(m.id)) as (motif?: string) => Promise<void>
                       return (
                         <div key={String(m.id)}
@@ -627,6 +629,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
                             <div className="flex items-center gap-1.5">
                               <p className="text-sm font-bold text-gray-900 truncate group-hover:text-amber-700 transition-colors">{fullName}</p>
                               {isThisCreator && <span className="text-[8px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full uppercase">créateur</span>}
+                              {isThisModerator && <span className="text-[8px] font-black text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-full uppercase">modérateur</span>}
                             </div>
                             {m.diplome && <p className="text-[10px] text-gray-400 font-medium truncate">{m.diplome}{m.promotion ? ` · ${m.promotion}` : ''}</p>}
                           </div>

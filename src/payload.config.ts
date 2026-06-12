@@ -19,6 +19,7 @@ import Evenements from './collections/evenements'
 import DirectMessages from './collections/DirectMessages'
 import { PublicMessages } from './collections/PublicMessages'
 import { GroupRequests } from './collections/GroupRequests'
+import { GroupActivityLogs } from './collections/GroupActivityLogs'
 
 
 const filename = fileURLToPath(import.meta.url)
@@ -62,6 +63,7 @@ export default buildConfig({
     DirectMessages,
     PublicMessages,
     GroupRequests,
+    GroupActivityLogs,
   ],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '1234567890abcdef1234567890abcdef',

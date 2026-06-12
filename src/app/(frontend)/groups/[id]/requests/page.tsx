@@ -82,7 +82,7 @@ export default async function GroupRequestsPage({
   if (!canManage) redirect(`/groups/${id}`)
 
   // Charger les demandes
-  const [pendingReqs, handledReqs] = await Promise.all([
+  const [pendingReqs, handledReqs, activityLogsRaw] = await Promise.all([
     payload.find({
       collection: 'group-requests' as any,
       where: { and: [{ groupe: { equals: id } }, { statut: { equals: 'pending' } }] },
@@ -98,9 +98,49 @@ export default async function GroupRequestsPage({
       sort: '-updatedAt',
       limit: 100,
     }),
+    payload.find({
+      collection: 'group-activity-logs' as any,
+      where: { groupe: { equals: id } },
+      depth: 1,
+      overrideAccess: true,
+      sort: '-createdAt',
+      limit: 50,
+    }).catch(() => ({ docs: [] as any[] })),
   ])
 
   const miniatureUrl = group.miniature && typeof group.miniature === 'object' ? group.miniature.url : null
+
+  // Résoudre les médias référencés dans les logs (format "media:ID")
+  const mediaIds = new Set<string>()
+  for (const log of activityLogsRaw.docs as any[]) {
+    for (const val of [log.ancienneValeur, log.nouvelleValeur]) {
+      if (typeof val === 'string' && val.startsWith('media:')) mediaIds.add(val.slice(6))
+    }
+  }
+  const mediaUrlMap = new Map<string, string>()
+  if (mediaIds.size > 0) {
+    const mediaDocs = await payload.find({
+      collection: 'media',
+      where: { id: { in: Array.from(mediaIds) } },
+      depth: 0,
+      overrideAccess: true,
+      limit: mediaIds.size,
+    }).catch(() => ({ docs: [] as any[] }))
+    for (const m of (mediaDocs as any).docs ?? []) {
+      if (m?.url) mediaUrlMap.set(String(m.id), m.url)
+    }
+  }
+  const activityLogs = (activityLogsRaw.docs as any[]).map((log) => ({
+    ...log,
+    ancienneValeurResolved: typeof log.ancienneValeur === 'string' && log.ancienneValeur.startsWith('media:')
+      ? mediaUrlMap.get(log.ancienneValeur.slice(6)) ?? null
+      : log.ancienneValeur,
+    nouvelleValeurResolved: typeof log.nouvelleValeur === 'string' && log.nouvelleValeur.startsWith('media:')
+      ? mediaUrlMap.get(log.nouvelleValeur.slice(6)) ?? null
+      : log.nouvelleValeur,
+    isMedia: (typeof log.ancienneValeur === 'string' && log.ancienneValeur.startsWith('media:'))
+      || (typeof log.nouvelleValeur === 'string' && log.nouvelleValeur.startsWith('media:')),
+  }))
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -240,6 +280,84 @@ export default async function GroupRequestsPage({
                       <p className="text-xs text-gray-400 italic mt-2 ml-12">
                         Message du demandeur : "{req.message}"
                       </p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Journal d'activité (modifications du groupe) */}
+        {activityLogs.length > 0 && (
+          <div className="space-y-4">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">
+              Journal d'activité ({activityLogs.length})
+            </h2>
+            <div className="space-y-2">
+              {activityLogs.map((log: any) => {
+                const utilisateur = typeof log.utilisateur === 'object' ? log.utilisateur : null
+                const userName = utilisateur
+                  ? [utilisateur.prenom, utilisateur.nom].filter(Boolean).join(' ') || 'Inconnu'
+                  : 'Inconnu'
+                const initials = utilisateur
+                  ? ((utilisateur.prenom?.[0] ?? '') + (utilisateur.nom?.[0] ?? '')).toUpperCase() || '?'
+                  : '?'
+                const dateStr = new Date(log.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
+                const timeStr = new Date(log.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+
+                return (
+                  <div key={String(log.id)} className="rounded-xl bg-white shadow-sm ring-1 ring-gray-100 p-4">
+                    <div className="flex items-center gap-3">
+                      {utilisateur?.photo?.url ? (
+                        <img src={utilisateur.photo.url} alt={userName} className="h-9 w-9 rounded-full object-cover flex-shrink-0" />
+                      ) : (
+                        <div className="h-9 w-9 rounded-full bg-gradient-to-br from-indigo-300 to-purple-400 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">{initials}</div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-700">
+                          <span className="font-semibold">{userName}</span> a modifié{' '}
+                          <span className="font-semibold text-indigo-600">{log.champ}</span>
+                        </p>
+                        <p className="text-xs text-gray-400">{dateStr} à {timeStr}</p>
+                      </div>
+                    </div>
+
+                    {/* Avant / Après */}
+                    {log.isMedia ? (
+                      <div className="flex items-center gap-3 mt-3 ml-12">
+                        <div className="text-center">
+                          <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Avant</p>
+                          {log.ancienneValeurResolved ? (
+                            <img src={log.ancienneValeurResolved} alt="Avant" className="h-16 w-16 rounded-lg object-cover ring-1 ring-gray-200" />
+                          ) : (
+                            <div className="h-16 w-16 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-400">Aucune</div>
+                          )}
+                        </div>
+                        <svg className="h-4 w-4 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                        </svg>
+                        <div className="text-center">
+                          <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Après</p>
+                          {log.nouvelleValeurResolved ? (
+                            <img src={log.nouvelleValeurResolved} alt="Après" className="h-16 w-16 rounded-lg object-cover ring-1 ring-gray-200" />
+                          ) : (
+                            <div className="h-16 w-16 rounded-lg bg-gray-100 flex items-center justify-center text-xs text-gray-400">Aucune</div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 mt-2 ml-12 text-xs">
+                        <span className="bg-red-50 text-red-600 rounded-lg px-2 py-1 line-through max-w-[200px] truncate">
+                          {log.ancienneValeur || '(vide)'}
+                        </span>
+                        <svg className="h-3.5 w-3.5 text-gray-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                        </svg>
+                        <span className="bg-emerald-50 text-emerald-700 rounded-lg px-2 py-1 max-w-[200px] truncate">
+                          {log.nouvelleValeur || '(vide)'}
+                        </span>
+                      </div>
                     )}
                   </div>
                 )

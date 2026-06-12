@@ -51,6 +51,101 @@ export const Groups: CollectionConfig = {
         return data
       },
     ],
+    afterChange: [
+      async ({ doc, previousDoc, req, operation }) => {
+        if (operation !== 'update' || !previousDoc) return doc
+        if (!req.user) return doc
+
+        const payload = req.payload
+        const userId = Number((req.user as any).id)
+
+        const TEXT_FIELDS: Record<string, string> = {
+          titre: 'Titre',
+          description: 'Description',
+          categorie: 'Catégorie',
+          restrictDiplome: 'Restriction diplôme',
+          restrictCampus: 'Restriction campus',
+          restrictCategorie: 'Restriction catégorie',
+          restrictPromotion: 'Restriction promotion',
+        }
+        const CATEGORIE_LABELS: Record<string, string> = {
+          academique: 'Académique',
+          culturel: 'Culturel',
+          artistique: 'Artistique',
+          sportif: 'Sportif',
+          environnement: 'Environnement',
+          solidarite: 'Solidarité',
+          professionnel: 'Professionnel',
+          loisir: 'Loisir',
+          autre: 'Autre',
+        }
+        const MEDIA_FIELDS: Record<string, string> = {
+          miniature: 'Photo du groupe',
+          banniere: 'Bannière',
+        }
+
+        const logs: { champ: string; ancienneValeur: string; nouvelleValeur: string }[] = []
+
+        // Champs texte / sélection
+        for (const [field, label] of Object.entries(TEXT_FIELDS)) {
+          const oldVal = (previousDoc as any)[field]
+          const newVal = (doc as any)[field]
+          if ((oldVal ?? '') !== (newVal ?? '')) {
+            let oldStr = oldVal == null || oldVal === '' ? '(vide)' : String(oldVal)
+            let newStr = newVal == null || newVal === '' ? '(vide)' : String(newVal)
+            if (field === 'categorie') {
+              oldStr = CATEGORIE_LABELS[oldStr] ?? oldStr
+              newStr = CATEGORIE_LABELS[newStr] ?? newStr
+            }
+            logs.push({ champ: label, ancienneValeur: oldStr, nouvelleValeur: newStr })
+          }
+        }
+
+        // Visibilité (isPublic)
+        if (!!(previousDoc as any).isPublic !== !!(doc as any).isPublic) {
+          logs.push({
+            champ: 'Visibilité',
+            ancienneValeur: (previousDoc as any).isPublic ? 'Public' : 'Privé',
+            nouvelleValeur: (doc as any).isPublic ? 'Public' : 'Privé',
+          })
+        }
+
+        // Champs média (photo, bannière)
+        for (const [field, label] of Object.entries(MEDIA_FIELDS)) {
+          const oldRaw = (previousDoc as any)[field]
+          const newRaw = (doc as any)[field]
+          const oldId = typeof oldRaw === 'object' && oldRaw !== null ? oldRaw.id : oldRaw
+          const newId = typeof newRaw === 'object' && newRaw !== null ? newRaw.id : newRaw
+          if (String(oldId ?? '') !== String(newId ?? '')) {
+            logs.push({
+              champ: label,
+              ancienneValeur: oldId ? `media:${oldId}` : '(aucune)',
+              nouvelleValeur: newId ? `media:${newId}` : '(aucune)',
+            })
+          }
+        }
+
+        for (const log of logs) {
+          try {
+            await payload.create({
+              collection: 'group-activity-logs' as any,
+              overrideAccess: true,
+              data: {
+                groupe: doc.id,
+                utilisateur: userId,
+                champ: log.champ,
+                ancienneValeur: log.ancienneValeur,
+                nouvelleValeur: log.nouvelleValeur,
+              } as any,
+            })
+          } catch (err) {
+            console.error('[Groups afterChange] impossible de créer le log:', err)
+          }
+        }
+
+        return doc
+      },
+    ],
   },
   fields: [
     { name: 'titre', type: 'text', label: 'Nom du groupe', required: true },
