@@ -175,13 +175,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
       {/* ── HERO BANNIÈRE ────────────────────────────────────────────── */}
       <div className="relative w-full h-56 md:h-80 overflow-hidden bg-gray-900">
         {banniereUrl ? (
-          <>
-            {/* Fond flou agrandi pour combler sans rogner le sujet */}
-            <div className="absolute inset-0 scale-110 blur-2xl opacity-50">
-              <img src={banniereUrl} alt="" className="w-full h-full object-cover" />
-            </div>
-            <img src={banniereUrl} alt="" className="absolute inset-0 w-full h-full object-contain md:object-cover object-center" />
-          </>
+          <img src={banniereUrl} alt="" className="absolute inset-0 w-full h-full object-cover object-center" />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-amber-400 via-orange-500 to-red-600 opacity-90" />
         )}
