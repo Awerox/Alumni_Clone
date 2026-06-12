@@ -356,7 +356,7 @@ export interface Group {
   /**
    * Membres ayant des droits de modération sur ce groupe
    */
-  adminsConfig?:
+  moderateurs?:
     | {
         membre: number | Alumnus;
         canManageRequests?: boolean | null;
@@ -546,11 +546,19 @@ export interface GroupRequest {
    * Assigné automatiquement à la création
    */
   demandeur: number | Alumnus;
-  statut: 'pending' | 'accepted' | 'rejected';
+  statut: 'pending' | 'accepted' | 'rejected' | 'removed';
   /**
    * Optionnel — message laissé par le demandeur
    */
   message?: string | null;
+  /**
+   * Optionnel — raison donnée par le modérateur
+   */
+  motif?: string | null;
+  /**
+   * Modérateur ayant accepté/refusé la demande ou retiré le membre
+   */
+  moderateur?: (number | null) | Alumnus;
   updatedAt: string;
   createdAt: string;
 }
@@ -833,7 +841,7 @@ export interface GroupsSelect<T extends boolean = true> {
   restrictCategorie?: T;
   restrictPromotion?: T;
   membres?: T;
-  adminsConfig?:
+  moderateurs?:
     | T
     | {
         membre?: T;
@@ -985,6 +993,8 @@ export interface GroupRequestsSelect<T extends boolean = true> {
   demandeur?: T;
   statut?: T;
   message?: T;
+  motif?: T;
+  moderateur?: T;
   updatedAt?: T;
   createdAt?: T;
 }
