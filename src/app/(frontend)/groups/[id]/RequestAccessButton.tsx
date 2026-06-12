@@ -24,16 +24,28 @@ export default function RequestAccessButton({
   const router = useRouter()
   const [pending, setPending] = useState(false)
   const [done, setDone] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function handleClick() {
     setPending(true)
+    setError(null)
     try {
-      await action()
+      // Timeout de sécurité : si l'action ne répond pas en 15s, on débloque le bouton
+      await Promise.race([
+        action(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000)),
+      ])
       setDone(true)
       router.refresh()
       if (!persistDone) {
         setTimeout(() => setDone(false), doneDurationMs)
       }
+    } catch (err) {
+      setError(
+        err instanceof Error && err.message === 'timeout'
+          ? "Le serveur ne répond pas. Réessayez dans quelques secondes."
+          : "Une erreur est survenue. Réessayez."
+      )
     } finally {
       setPending(false)
     }
@@ -55,13 +67,18 @@ export default function RequestAccessButton({
   }
 
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      disabled={pending}
-      className={`${baseClass} ${pending ? 'opacity-70 cursor-wait' : ''}`}
-    >
-      {pending ? '…' : label}
-    </button>
+    <div className="space-y-2">
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={pending}
+        className={`${baseClass} ${pending ? 'opacity-70 cursor-wait' : ''}`}
+      >
+        {pending ? '…' : label}
+      </button>
+      {error && (
+        <p className="text-xs text-red-500 font-medium text-center">{error}</p>
+      )}
+    </div>
   )
 }
