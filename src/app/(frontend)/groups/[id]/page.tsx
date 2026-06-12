@@ -7,6 +7,7 @@ import config from '@payload-config'
 import { getAuthUser } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import LeaveGroupButton from './LeaveGroupButton'
+import RemoveMemberButton from './RemoveMemberButton'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -307,7 +308,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
             <img src={banniereUrl} alt="" className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-60" />
             {/* Image principale légèrement dézoomée */}
             <div className="absolute inset-0 overflow-hidden">
-              <img src={banniereUrl} alt="" className="w-full h-full object-cover scale-100" />
+              <img src={banniereUrl} alt="" className="w-full h-full object-cover scale-90" />
             </div>
           </>
         ) : (
@@ -576,14 +577,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
                             {m.diplome && <p className="text-[10px] text-gray-400 font-medium truncate">{m.diplome}{m.promotion ? ` · ${m.promotion}` : ''}</p>}
                           </div>
                           {canManageMembers && !isThisCreator && (
-                            <form action={removeMemberWithId}>
-                              <button type="submit" title="Retirer du groupe"
-                                className="opacity-0 group-hover:opacity-100 rounded-lg p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all flex-shrink-0">
-                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            </form>
+                            <RemoveMemberButton action={removeMemberWithId} memberName={fullName} />
                           )}
                         </div>
                       )

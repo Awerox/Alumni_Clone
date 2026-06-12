@@ -6,6 +6,7 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { getAuthUser } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
+import RequestActionButtons from './RequestActionButtons'
 
 // ─── Server Actions ───────────────────────────────────────────────────────────
 
@@ -163,18 +164,7 @@ export default async function GroupRequestsPage({
                         {new Date(req.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
                       </p>
                     </div>
-                    <div className="flex gap-2 flex-shrink-0">
-                      <form action={rejectAction}>
-                        <button type="submit" className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors">
-                          Refuser
-                        </button>
-                      </form>
-                      <form action={acceptAction}>
-                        <button type="submit" className="rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors">
-                          Accepter
-                        </button>
-                      </form>
-                    </div>
+                    <RequestActionButtons acceptAction={acceptAction} rejectAction={rejectAction} />
                   </div>
                 )
               })}
