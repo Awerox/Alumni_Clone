@@ -332,7 +332,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
             <img src={banniereUrl} alt="" className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-60" />
             {/* Image principale légèrement dézoomée */}
             <div className="absolute inset-0 overflow-hidden">
-              <img src={banniereUrl} alt="" className="w-full h-full object-cover scale-90" />
+              <img src={banniereUrl} alt="" className="w-full h-full object-cover scale-100" />
             </div>
           </>
         ) : (
@@ -483,7 +483,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
                         <div className="flex items-center justify-center gap-2 py-3 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-black uppercase tracking-wider rounded-xl">
                           ⏳ Demande en attente d'approbation
                         </div>
-                        <RequestAccessButton action={cancelRequestWithId} label="✕ Retirer ma demande" variant="secondary" />
+                        <RequestAccessButton action={cancelRequestWithId} label="✕ Retirer ma demande" variant="secondary" doneLabel="✕ Demande retirée" doneVariant="danger" />
                       </div>
                     ) : requestStatus === 'rejected' ? (
                       <div className="space-y-3">

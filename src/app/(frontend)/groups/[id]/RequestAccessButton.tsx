@@ -7,10 +7,14 @@ export default function RequestAccessButton({
   action,
   label = "✦ Demander l'accès",
   variant = 'primary',
+  doneLabel = '✓ Demande envoyée',
+  doneVariant = 'success',
 }: {
   action: () => Promise<void>
   label?: string
   variant?: 'primary' | 'secondary'
+  doneLabel?: string
+  doneVariant?: 'success' | 'danger'
 }) {
   const router = useRouter()
   const [pending, setPending] = useState(false)
@@ -32,9 +36,12 @@ export default function RequestAccessButton({
     : 'w-full py-2.5 bg-white border border-gray-200 hover:bg-red-50 hover:border-red-200 hover:text-red-600 text-gray-500 text-xs font-black uppercase tracking-widest rounded-xl transition-all duration-200'
 
   if (done) {
+    const doneClass = doneVariant === 'danger'
+      ? 'bg-red-50 border-red-200 text-red-600'
+      : 'bg-emerald-50 border-emerald-200 text-emerald-700'
     return (
-      <div className="flex items-center justify-center gap-2 py-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-black uppercase tracking-widest rounded-xl">
-        ✓ Demande envoyée
+      <div className={`flex items-center justify-center gap-2 py-3 border text-xs font-black uppercase tracking-widest rounded-xl ${doneClass}`}>
+        {doneLabel}
       </div>
     )
   }
