@@ -109,8 +109,9 @@ function EmptyState({ tab }: { tab: string }) {
 export default async function GroupsPage({
   searchParams,
 }: {
-  searchParams: { tab?: string; q?: string; categorie?: string }
+  searchParams: Promise<{ tab?: string; q?: string; categorie?: string }>
 }) {
+  const resolvedSearchParams = await searchParams
   const payload = await getPayload({ config: configPromise })
 
   // Auth
@@ -140,9 +141,9 @@ export default async function GroupsPage({
     )
   }
 
-  const currentTab = searchParams.tab ?? 'tous'
-  const searchQuery = searchParams.q?.toLowerCase().trim() ?? ''
-  const categorieFilter = searchParams.categorie ?? ''
+  const currentTab = resolvedSearchParams.tab ?? 'tous'
+  const searchQuery = resolvedSearchParams.q?.toLowerCase().trim() ?? ''
+  const categorieFilter = resolvedSearchParams.categorie ?? ''
 
   // Chargement
   const groupsList = await payload.find({
@@ -153,6 +154,26 @@ export default async function GroupsPage({
   })
 
   let displayedGroups = groupsList.docs as unknown as Group[]
+
+  // ── Demandes en attente de l'utilisateur (pour afficher "Demande en approbation") ──
+  const pendingGroupIds = new Set<string>()
+  if (user) {
+    try {
+      const pendingReqs = await payload.find({
+        collection: 'group-requests' as any,
+        where: { and: [{ demandeur: { equals: Number(user.id) } }, { statut: { equals: 'pending' } }] },
+        depth: 0,
+        limit: 100,
+        overrideAccess: true,
+      })
+      for (const req of pendingReqs.docs as any[]) {
+        const gId = typeof req.groupe === 'object' ? req.groupe?.id : req.groupe
+        if (gId != null) pendingGroupIds.add(String(gId))
+      }
+    } catch {
+      // ignore si la collection n'est pas encore migrée
+    }
+  }
 
   // ── Filtrage par onglet ──────────────────────────────────
   if (currentTab === 'mes_groupes' && user) {
@@ -257,6 +278,13 @@ export default async function GroupsPage({
               const isAdmin = (user as { collection?: string } | null)?.collection === 'users'
               const isOwner = isCreator || isAdmin
 
+              const isMember = !!user && (group.membres ?? []).some((m) => {
+                const mId = typeof m === 'object' && m !== null ? String((m as AlumniMember).id) : String(m)
+                return mId === String(user.id)
+              })
+
+              const hasPendingRequest = !!user && !isMember && !isCreator && pendingGroupIds.has(String(group.id))
+
               const membresCount = group.membres?.length ?? 0
               const catLabel = group.categorie
                 ? (CATEGORIE_LABELS[group.categorie] ?? group.categorie)
@@ -320,6 +348,22 @@ export default async function GroupsPage({
                             </svg>
                             {membresCount} membre{membresCount !== 1 ? 's' : ''}
                           </span>
+                          {isMember && !isCreator && (
+                            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-indigo-50 text-indigo-700">
+                              <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 24 24">
+                                <path fillRule="evenodd" d="M19.916 4.626a.75.75 0 01.208 1.04l-9 13.5a.75.75 0 01-1.154.114l-6-6a.75.75 0 011.06-1.06l5.353 5.353 8.493-12.74a.75.75 0 011.04-.207z" clipRule="evenodd" />
+                              </svg>
+                              Vous êtes membre
+                            </span>
+                          )}
+                          {hasPendingRequest && (
+                            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium bg-amber-50 text-amber-700">
+                              <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              Demande en approbation
+                            </span>
+                          )}
                         </div>
                         {/* Titre */}
                         <h2 className="text-sm font-bold text-gray-900 group-hover:text-indigo-700 transition-colors truncate">
