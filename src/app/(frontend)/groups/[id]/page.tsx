@@ -173,7 +173,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
     <div className="min-h-screen bg-gray-50/50 font-sans">
 
       {/* ── HERO BANNIÈRE ────────────────────────────────────────────── */}
-      <div className="relative w-full h-56 md:h-80 overflow-hidden bg-gray-900">
+      <div className="relative w-full h-64 md:h-96 overflow-hidden bg-gray-900">
         {banniereUrl ? (
           <img src={banniereUrl} alt="" className="absolute inset-0 w-full h-full object-cover object-center" />
         ) : (
@@ -209,11 +209,11 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
         {/* Infos groupe en bas de la bannière */}
         <div className="absolute bottom-0 left-0 right-0 p-6 flex items-end gap-4">
           {/* Miniature */}
-          <div className="flex-shrink-0 h-20 w-20 md:h-24 md:w-24 rounded-2xl ring-4 ring-white/20 shadow-2xl overflow-hidden bg-gray-800 -mb-8 relative z-10">
+          <div className="flex-shrink-0 h-28 w-28 md:h-36 md:w-36 rounded-2xl ring-4 ring-white/30 shadow-2xl overflow-hidden bg-gray-800 relative z-10">
             {miniatureUrl ? (
               <img src={miniatureUrl} alt={group.titre} className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center text-2xl font-black text-white">
+              <div className="w-full h-full bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center text-4xl font-black text-white">
                 {group.titre[0]?.toUpperCase()}
               </div>
             )}
