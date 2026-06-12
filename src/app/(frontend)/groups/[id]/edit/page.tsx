@@ -24,6 +24,21 @@ interface MediaItem {
   alt?: string
 }
 
+interface AlumniLite {
+  id: string | number
+  prenom?: string
+  nom?: string
+  email?: string
+  photo?: { url?: string }
+}
+
+interface AdminConfig {
+  membre: AlumniLite | string | number
+  canManageRequests?: boolean
+  canManageMembers?: boolean
+  canEditGroup?: boolean
+}
+
 interface GroupData {
   id: string
   titre: string
@@ -37,6 +52,9 @@ interface GroupData {
   restrictCampus?: string
   restrictCategorie?: string
   restrictPromotion?: string
+  membres?: AlumniLite[]
+  moderateurs?: AdminConfig[]
+  createur?: AlumniLite | string | number
 }
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
@@ -527,6 +545,12 @@ export default function EditGroupPage({ params }: { params: Promise<{ id: string
   const [restrictCategories, setRestrictCategories] = useState<string[]>([])
   const [restrictPromotions, setRestrictPromotions] = useState<string[]>([])
 
+  // Modérateurs du groupe
+  const [members, setMembers] = useState<AlumniLite[]>([])
+  const [moderateurs, setAdminsConfig] = useState<AdminConfig[]>([])
+  const [isCreator, setIsCreator] = useState(false)
+  const [addAdminId, setAddAdminId] = useState('')
+
   // Soumission
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -558,6 +582,21 @@ export default function EditGroupPage({ params }: { params: Promise<{ id: string
         if (data.restrictCampus) setRestrictCampus(data.restrictCampus.split(',').map((s) => s.trim()).filter(Boolean))
         if (data.restrictCategorie) setRestrictCategories(data.restrictCategorie.split(',').map((s) => s.trim()).filter(Boolean))
         if (data.restrictPromotion) setRestrictPromotions(data.restrictPromotion.split(',').map((s) => s.trim()).filter(Boolean))
+
+        // Membres + admins (gestion des permissions)
+        setMembers(data.membres ?? [])
+        setAdminsConfig(data.moderateurs ?? [])
+
+        // Vérifie si l'utilisateur courant est le créateur
+        const meRes = await fetch('/api/alumni/me', { credentials: 'include' }).catch(() => null)
+        if (meRes?.ok) {
+          const meData = await meRes.json()
+          const meId = String(meData?.user?.id ?? '')
+          const creatorId = typeof data.createur === 'object' && data.createur !== null
+            ? String((data.createur as AlumniLite).id)
+            : String(data.createur ?? '')
+          setIsCreator(!!meId && meId === creatorId)
+        }
       } catch (err) {
         setLoadError(err instanceof Error ? err.message : 'Erreur de chargement')
       } finally {
@@ -608,6 +647,33 @@ export default function EditGroupPage({ params }: { params: Promise<{ id: string
     return data.doc?.id ?? data.id
   }
 
+  // ── Gestion des administrateurs ───────────────────────────
+  function addAdmin() {
+    if (!addAdminId) return
+    if (moderateurs.some((a) => String(typeof a.membre === 'object' ? a.membre.id : a.membre) === addAdminId)) return
+    const member = members.find((m) => String(m.id) === addAdminId)
+    if (!member) return
+    setAdminsConfig((prev) => [...prev, {
+      membre: member,
+      canManageRequests: false,
+      canManageMembers: false,
+      canEditGroup: false,
+    }])
+    setAddAdminId('')
+  }
+
+  function removeAdmin(memberId: string) {
+    setAdminsConfig((prev) => prev.filter((a) => String(typeof a.membre === 'object' ? a.membre.id : a.membre) !== memberId))
+  }
+
+  function toggleAdminPermission(memberId: string, perm: 'canManageRequests' | 'canManageMembers' | 'canEditGroup') {
+    setAdminsConfig((prev) => prev.map((a) => {
+      const id = String(typeof a.membre === 'object' ? a.membre.id : a.membre)
+      if (id !== memberId) return a
+      return { ...a, [perm]: !a[perm] }
+    }))
+  }
+
   // ── Soumission ───────────────────────────────────────────
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -631,6 +697,16 @@ export default function EditGroupPage({ params }: { params: Promise<{ id: string
         restrictCampus: restrictCampus.join(', ') || undefined,
         restrictCategorie: restrictCategories.join(', ') || undefined,
         restrictPromotion: restrictPromotions.join(', ') || undefined,
+      }
+
+      // Seul le créateur peut modifier les administrateurs
+      if (isCreator) {
+        body.moderateurs = moderateurs.map((a) => ({
+          membre: typeof a.membre === 'object' ? a.membre.id : a.membre,
+          canManageRequests: !!a.canManageRequests,
+          canManageMembers: !!a.canManageMembers,
+          canEditGroup: !!a.canEditGroup,
+        }))
       }
 
       if (miniatureId) body.miniature = miniatureId
@@ -894,6 +970,106 @@ export default function EditGroupPage({ params }: { params: Promise<{ id: string
                 ))}
               </div>
             </div>
+
+            {/* ── Administrateurs ──────────────────────────── */}
+            {isCreator && (
+              <div className="rounded-2xl bg-white shadow-sm ring-1 ring-gray-100 p-6 space-y-4">
+                <div>
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-400">
+                    Modérateurs du groupe
+                  </h2>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Désignez des modérateurs pour vous aider à gérer le groupe et cochez leurs permissions.
+                  </p>
+                </div>
+
+                {/* Ajouter un admin */}
+                {members.length > 0 && (
+                  <div className="flex gap-2">
+                    <select
+                      value={addAdminId}
+                      onChange={(e) => setAddAdminId(e.target.value)}
+                      className="flex-1 rounded-xl border border-gray-200 px-3 py-2.5 text-sm shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-colors bg-white"
+                    >
+                      <option value="">Sélectionner un membre…</option>
+                      {members
+                        .filter((m) => !moderateurs.some((a) => String(typeof a.membre === 'object' ? a.membre.id : a.membre) === String(m.id)))
+                        .map((m) => (
+                          <option key={String(m.id)} value={String(m.id)}>
+                            {[m.prenom, m.nom].filter(Boolean).join(' ') || m.email || `#${m.id}`}
+                          </option>
+                        ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={addAdmin}
+                      disabled={!addAdminId}
+                      className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Ajouter
+                    </button>
+                  </div>
+                )}
+
+                {/* Liste des admins */}
+                {moderateurs.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-4">Aucun modérateur désigné</p>
+                ) : (
+                  <div className="space-y-2">
+                    {moderateurs.map((admin) => {
+                      const member = typeof admin.membre === 'object' ? admin.membre : null
+                      const memberId = String(typeof admin.membre === 'object' ? admin.membre.id : admin.membre)
+                      const fullName = member ? [member.prenom, member.nom].filter(Boolean).join(' ') || member.email || `#${memberId}` : `#${memberId}`
+                      const initials = member ? ((member.prenom?.[0] ?? '') + (member.nom?.[0] ?? '')).toUpperCase() || '?' : '?'
+
+                      return (
+                        <div key={memberId} className="rounded-xl border border-gray-200 p-3 space-y-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              {member?.photo?.url ? (
+                                <img src={member.photo.url} alt="" className="h-8 w-8 rounded-full object-cover flex-shrink-0" />
+                              ) : (
+                                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0">
+                                  {initials}
+                                </div>
+                              )}
+                              <p className="text-sm font-medium text-gray-900 truncate">{fullName}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeAdmin(memberId)}
+                              className="rounded-lg p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors flex-shrink-0"
+                              title="Retirer ce modérateur"
+                            >
+                              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                          <div className="flex flex-wrap gap-3 pl-1">
+                            {([
+                              { key: 'canManageRequests' as const, label: "Gérer les demandes d'accès" },
+                              { key: 'canManageMembers' as const, label: 'Gérer les membres' },
+                              { key: 'canEditGroup' as const, label: 'Modifier le groupe' },
+                            ]).map(({ key, label }) => (
+                              <label key={key} className="flex items-center gap-1.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={!!admin[key]}
+                                  onChange={() => toggleAdminPermission(memberId, key)}
+                                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                />
+                                <span className="text-xs text-gray-600">{label}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* ── Restrictions ─────────────────────────────── */}
             <div className="rounded-2xl bg-white shadow-sm ring-1 ring-gray-100 p-6 space-y-4">

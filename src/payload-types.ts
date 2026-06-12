@@ -81,6 +81,7 @@ export interface Config {
     discussions: Discussion;
     'direct-messages': DirectMessage;
     'public-messages': PublicMessage;
+    'group-requests': GroupRequest;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -101,6 +102,7 @@ export interface Config {
     discussions: DiscussionsSelect<false> | DiscussionsSelect<true>;
     'direct-messages': DirectMessagesSelect<false> | DirectMessagesSelect<true>;
     'public-messages': PublicMessagesSelect<false> | PublicMessagesSelect<true>;
+    'group-requests': GroupRequestsSelect<false> | GroupRequestsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -352,7 +354,19 @@ export interface Group {
   restrictPromotion?: string | null;
   membres?: (number | Alumnus)[] | null;
   /**
-   * Le créateur du groupe (Attribué automatiquement)
+   * Membres ayant des droits de modération sur ce groupe
+   */
+  adminsConfig?:
+    | {
+        membre: number | Alumnus;
+        canManageRequests?: boolean | null;
+        canManageMembers?: boolean | null;
+        canEditGroup?: boolean | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Le createur du groupe (Attribue automatiquement)
    */
   createur?: (number | null) | Alumnus;
   updatedAt: string;
@@ -523,6 +537,25 @@ export interface PublicMessage {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "group-requests".
+ */
+export interface GroupRequest {
+  id: number;
+  groupe: number | Group;
+  /**
+   * Assigné automatiquement à la création
+   */
+  demandeur: number | Alumnus;
+  statut: 'pending' | 'accepted' | 'rejected';
+  /**
+   * Optionnel — message laissé par le demandeur
+   */
+  message?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -596,6 +629,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'public-messages';
         value: number | PublicMessage;
+      } | null)
+    | ({
+        relationTo: 'group-requests';
+        value: number | GroupRequest;
       } | null);
   globalSlug?: string | null;
   user:
@@ -796,6 +833,15 @@ export interface GroupsSelect<T extends boolean = true> {
   restrictCategorie?: T;
   restrictPromotion?: T;
   membres?: T;
+  adminsConfig?:
+    | T
+    | {
+        membre?: T;
+        canManageRequests?: T;
+        canManageMembers?: T;
+        canEditGroup?: T;
+        id?: T;
+      };
   createur?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -927,6 +973,18 @@ export interface PublicMessagesSelect<T extends boolean = true> {
   user?: T;
   text?: T;
   time?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "group-requests_select".
+ */
+export interface GroupRequestsSelect<T extends boolean = true> {
+  groupe?: T;
+  demandeur?: T;
+  statut?: T;
+  message?: T;
   updatedAt?: T;
   createdAt?: T;
 }

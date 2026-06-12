@@ -31,10 +31,12 @@ async function handleRequestAction(requestId: string, action: 'accepted' | 'reje
 
   const userId = String(user.id)
   const creatorId = typeof group.createur === 'object' ? String(group.createur.id) : String(group.createur ?? '')
-  const adminIds = (group.admins ?? []).map((a: any) => String(typeof a === 'object' ? a.id : a))
+  const moderateurs = group.moderateurs ?? []
+  const myConfig = moderateurs.find((a: any) => String(typeof a.membre === 'object' ? a.membre.id : a.membre) === userId)
   const isPayloadAdmin = (user as any).collection === 'users'
+  const canManageRequests = userId === creatorId || isPayloadAdmin || !!myConfig?.canManageRequests
 
-  if (userId !== creatorId && !adminIds.includes(userId) && !isPayloadAdmin) {
+  if (!canManageRequests) {
     throw new Error('Accès refusé')
   }
 
@@ -66,9 +68,10 @@ export default async function GroupRequestsPage({
 
   const userId = String(user.id)
   const creatorId = typeof group.createur === 'object' ? String(group.createur.id) : String(group.createur ?? '')
-  const adminIds = (group.admins ?? []).map((a: any) => String(typeof a === 'object' ? a.id : a))
+  const moderateurs = group.moderateurs ?? []
+  const myConfig = moderateurs.find((a: any) => String(typeof a.membre === 'object' ? a.membre.id : a.membre) === userId)
   const isPayloadAdmin = (user as any).collection === 'users'
-  const canManage = userId === creatorId || adminIds.includes(userId) || isPayloadAdmin
+  const canManage = userId === creatorId || isPayloadAdmin || !!myConfig?.canManageRequests
 
   if (!canManage) redirect(`/groups/${id}`)
 

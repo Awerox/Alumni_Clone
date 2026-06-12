@@ -100,14 +100,40 @@ export const Groups: CollectionConfig = {
       label: 'Membres inscrits',
     },
     {
-      name: 'admins',
-      type: 'relationship',
-      relationTo: 'alumni',
-      hasMany: true,
-      label: 'Administrateurs du groupe',
+      name: 'moderateurs',
+      type: 'array',
+      label: 'Modérateurs du groupe',
+      labels: { singular: 'Modérateur', plural: 'Modérateurs' },
       admin: {
-        description: 'Membres ayant le droit d accepter/refuser les demandes',
+        description: 'Membres ayant des droits de modération sur ce groupe',
       },
+      fields: [
+        {
+          name: 'membre',
+          type: 'relationship',
+          relationTo: 'alumni',
+          required: true,
+          label: 'Membre',
+        },
+        {
+          name: 'canManageRequests',
+          type: 'checkbox',
+          label: "Peut g\u00e9rer les demandes d'acc\u00e8s",
+          defaultValue: false,
+        },
+        {
+          name: 'canManageMembers',
+          type: 'checkbox',
+          label: 'Peut g\u00e9rer les membres (exclure)',
+          defaultValue: false,
+        },
+        {
+          name: 'canEditGroup',
+          type: 'checkbox',
+          label: 'Peut modifier le groupe',
+          defaultValue: false,
+        },
+      ],
     },
     {
       name: 'createur',

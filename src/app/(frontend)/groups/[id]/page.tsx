@@ -6,6 +6,7 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { getAuthUser } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
+import LeaveGroupButton from './LeaveGroupButton'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -31,7 +32,7 @@ interface Group {
   banniere?: GroupMedia
   isPublic?: boolean
   membres?: AlumniMember[]
-  admins?: AlumniMember[]
+  moderateurs?: { membre: AlumniMember | string | number; canManageRequests?: boolean; canManageMembers?: boolean; canEditGroup?: boolean }[]
   createur?: AlumniMember | string | number
   restrictDiplome?: string
   restrictCampus?: string
@@ -112,6 +113,123 @@ async function requestAccessAction(groupId: string) {
   revalidatePath(`/groups/${groupId}`)
 }
 
+async function cancelRequestAction(groupId: string) {
+  'use server'
+  const { user } = await getAuthUser()
+  if (!user) throw new Error('Non authentifié')
+  const payload = await getPayload({ config })
+
+  const groupIdNum = Number(groupId)
+  const userIdNum = Number(user.id)
+
+  const existing = await payload.find({
+    collection: 'group-requests' as any,
+    where: { and: [{ groupe: { equals: groupIdNum } }, { demandeur: { equals: userIdNum } }, { statut: { equals: 'pending' } }] },
+    limit: 1,
+    overrideAccess: true,
+  })
+
+  if (existing.docs.length > 0) {
+    await payload.delete({
+      collection: 'group-requests' as any,
+      id: (existing.docs[0] as any).id,
+      overrideAccess: true,
+    })
+  }
+
+  revalidatePath(`/groups/${groupId}`)
+}
+
+async function removeMemberAction(groupId: string, memberId: string) {
+  'use server'
+  const { user } = await getAuthUser()
+  if (!user) throw new Error('Non authentifié')
+  const payload = await getPayload({ config })
+
+  const group = await payload.findByID({ collection: 'groups', id: groupId, depth: 0 }) as any
+  if (!group) throw new Error('Groupe introuvable')
+
+  const userId = String(user.id)
+  const creatorId = typeof group.createur === 'object' ? String(group.createur.id) : String(group.createur ?? '')
+  const moderateurs = group.moderateurs ?? []
+  const myConfig = moderateurs.find((a: any) => String(typeof a.membre === 'object' ? a.membre.id : a.membre) === userId)
+  const isPayloadAdmin = (user as any).collection === 'users'
+  const canManageMembers = userId === creatorId || isPayloadAdmin || !!myConfig?.canManageMembers
+
+  if (!canManageMembers) throw new Error('Accès refusé')
+  if (memberId === creatorId) throw new Error('Impossible de retirer le créateur')
+
+  const currentMembres = (group.membres ?? []).map((m: any) => typeof m === 'object' ? m.id : m)
+  const updatedMembres = currentMembres.filter((id: any) => String(id) !== memberId)
+
+  await payload.update({
+    collection: 'groups',
+    id: groupId,
+    overrideAccess: true,
+    data: { membres: updatedMembres },
+  })
+
+  revalidatePath(`/groups/${groupId}`)
+}
+
+async function joinGroupAction(groupId: string) {
+  'use server'
+  const { user } = await getAuthUser()
+  if (!user) throw new Error('Non authentifié')
+  const payload = await getPayload({ config })
+
+  const group = await payload.findByID({ collection: 'groups', id: groupId, depth: 0 }) as any
+  if (!group) throw new Error('Groupe introuvable')
+  if (!group.isPublic) throw new Error('Ce groupe est privé')
+
+  const userIdNum = Number(user.id)
+  const currentMembres = (group.membres ?? []).map((m: any) => typeof m === 'object' ? m.id : m)
+
+  if (!currentMembres.map(String).includes(String(userIdNum))) {
+    await payload.update({
+      collection: 'groups',
+      id: groupId,
+      overrideAccess: true,
+      data: { membres: [...currentMembres, userIdNum] },
+    })
+  }
+
+  revalidatePath(`/groups/${groupId}`)
+}
+
+async function leaveGroupAction(groupId: string) {
+  'use server'
+  const { user } = await getAuthUser()
+  if (!user) throw new Error('Non authentifié')
+  const payload = await getPayload({ config })
+
+  const group = await payload.findByID({ collection: 'groups', id: groupId, depth: 0 }) as any
+  if (!group) throw new Error('Groupe introuvable')
+
+  const userId = String(user.id)
+  const creatorId = typeof group.createur === 'object' ? String(group.createur.id) : String(group.createur ?? '')
+  if (userId === creatorId) throw new Error('Le créateur ne peut pas quitter son propre groupe')
+
+  const currentMembres = (group.membres ?? []).map((m: any) => typeof m === 'object' ? m.id : m)
+  const updatedMembres = currentMembres.filter((id: any) => String(id) !== userId)
+
+  // Retire aussi le membre de la liste des modérateurs s'il y était
+  const currentAdmins = group.moderateurs ?? []
+  const updatedAdmins = currentAdmins.filter((a: any) => {
+    const mId = typeof a.membre === 'object' ? a.membre.id : a.membre
+    return String(mId) !== userId
+  })
+
+  await payload.update({
+    collection: 'groups',
+    id: groupId,
+    overrideAccess: true,
+    data: { membres: updatedMembres, moderateurs: updatedAdmins } as any,
+  })
+
+  revalidatePath(`/groups/${groupId}`)
+}
+
 // ─── Page principale ──────────────────────────────────────────────────────────
 
 export default async function GroupDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -127,7 +245,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
   if (!group) notFound()
 
   const members = (group.membres ?? []) as AlumniMember[]
-  const adminsGroup = (group.admins ?? []) as AlumniMember[]
+  const moderateurs = group.moderateurs ?? []
   const creatorId = typeof group.createur === 'object' && group.createur !== null
     ? String((group.createur as AlumniMember).id) : String(group.createur ?? '')
   const creatorObj = typeof group.createur === 'object' && group.createur !== null
@@ -135,9 +253,15 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
 
   const isPayloadAdmin = (user as any)?.collection === 'users'
   const isCreator = !!currentUserId && creatorId === currentUserId
-  const isGroupAdmin = !!currentUserId && adminsGroup.some((a) => String(a.id) === currentUserId)
+  const myAdminConfig = currentUserId
+    ? moderateurs.find((a) => String(typeof a.membre === 'object' ? (a.membre as AlumniMember).id : a.membre) === currentUserId)
+    : undefined
+  const isGroupAdmin = !!myAdminConfig
+  const canManageRequests = isCreator || isPayloadAdmin || !!myAdminConfig?.canManageRequests
+  const canManageMembers = isCreator || isPayloadAdmin || !!myAdminConfig?.canManageMembers
+  const canEditGroup = isCreator || isPayloadAdmin || !!myAdminConfig?.canEditGroup
   const isMember = !!currentUserId && members.some((m) => String(m.id) === currentUserId)
-  const canManage = isCreator || isGroupAdmin || isPayloadAdmin
+  const canManage = canManageRequests || canManageMembers || canEditGroup
   const hasAccess = group.isPublic || isCreator || isMember || isGroupAdmin || isPayloadAdmin
 
   // Statut demande d'accès
@@ -154,7 +278,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
 
   // Demandes en attente
   let pendingCount = 0
-  if (canManage) {
+  if (canManageRequests) {
     const pending = await payload.find({
       collection: 'group-requests' as any,
       where: { and: [{ groupe: { equals: Number(group.id) } }, { statut: { equals: 'pending' } }] },
@@ -166,6 +290,9 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
   const catLabel = group.categorie ? (CATEGORIE_LABELS[group.categorie] ?? group.categorie) : null
   const catColor = group.categorie ? (CATEGORIE_COLORS[group.categorie] ?? 'bg-gray-600 text-white') : null
   const requestAccessWithId = requestAccessAction.bind(null, String(group.id))
+  const cancelRequestWithId = cancelRequestAction.bind(null, String(group.id))
+  const joinGroupWithId = joinGroupAction.bind(null, String(group.id))
+  const leaveGroupWithId = leaveGroupAction.bind(null, String(group.id))
   const banniereUrl = group.banniere?.url
   const miniatureUrl = group.miniature?.url
 
@@ -173,9 +300,16 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
     <div className="min-h-screen bg-gray-50/50 font-sans">
 
       {/* ── HERO BANNIÈRE ────────────────────────────────────────────── */}
-      <div className="relative w-full h-48 md:h-72 overflow-hidden bg-gray-900">
+      <div className="relative w-full h-64 md:h-96 overflow-hidden bg-gray-900">
         {banniereUrl ? (
-          <img src={banniereUrl} alt="" className="absolute inset-0 w-full h-full object-cover object-center" />
+          <>
+            {/* Fond flou plein cadre pour combler le dézoom */}
+            <img src={banniereUrl} alt="" className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-60" />
+            {/* Image principale légèrement dézoomée */}
+            <div className="absolute inset-0 overflow-hidden">
+              <img src={banniereUrl} alt="" className="w-full h-full object-cover scale-100" />
+            </div>
+          </>
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-amber-400 via-orange-500 to-red-600 opacity-90" />
         )}
@@ -193,16 +327,18 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
         {/* Actions manager */}
         {canManage && (
           <div className="absolute top-4 right-4 z-10 flex gap-2">
-            {pendingCount > 0 && (
+            {canManageRequests && pendingCount > 0 && (
               <Link href={`/groups/${group.id}/requests`}
                 className="inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-gray-900 text-xs font-black uppercase tracking-wider px-3 py-2 rounded-xl transition-all duration-200 shadow-lg">
                 🔔 {pendingCount} demande{pendingCount > 1 ? 's' : ''}
               </Link>
             )}
-            <Link href={`/groups/${group.id}/edit`}
-              className="inline-flex items-center gap-1.5 bg-black/30 hover:bg-black/50 backdrop-blur-sm text-white text-xs font-bold uppercase tracking-wider px-3 py-2 rounded-xl transition-all duration-200 border border-white/10">
-              ⚙️ Modifier
-            </Link>
+            {canEditGroup && (
+              <Link href={`/groups/${group.id}/edit`}
+                className="inline-flex items-center gap-1.5 bg-black/30 hover:bg-black/50 backdrop-blur-sm text-white text-xs font-bold uppercase tracking-wider px-3 py-2 rounded-xl transition-all duration-200 border border-white/10">
+                ⚙️ Modifier
+              </Link>
+            )}
           </div>
         )}
 
@@ -318,8 +454,16 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
                         Se connecter pour demander l'accès
                       </Link>
                     ) : requestStatus === 'pending' ? (
-                      <div className="flex items-center justify-center gap-2 py-3 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-black uppercase tracking-wider rounded-xl">
-                        ⏳ Demande en attente d'approbation
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-center gap-2 py-3 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-black uppercase tracking-wider rounded-xl">
+                          ⏳ Demande en attente d'approbation
+                        </div>
+                        <form action={cancelRequestWithId}>
+                          <button type="submit"
+                            className="w-full py-2.5 bg-white border border-gray-200 hover:bg-red-50 hover:border-red-200 hover:text-red-600 text-gray-500 text-xs font-black uppercase tracking-widest rounded-xl transition-all duration-200">
+                            ✕ Retirer ma demande
+                          </button>
+                        </form>
                       </div>
                     ) : requestStatus === 'rejected' ? (
                       <div className="space-y-3">
@@ -367,20 +511,39 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
 
               {/* Membres */}
               <div className="bg-white border border-gray-200 rounded-2xl shadow-xs hover:shadow-md transition-shadow duration-300 overflow-hidden">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 gap-3 flex-wrap">
                   <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
                     Membres · <span className="text-amber-500">{members.length}</span>
                   </p>
-                  {isMember && !isCreator && (
-                    <span className="text-[9px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                      ✓ Vous êtes membre
-                    </span>
-                  )}
-                  {isCreator && (
-                    <span className="text-[9px] font-black uppercase tracking-wider text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                      ✦ Créateur
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {isCreator && (
+                      <span className="text-[9px] font-black uppercase tracking-wider text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                        ✦ Créateur
+                      </span>
+                    )}
+                    {isMember && !isCreator && (
+                      <>
+                        <span className="text-[9px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                          ✓ Vous êtes membre
+                        </span>
+                        <LeaveGroupButton action={leaveGroupWithId} isPublic={!!group.isPublic} />
+                      </>
+                    )}
+                    {!isMember && !isCreator && currentUserId && group.isPublic && (
+                      <form action={joinGroupWithId}>
+                        <button type="submit"
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-gray-900 transition-colors shadow-sm hover:-translate-y-0.5 duration-200">
+                          ✦ Rejoindre le groupe
+                        </button>
+                      </form>
+                    )}
+                    {!currentUserId && group.isPublic && (
+                      <Link href={`/login?redirect=/groups/${group.id}`}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-gray-900 transition-colors shadow-sm">
+                        Se connecter pour rejoindre
+                      </Link>
+                    )}
+                  </div>
                 </div>
                 {members.length === 0 ? (
                   <div className="py-12 text-center">
@@ -393,6 +556,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
                       const initials = getInitials(m)
                       const fullName = [m.prenom, m.nom].filter(Boolean).join(' ') || 'Membre'
                       const isThisCreator = String(m.id) === creatorId
+                      const removeMemberWithId = removeMemberAction.bind(null, String(group.id), String(m.id))
                       return (
                         <div key={String(m.id)}
                           className="flex items-center gap-3 px-5 py-3.5 hover:bg-amber-50/50 transition-colors duration-200 group">
@@ -404,13 +568,23 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
                               {initials}
                             </div>
                           )}
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5">
                               <p className="text-sm font-bold text-gray-900 truncate group-hover:text-amber-700 transition-colors">{fullName}</p>
                               {isThisCreator && <span className="text-[8px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full uppercase">créateur</span>}
                             </div>
                             {m.diplome && <p className="text-[10px] text-gray-400 font-medium truncate">{m.diplome}{m.promotion ? ` · ${m.promotion}` : ''}</p>}
                           </div>
+                          {canManageMembers && !isThisCreator && (
+                            <form action={removeMemberWithId}>
+                              <button type="submit" title="Retirer du groupe"
+                                className="opacity-0 group-hover:opacity-100 rounded-lg p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all flex-shrink-0">
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </form>
+                          )}
                         </div>
                       )
                     })}
@@ -473,7 +647,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
               {creatorObj && (
                 <div className="bg-white border border-gray-200 rounded-2xl shadow-xs overflow-hidden">
                   <div className="bg-gray-900 px-5 py-4">
-                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Administrateur du groupe</p>
+                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Modérateur du groupe</p>
                   </div>
                   <div className="p-4">
                     <div className="flex items-center gap-3">
@@ -503,17 +677,21 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
               {/* Actions manager */}
               {canManage && (
                 <div className="space-y-2">
-                  <Link href={`/groups/${group.id}/edit`}
-                    className="flex items-center justify-center gap-2 w-full py-3 bg-gray-900 hover:bg-gray-800 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all duration-200 shadow-sm hover:-translate-y-0.5">
-                    ⚙️ Modifier le groupe
-                  </Link>
-                  <Link href={`/groups/${group.id}/requests`}
-                    className="flex items-center justify-center gap-2 w-full py-3 bg-white border border-gray-200 hover:bg-amber-50 hover:border-amber-300 text-gray-700 text-xs font-black uppercase tracking-widest rounded-xl transition-all duration-200">
-                    🔔 Gérer les demandes
-                    {pendingCount > 0 && (
-                      <span className="bg-amber-400 text-gray-900 text-[9px] font-black px-1.5 py-0.5 rounded-full">{pendingCount}</span>
-                    )}
-                  </Link>
+                  {canEditGroup && (
+                    <Link href={`/groups/${group.id}/edit`}
+                      className="flex items-center justify-center gap-2 w-full py-3 bg-gray-900 hover:bg-gray-800 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all duration-200 shadow-sm hover:-translate-y-0.5">
+                      ⚙️ Modifier le groupe
+                    </Link>
+                  )}
+                  {canManageRequests && (
+                    <Link href={`/groups/${group.id}/requests`}
+                      className="flex items-center justify-center gap-2 w-full py-3 bg-white border border-gray-200 hover:bg-amber-50 hover:border-amber-300 text-gray-700 text-xs font-black uppercase tracking-widest rounded-xl transition-all duration-200">
+                      🔔 Gérer les demandes
+                      {pendingCount > 0 && (
+                        <span className="bg-amber-400 text-gray-900 text-[9px] font-black px-1.5 py-0.5 rounded-full">{pendingCount}</span>
+                      )}
+                    </Link>
+                  )}
                 </div>
               )}
             </div>
