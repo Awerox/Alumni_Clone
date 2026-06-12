@@ -73,17 +73,42 @@ async function requestAccessAction(groupId: string) {
   const { user } = await getAuthUser()
   if (!user) throw new Error('Non authentifié')
   const payload = await getPayload({ config })
+
+  // ✅ Postgres attend des IDs numériques pour les relations
+  const groupIdNum = Number(groupId)
+  const userIdNum = Number(user.id)
+
   const existing = await payload.find({
     collection: 'group-requests' as any,
-    where: { and: [{ groupe: { equals: groupId } }, { demandeur: { equals: user.id } }, { statut: { equals: 'pending' } }] },
+    where: { and: [{ groupe: { equals: groupIdNum } }, { demandeur: { equals: userIdNum } }, { statut: { equals: 'pending' } }] },
     limit: 1,
+    overrideAccess: true,
   })
   if (existing.docs.length > 0) return
-  await payload.create({
+
+  // Si une demande "rejected" existe déjà, on la remet en pending au lieu d'en créer une nouvelle
+  const rejectedExisting = await payload.find({
     collection: 'group-requests' as any,
+    where: { and: [{ groupe: { equals: groupIdNum } }, { demandeur: { equals: userIdNum } }] },
+    limit: 1,
     overrideAccess: true,
-    data: { groupe: groupId, demandeur: user.id, statut: 'pending' } as any,
   })
+
+  if (rejectedExisting.docs.length > 0) {
+    await payload.update({
+      collection: 'group-requests' as any,
+      id: (rejectedExisting.docs[0] as any).id,
+      overrideAccess: true,
+      data: { statut: 'pending' } as any,
+    })
+  } else {
+    await payload.create({
+      collection: 'group-requests' as any,
+      overrideAccess: true,
+      data: { groupe: groupIdNum, demandeur: userIdNum, statut: 'pending' } as any,
+    })
+  }
+
   revalidatePath(`/groups/${groupId}`)
 }
 
@@ -120,7 +145,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
   if (!hasAccess && currentUserId) {
     const existingReq = await payload.find({
       collection: 'group-requests' as any,
-      where: { and: [{ groupe: { equals: String(group.id) } }, { demandeur: { equals: currentUserId } }] },
+      where: { and: [{ groupe: { equals: Number(group.id) } }, { demandeur: { equals: Number(currentUserId) } }] },
       limit: 1, overrideAccess: true,
     })
     if (existingReq.docs.length > 0)
@@ -132,7 +157,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
   if (canManage) {
     const pending = await payload.find({
       collection: 'group-requests' as any,
-      where: { and: [{ groupe: { equals: String(group.id) } }, { statut: { equals: 'pending' } }] },
+      where: { and: [{ groupe: { equals: Number(group.id) } }, { statut: { equals: 'pending' } }] },
       limit: 0, overrideAccess: true,
     })
     pendingCount = pending.totalDocs
@@ -150,12 +175,18 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
       {/* ── HERO BANNIÈRE ────────────────────────────────────────────── */}
       <div className="relative w-full h-56 md:h-80 overflow-hidden bg-gray-900">
         {banniereUrl ? (
-          <img src={banniereUrl} alt="" className="absolute inset-0 w-full h-full object-cover opacity-80" />
+          <>
+            {/* Fond flou agrandi pour combler sans rogner le sujet */}
+            <div className="absolute inset-0 scale-110 blur-2xl opacity-50">
+              <img src={banniereUrl} alt="" className="w-full h-full object-cover" />
+            </div>
+            <img src={banniereUrl} alt="" className="absolute inset-0 w-full h-full object-contain md:object-cover object-center" />
+          </>
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-amber-400 via-orange-500 to-red-600 opacity-90" />
         )}
         {/* Overlay dégradé */}
-        <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/50 to-black/10" />
 
         {/* Bouton retour */}
         <div className="absolute top-4 left-4 z-10">
@@ -221,52 +252,106 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
 
         {/* ── GROUPE PRIVÉ SANS ACCÈS ───────────────────────────────── */}
         {!hasAccess ? (
-          <div className="max-w-lg mx-auto mt-4">
-            <div className="bg-white border border-gray-200 rounded-3xl shadow-sm overflow-hidden">
-              {/* Header card */}
-              <div className="bg-gradient-to-r from-gray-900 to-gray-800 p-8 text-center">
-                <div className="w-16 h-16 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <span className="text-2xl">🔒</span>
-                </div>
-                <h2 className="text-lg font-black text-white uppercase tracking-tight">Groupe privé</h2>
-                <p className="text-xs text-gray-400 mt-1 font-medium">Ce contenu est réservé aux membres</p>
+          <div className="space-y-6">
+
+            {/* Bandeau stats */}
+            <div className="grid grid-cols-3 divide-x divide-gray-200 bg-white border border-gray-200 rounded-2xl shadow-xs overflow-hidden">
+              <div className="px-4 py-4 text-center">
+                <p className="text-xl font-black text-gray-900">{members.length}</p>
+                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-0.5">Membre{members.length !== 1 ? 's' : ''}</p>
               </div>
-              <div className="p-8 text-center space-y-5">
-                <p className="text-sm text-gray-600 leading-relaxed">
-                  Pour accéder aux publications et discussions de ce groupe, vous devez être accepté par le créateur.
+              <div className="px-4 py-4 text-center">
+                <p className="text-xl font-black text-gray-900">{catLabel ?? '—'}</p>
+                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-0.5">Catégorie</p>
+              </div>
+              <div className="px-4 py-4 text-center">
+                <p className="text-xl font-black text-gray-900">
+                  {new Date(group.createdAt).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}
                 </p>
-                {!currentUserId ? (
-                  <Link href={`/login?redirect=/groups/${group.id}`}
-                    className="inline-flex items-center gap-2 w-full justify-center py-3 bg-amber-500 hover:bg-amber-400 text-gray-900 text-xs font-black uppercase tracking-widest rounded-xl transition-all duration-200 shadow-sm hover:-translate-y-0.5">
-                    Se connecter pour demander l'accès
-                  </Link>
-                ) : requestStatus === 'pending' ? (
-                  <div className="flex items-center justify-center gap-2 py-3 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-black uppercase tracking-wider rounded-xl">
-                    ⏳ Demande en attente d'approbation
-                  </div>
-                ) : requestStatus === 'rejected' ? (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-center gap-2 py-3 bg-red-50 border border-red-200 text-red-700 text-xs font-bold rounded-xl">
-                      ✕ Demande refusée
+                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-0.5">Créé en</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Teaser flouté à gauche */}
+              <div className="lg:col-span-2 space-y-4 relative">
+                <div className="pointer-events-none select-none filter blur-sm opacity-60 space-y-4">
+                  <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-full bg-gray-200 flex-shrink-0" />
+                      <div className="space-y-1.5 flex-1">
+                        <div className="h-2.5 bg-gray-200 rounded-full w-1/3" />
+                        <div className="h-2 bg-gray-100 rounded-full w-1/4" />
+                      </div>
                     </div>
-                    <form action={requestAccessWithId}>
-                      <button type="submit"
-                        className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-gray-900 text-xs font-black uppercase tracking-widest rounded-xl transition-all duration-200 shadow-sm hover:-translate-y-0.5">
-                        Renvoyer une demande
-                      </button>
-                    </form>
+                    <div className="h-2.5 bg-gray-100 rounded-full w-full" />
+                    <div className="h-2.5 bg-gray-100 rounded-full w-5/6" />
+                    <div className="h-32 bg-gray-100 rounded-xl w-full" />
                   </div>
-                ) : (
-                  <form action={requestAccessWithId}>
-                    <button type="submit"
-                      className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-gray-900 text-xs font-black uppercase tracking-widest rounded-xl transition-all duration-200 shadow-sm hover:-translate-y-0.5 active:scale-[0.98]">
-                      ✦ Demander l'accès
-                    </button>
-                  </form>
-                )}
-                <Link href="/groups" className="block text-xs text-gray-400 hover:text-gray-600 font-bold transition-colors">
-                  ← Voir les autres groupes
-                </Link>
+                  <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-full bg-gray-200 flex-shrink-0" />
+                      <div className="space-y-1.5 flex-1">
+                        <div className="h-2.5 bg-gray-200 rounded-full w-1/4" />
+                        <div className="h-2 bg-gray-100 rounded-full w-1/5" />
+                      </div>
+                    </div>
+                    <div className="h-2.5 bg-gray-100 rounded-full w-full" />
+                    <div className="h-2.5 bg-gray-100 rounded-full w-2/3" />
+                  </div>
+                </div>
+                {/* Overlay gradient pour fondu */}
+                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-gray-50/60 to-gray-50 pointer-events-none" />
+              </div>
+
+              {/* Carte demande d'accès */}
+              <div className="lg:col-span-1">
+                <div className="bg-white border border-gray-200 rounded-3xl shadow-sm overflow-hidden sticky top-6">
+                  <div className="bg-gradient-to-r from-gray-900 to-gray-800 p-8 text-center">
+                    <div className="w-16 h-16 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                      <span className="text-2xl">🔒</span>
+                    </div>
+                    <h2 className="text-lg font-black text-white uppercase tracking-tight">Groupe privé</h2>
+                    <p className="text-xs text-gray-400 mt-1 font-medium">Ce contenu est réservé aux membres</p>
+                  </div>
+                  <div className="p-8 text-center space-y-5">
+                    <p className="text-sm text-gray-600 leading-relaxed">
+                      Pour accéder aux publications et discussions de ce groupe, vous devez être accepté par le créateur.
+                    </p>
+                    {!currentUserId ? (
+                      <Link href={`/login?redirect=/groups/${group.id}`}
+                        className="inline-flex items-center gap-2 w-full justify-center py-3 bg-amber-500 hover:bg-amber-400 text-gray-900 text-xs font-black uppercase tracking-widest rounded-xl transition-all duration-200 shadow-sm hover:-translate-y-0.5">
+                        Se connecter pour demander l'accès
+                      </Link>
+                    ) : requestStatus === 'pending' ? (
+                      <div className="flex items-center justify-center gap-2 py-3 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-black uppercase tracking-wider rounded-xl">
+                        ⏳ Demande en attente d'approbation
+                      </div>
+                    ) : requestStatus === 'rejected' ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-center gap-2 py-3 bg-red-50 border border-red-200 text-red-700 text-xs font-bold rounded-xl">
+                          ✕ Demande refusée
+                        </div>
+                        <form action={requestAccessWithId}>
+                          <button type="submit"
+                            className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-gray-900 text-xs font-black uppercase tracking-widest rounded-xl transition-all duration-200 shadow-sm hover:-translate-y-0.5">
+                            Renvoyer une demande
+                          </button>
+                        </form>
+                      </div>
+                    ) : (
+                      <form action={requestAccessWithId}>
+                        <button type="submit"
+                          className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-gray-900 text-xs font-black uppercase tracking-widest rounded-xl transition-all duration-200 shadow-sm hover:-translate-y-0.5 active:scale-[0.98]">
+                          ✦ Demander l'accès
+                        </button>
+                      </form>
+                    )}
+                    <Link href="/groups" className="block text-xs text-gray-400 hover:text-gray-600 font-bold transition-colors">
+                      ← Voir les autres groupes
+                    </Link>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
