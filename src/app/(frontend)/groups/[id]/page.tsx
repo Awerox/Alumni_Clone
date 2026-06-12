@@ -173,7 +173,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
     <div className="min-h-screen bg-gray-50/50 font-sans">
 
       {/* ── HERO BANNIÈRE ────────────────────────────────────────────── */}
-      <div className="relative w-full h-64 md:h-96 overflow-hidden bg-gray-900">
+      <div className="relative w-full h-48 md:h-72 overflow-hidden bg-gray-900">
         {banniereUrl ? (
           <img src={banniereUrl} alt="" className="absolute inset-0 w-full h-full object-cover object-center" />
         ) : (
