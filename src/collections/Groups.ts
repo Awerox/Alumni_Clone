@@ -53,6 +53,8 @@ export const Groups: CollectionConfig = {
     ],
     afterChange: [
       async ({ doc, previousDoc, req, operation }) => {
+        // Tout le hook est protégé : une erreur ici ne doit JAMAIS bloquer la mise à jour du groupe
+        try {
         if (operation !== 'update' || !previousDoc) return doc
         if (!req.user) return doc
 
@@ -144,6 +146,10 @@ export const Groups: CollectionConfig = {
         }
 
         return doc
+        } catch (err) {
+          console.error('[Groups afterChange] erreur non bloquante:', err)
+          return doc
+        }
       },
     ],
   },
