@@ -3,50 +3,54 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
-export default function RequestAccessButton({
-  action,
-  label = "✦ Demander l'accès",
-  variant = 'primary',
+export default function RequestActionButtons({
+  acceptAction,
+  rejectAction,
 }: {
-  action: () => Promise<void>
-  label?: string
-  variant?: 'primary' | 'secondary'
+  acceptAction: () => Promise<void>
+  rejectAction: () => Promise<void>
 }) {
   const router = useRouter()
-  const [pending, setPending] = useState(false)
+  const [pending, setPending] = useState<'accept' | 'reject' | null>(null)
   const [done, setDone] = useState(false)
 
-  async function handleClick() {
-    setPending(true)
+  async function handle(type: 'accept' | 'reject', action: () => Promise<void>) {
+    setPending(type)
     try {
       await action()
       setDone(true)
       router.refresh()
     } finally {
-      setPending(false)
+      setPending(null)
     }
   }
 
-  const baseClass = variant === 'primary'
-    ? 'w-full py-3 bg-amber-500 hover:bg-amber-400 text-gray-900 text-xs font-black uppercase tracking-widest rounded-xl transition-all duration-200 shadow-sm hover:-translate-y-0.5 active:scale-[0.98]'
-    : 'w-full py-2.5 bg-white border border-gray-200 hover:bg-red-50 hover:border-red-200 hover:text-red-600 text-gray-500 text-xs font-black uppercase tracking-widest rounded-xl transition-all duration-200'
-
   if (done) {
     return (
-      <div className="flex items-center justify-center gap-2 py-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-black uppercase tracking-widest rounded-xl">
-        ✓ Demande envoyée
+      <div className="text-xs font-bold text-gray-400 px-3 py-2">
+        Traité ✓
       </div>
     )
   }
 
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      disabled={pending}
-      className={`${baseClass} ${pending ? 'opacity-70 cursor-wait' : ''}`}
-    >
-      {pending ? '…' : label}
-    </button>
+    <div className="flex gap-2 flex-shrink-0">
+      <button
+        type="button"
+        disabled={pending !== null}
+        onClick={() => handle('reject', rejectAction)}
+        className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-50"
+      >
+        {pending === 'reject' ? '…' : 'Refuser'}
+      </button>
+      <button
+        type="button"
+        disabled={pending !== null}
+        onClick={() => handle('accept', acceptAction)}
+        className="rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700 transition-colors disabled:opacity-50"
+      >
+        {pending === 'accept' ? '…' : 'Accepter'}
+      </button>
+    </div>
   )
 }
