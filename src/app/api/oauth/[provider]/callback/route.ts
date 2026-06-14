@@ -195,17 +195,33 @@ export async function GET(
       })
       console.log(`[OAuth/${provider}] ✅ Nouveau compte créé id=${targetUser.id}`)
     } else {
-      targetUser = await payload.update({
-        collection: 'alumni',
-        id: targetUser!.id,
-        overrideAccess: true,
-        data: {
-          [fieldToMatch]: providerId,
-          lastSeen: new Date().toISOString(),
-          ...(photoToAssign && !targetUser!.photo ? { photo: photoToAssign } : {}),
-        } as any,
-      })
-      console.log(`[OAuth/${provider}] ✅ Compte existant lié id=${targetUser.id}`)
+      // ✅ FIX PERF : ne mettre à jour via payload.update QUE si nécessaire
+      // (lien provider ou photo manquante). Sinon on évite la reconstruction des arrays.
+      const needsProviderLink = (targetUser as any)[fieldToMatch] !== providerId
+      const needsPhoto = !!(photoToAssign && !targetUser!.photo)
+
+      if (needsProviderLink || needsPhoto) {
+        targetUser = await payload.update({
+          collection: 'alumni',
+          id: targetUser!.id,
+          overrideAccess: true,
+          data: {
+            [fieldToMatch]: providerId,
+            ...(needsPhoto ? { photo: photoToAssign } : {}),
+          } as any,
+        })
+      }
+
+      // ✅ lastSeen via UPDATE SQL direct léger (pas de reconstruction d'arrays)
+      try {
+        await payload.db.drizzle.execute(
+          `UPDATE alumni SET last_seen = NOW() WHERE id = ${Number(targetUser!.id)}`
+        )
+      } catch (e) {
+        console.error('[lastSeen oauth]', e)
+      }
+
+      console.log(`[OAuth/${provider}] ✅ Compte existant lié id=${targetUser!.id}`)
     }
 
     // ── 5. JWT ────────────────────────────────────────────────────────────

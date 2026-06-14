@@ -361,7 +361,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
             <img src={banniereUrl} alt="" className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-60" />
             {/* Image principale légèrement dézoomée */}
             <div className="absolute inset-0 overflow-hidden">
-              <img src={banniereUrl} alt="" className="w-full h-full object-cover scale-90" />
+              <img src={banniereUrl} alt="" className="w-full h-full object-cover scale-100" />
             </div>
           </>
         ) : (

@@ -9,7 +9,6 @@ export async function GET(req: NextRequest) {
     const payload = await getPayload({ config: configPromise })
     const secret = payload.secret
 
-    // ── Token du cookie OAuth ou login natif ─────────────────────────────
     const token =
       req.cookies.get('payload-alumni-token')?.value ||
       req.cookies.get('payload-token')?.value
@@ -18,7 +17,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ user: null, message: 'No token' }, { status: 401 })
     }
 
-    // Vérifie avec le secret brut — c'est ce que Payload et jsonwebtoken utilisent
     let decoded: any
     try {
       decoded = verify(token, secret)
@@ -40,13 +38,18 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ user: null, message: 'User not found' }, { status: 404 })
     }
 
-    // ✅ Mettre à jour lastSeen en arrière-plan (ne bloque pas la réponse)
-    payload.update({
-      collection: 'alumni',
-      id: decoded.id,
-      overrideAccess: true,
-      data: { lastSeen: new Date().toISOString() } as any,
-    }).catch((e: any) => console.error('[lastSeen update]', e))
+    // ✅ FIX PERF : UPDATE SQL direct, ne touche QUE la colonne last_seen.
+    // On NE passe PAS par payload.update() qui reconstruit toutes les sous-tables
+    // (experiences, formations…) et créait des timeouts + saturation du pool.
+    // On await pour ne pas laisser de transaction orpheline sur Vercel serverless.
+    try {
+      await payload.db.drizzle.execute(
+        `UPDATE alumni SET last_seen = NOW() WHERE id = ${Number(decoded.id)}`
+      )
+    } catch (e) {
+      console.error('[lastSeen me]', e)
+      // On n'échoue jamais la requête pour un simple lastSeen
+    }
 
     return NextResponse.json({ user })
   } catch (err) {

@@ -73,6 +73,12 @@ export default buildConfig({
   db: postgresAdapter({
     pool: {
       connectionString: process.env.DATABASE_URL || '',
+      // ✅ FIX PERF serverless : éviter la saturation du pool Neon.
+      // Sur Vercel chaque invocation est isolée : on limite à peu de connexions
+      // et on coupe vite les connexions inactives pour ne pas épuiser Neon.
+      max: 5,                         // max 5 connexions simultanées par instance
+      idleTimeoutMillis: 10000,       // ferme une connexion inactive après 10s
+      connectionTimeoutMillis: 15000, // échoue vite si pas de connexion dispo (au lieu d'attendre 300s)
     },
   }),
   sharp,
