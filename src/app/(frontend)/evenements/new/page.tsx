@@ -5,12 +5,18 @@ import Link from 'next/link'
 import Cropper from 'react-easy-crop'
 
 const CAT_OPTIONS = [
-  { value: 'conference', label: '🎤 Conférence', desc: 'Présentation, table ronde, conférence métier' },
-  { value: 'reseau', label: '🤝 Réseautage', desc: 'Soirée anciens, networking, afterwork' },
-  { value: 'atelier', label: '🛠️ Atelier Métier', desc: 'Workshop, formation pratique, hackathon' },
-  { value: 'jpo', label: '🎓 JPO / Salon', desc: 'Journée portes ouvertes, salon, forum' },
+  { value: "conference", label: "🎤 Conférence", desc: "Présentation, keynote, conférence métier" },
+  { value: "reseau", label: "🤝 Réseautage", desc: "Soirée anciens, networking, afterwork" },
+  { value: "formation", label: "📚 Formation", desc: "Session de formation, cours, séminaire" },
+  { value: "ceremonie", label: "🎓 Remise des diplômes", desc: "Cérémonie officielle de remise des diplômes" },
+  { value: "gala", label: "🥂 Gala", desc: "Soirée gala, dîner de gala, événement festif" },
+  { value: "atelier", label: "🛠️ Atelier", desc: "Workshop, atelier pratique, hackathon" },
+  { value: "table_ronde", label: "💬 Table ronde", desc: "Débat, échange, panel d'experts" },
+  { value: "webinaire", label: "💻 Webinaire", desc: "Conférence en ligne, webinar, live" },
+  { value: "reunion", label: "📋 Réunion annuelle", desc: "AG, réunion annuelle, assemblée" },
+  { value: "jpo", label: "🏫 Journée portes ouvertes", desc: "JPO, découverte de l'école, visite" },
+  { value: "salon", label: "🎪 Salon", desc: "Salon professionnel, forum, exposition" },
 ]
-
 const STEPS = ['Infos générales', 'Date & lieu', 'Inscriptions', 'Photo & description']
 
 export default function NewEventPage() {

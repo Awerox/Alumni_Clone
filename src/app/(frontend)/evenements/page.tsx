@@ -7,7 +7,10 @@ import EvenementsPageClient from './EvenementsPageClient'
 export const dynamic = 'force-dynamic'
 
 const CAT_LABELS: Record<string, string> = {
-  conference: 'Conférence', reseau: 'Réseautage', atelier: 'Atelier Métier', jpo: 'JPO / Salon',
+  conference: 'Conférence', reseau: 'Réseautage', formation: 'Formation',
+  ceremonie: 'Remise des diplômes', gala: 'Gala', atelier: 'Atelier',
+  table_ronde: 'Table ronde', webinaire: 'Webinaire', reunion: 'Réunion annuelle',
+  jpo: 'Journée portes ouvertes', salon: 'Salon',
 }
 
 interface PageProps {

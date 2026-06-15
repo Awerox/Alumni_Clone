@@ -37,12 +37,21 @@ interface Props {
 const CAT_COLORS: Record<string, string> = {
   conference: 'bg-blue-100 text-blue-700',
   reseau: 'bg-purple-100 text-purple-700',
+  formation: 'bg-indigo-100 text-indigo-700',
+  ceremonie: 'bg-yellow-100 text-yellow-700',
+  gala: 'bg-pink-100 text-pink-700',
   atelier: 'bg-amber-100 text-amber-700',
+  table_ronde: 'bg-teal-100 text-teal-700',
+  webinaire: 'bg-cyan-100 text-cyan-700',
+  reunion: 'bg-gray-100 text-gray-700',
   jpo: 'bg-emerald-100 text-emerald-700',
+  salon: 'bg-orange-100 text-orange-700',
 }
 
 const CAT_ICONS: Record<string, string> = {
-  conference: '🎤', reseau: '🤝', atelier: '🛠️', jpo: '🎓',
+  conference: '🎤', reseau: '🤝', formation: '📚', ceremonie: '🎓',
+  gala: '🥂', atelier: '🛠️', table_ronde: '💬', webinaire: '💻',
+  reunion: '📋', jpo: '🏫', salon: '🎪',
 }
 
 function formatDate(dateStr: string) {
@@ -325,8 +334,15 @@ export default function EvenementsPageClient({
                 <option value="">Catégorie (Toutes)</option>
                 <option value="conference">🎤 Conférence</option>
                 <option value="reseau">🤝 Réseautage</option>
-                <option value="atelier">🛠️ Atelier Métier</option>
-                <option value="jpo">🎓 JPO / Salon</option>
+                <option value="formation">📚 Formation</option>
+                <option value="ceremonie">🎓 Remise des diplômes</option>
+                <option value="gala">🥂 Gala</option>
+                <option value="atelier">🛠️ Atelier</option>
+                <option value="table_ronde">💬 Table ronde</option>
+                <option value="webinaire">💻 Webinaire</option>
+                <option value="reunion">📋 Réunion annuelle</option>
+                <option value="jpo">🏫 Journée portes ouvertes</option>
+                <option value="salon">🎪 Salon</option>
               </select>
               <button onClick={() => { setLocalisation(''); setCategorie(''); setSearchQ('') }}
                 disabled={!hasFilters}
