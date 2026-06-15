@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import DeleteGroupButton from './DeleteGroupButton'
 
 interface GroupData {
   id: string
@@ -127,12 +128,15 @@ function GroupCard({ group, index }: { group: GroupData; index: number }) {
         <div className="flex items-center justify-between gap-2 pt-3 border-t border-gray-100">
           <div className="flex items-center gap-1.5">
             {group.isOwner ? (
-              <Link
-                href={`/groups/${group.id}/edit`}
-                className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-bold text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 transition-colors"
-              >
-                ✏️ Modifier
-              </Link>
+              <>
+                <Link
+                  href={`/groups/${group.id}/edit`}
+                  className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-bold text-gray-600 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 transition-colors"
+                >
+                  ✏️ Modifier
+                </Link>
+                <DeleteGroupButton groupId={group.id} groupTitre={group.titre} />
+              </>
             ) : (
               <span className="text-xs text-gray-400 italic">Membre du réseau</span>
             )}
