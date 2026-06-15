@@ -82,6 +82,8 @@ export interface Config {
     'direct-messages': DirectMessage;
     'public-messages': PublicMessage;
     'group-requests': GroupRequest;
+    'group-activity-logs': GroupActivityLog;
+    'group-posts': GroupPost;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -103,6 +105,8 @@ export interface Config {
     'direct-messages': DirectMessagesSelect<false> | DirectMessagesSelect<true>;
     'public-messages': PublicMessagesSelect<false> | PublicMessagesSelect<true>;
     'group-requests': GroupRequestsSelect<false> | GroupRequestsSelect<true>;
+    'group-activity-logs': GroupActivityLogsSelect<false> | GroupActivityLogsSelect<true>;
+    'group-posts': GroupPostsSelect<false> | GroupPostsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -564,6 +568,34 @@ export interface GroupRequest {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "group-activity-logs".
+ */
+export interface GroupActivityLog {
+  id: number;
+  groupe: number | Group;
+  utilisateur?: (number | null) | Alumnus;
+  champ: string;
+  ancienneValeur?: string | null;
+  nouvelleValeur?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "group-posts".
+ */
+export interface GroupPost {
+  id: number;
+  group: number | Group;
+  author: number | Alumnus;
+  content?: string | null;
+  image?: (number | null) | Media;
+  type?: ('post' | 'annonce' | 'evenement') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -641,6 +673,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'group-requests';
         value: number | GroupRequest;
+      } | null)
+    | ({
+        relationTo: 'group-activity-logs';
+        value: number | GroupActivityLog;
+      } | null)
+    | ({
+        relationTo: 'group-posts';
+        value: number | GroupPost;
       } | null);
   globalSlug?: string | null;
   user:
@@ -995,6 +1035,32 @@ export interface GroupRequestsSelect<T extends boolean = true> {
   message?: T;
   motif?: T;
   moderateur?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "group-activity-logs_select".
+ */
+export interface GroupActivityLogsSelect<T extends boolean = true> {
+  groupe?: T;
+  utilisateur?: T;
+  champ?: T;
+  ancienneValeur?: T;
+  nouvelleValeur?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "group-posts_select".
+ */
+export interface GroupPostsSelect<T extends boolean = true> {
+  group?: T;
+  author?: T;
+  content?: T;
+  image?: T;
+  type?: T;
   updatedAt?: T;
   createdAt?: T;
 }
