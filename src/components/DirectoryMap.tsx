@@ -173,7 +173,7 @@ export default function DirectoryMap({ alumni }: { alumni: Alumnus[] }) {
         {/* Tuiles sombres pour correspondre au style de la page */}
         <TileLayer
           attribution='&copy; <a href="https://www.maptiler.com">MapTiler</a> &copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
-          url="https://api.maptiler.com/maps/darkmatter/{z}/{x}/{y}.png?key=get_your_own_OpIi9ZULNHzrESv6T2vL"
+          url="https://api.maptiler.com/maps/darkmatter/{z}/{x}/{y}.png?key=SdbHL4WFqpX1J35R96iW"
           errorTileUrl="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <FixMapSize />
