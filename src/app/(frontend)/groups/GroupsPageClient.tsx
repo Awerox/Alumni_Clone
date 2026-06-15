@@ -90,14 +90,7 @@ function GroupCard({ group, index }: { group: GroupData; index: number }) {
             {group.isPublic ? '🌐 Public' : '🔒 Privé'}
           </span>
         </div>
-        {/* Badge Vous êtes membre en haut à droite */}
-        {group.isMember && !group.isCreator && (
-          <div className="absolute top-2 right-2">
-            <span className="text-[9px] font-black text-white bg-indigo-600/90 backdrop-blur-sm px-2 py-0.5 rounded-full">
-              ✓ Membre
-            </span>
-          </div>
-        )}
+
       </div>
 
       {/* Contenu */}
@@ -145,12 +138,19 @@ function GroupCard({ group, index }: { group: GroupData; index: number }) {
               <span className="text-xs text-gray-400 italic">Membre du réseau</span>
             )}
           </div>
-          <Link
-            href={`/groups/${group.id}`}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-black text-white hover:bg-indigo-700 transition-all hover:-translate-y-0.5 shadow-sm"
-          >
-            Accéder →
-          </Link>
+          <div className="flex items-center gap-2">
+            {group.isMember && !group.isCreator && (
+              <span className="text-[10px] font-black text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-full">
+                ✓ Vous êtes membre
+              </span>
+            )}
+            <Link
+              href={`/groups/${group.id}`}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-black text-white hover:bg-indigo-700 transition-all hover:-translate-y-0.5 shadow-sm"
+            >
+              Accéder →
+            </Link>
+          </div>
         </div>
       </div>
     </div>
