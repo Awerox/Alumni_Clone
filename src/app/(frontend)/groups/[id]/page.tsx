@@ -6,8 +6,6 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { getAuthUser } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
-import LeaveGroupButton from './LeaveGroupButton'
-import RemoveMemberButton from './RemoveMemberButton'
 import RequestAccessButton from './RequestAccessButton'
 import GroupPageClient from './GroupPageClient'
 
@@ -441,9 +439,6 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
               createdAt: group.createdAt,
               memberCount: members.length,
             }}
-            leaveGroupAction={leaveGroupWithId}
-            joinGroupAction={joinGroupWithId}
-            removeMemberActionBase={(memberId: string) => removeMemberAction(String(group.id), memberId)}
           />
         )}
       </div>

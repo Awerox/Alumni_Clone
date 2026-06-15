@@ -52,9 +52,7 @@ interface Props {
   creatorObj: CreatorData | null
   catLabel: string | null
   groupInfo: { isPublic: boolean; createdAt: string; memberCount: number }
-  leaveGroupAction: () => Promise<void>
-  joinGroupAction: () => Promise<void>
-  removeMemberActionBase: (memberId: string) => Promise<void>
+
 }
 
 const TYPE_BADGES: Record<string, { label: string; cls: string }> = {
@@ -80,7 +78,6 @@ export default function GroupPageClient({
   groupId, groupDescription, currentUserId, isMember, isCreator,
   canManageMembers, canManageRequests, canEditGroup, pendingCount,
   membersData, creatorObj, catLabel, groupInfo,
-  leaveGroupAction, joinGroupAction, removeMemberActionBase,
 }: Props) {
   const [activeTab, setActiveTab] = useState<'feed' | 'members'>('feed')
   const [posts, setPosts] = useState<Post[]>([])
@@ -412,7 +409,13 @@ export default function GroupPageClient({
                             <button
                               onClick={async () => {
                                 if (!confirm(`Retirer ${m.prenom} ${m.nom} du groupe ?`)) return
-                                await removeMemberActionBase(m.id)
+                                await fetch(`/api/groups/${groupId}/remove-member`, {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  credentials: 'include',
+                                  body: JSON.stringify({ memberId: m.id }),
+                                })
+                                window.location.reload()
                               }}
                               className="text-[10px] font-black text-gray-300 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer">
                               <i className="fa-solid fa-user-minus" />
@@ -434,20 +437,24 @@ export default function GroupPageClient({
           {/* Actions membre */}
           <div className="anim-fade-up d1">
             {isMember && !isCreator && (
-              <form action={leaveGroupAction}>
-                <button type="submit"
-                  className="w-full py-2.5 bg-white border border-gray-200 hover:border-red-300 hover:bg-red-50 text-gray-600 hover:text-red-600 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer">
-                  Quitter le groupe
-                </button>
-              </form>
+              <button
+                onClick={async () => {
+                  await fetch(`/api/groups/${groupId}/leave`, { method: 'POST', credentials: 'include' })
+                  window.location.reload()
+                }}
+                className="w-full py-2.5 bg-white border border-gray-200 hover:border-red-300 hover:bg-red-50 text-gray-600 hover:text-red-600 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer">
+                Quitter le groupe
+              </button>
             )}
             {!isMember && !isCreator && currentUserId && groupInfo.isPublic && (
-              <form action={joinGroupAction}>
-                <button type="submit"
-                  className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-gray-900 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-sm hover:-translate-y-0.5 cursor-pointer">
-                  ✦ Rejoindre le groupe
-                </button>
-              </form>
+              <button
+                onClick={async () => {
+                  await fetch(`/api/groups/${groupId}/join`, { method: 'POST', credentials: 'include' })
+                  window.location.reload()
+                }}
+                className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-gray-900 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-sm hover:-translate-y-0.5 cursor-pointer">
+                ✦ Rejoindre le groupe
+              </button>
             )}
           </div>
 
