@@ -87,8 +87,8 @@ function AlumnusCard({ alumnus, index, onMessage }: {
       onMouseEnter={e => { Object.assign((e.currentTarget as HTMLElement).style, { boxShadow: '0 12px 32px rgba(128,0,32,0.12)', transform: 'translateY(-3px) scale(1)', borderColor: '#fecdd3' }) }}
       onMouseLeave={e => { Object.assign((e.currentTarget as HTMLElement).style, { boxShadow: '0 1px 4px rgba(0,0,0,0.06)', transform: 'translateY(0) scale(1)', borderColor: '#f3f4f6' }) }}
     >
-      {/* Bannière bordeaux */}
-      <div className="h-24 bg-[#800020] relative overflow-hidden flex-shrink-0">
+      {/* Bannière bordeaux avec photo intégrée */}
+      <div className="h-36 bg-[#800020] relative overflow-hidden flex-shrink-0">
         <div className="absolute inset-0 bg-[radial-gradient(#ffffff12_1px,transparent_1px)] [background-size:12px_12px]" />
         <div className="absolute inset-0 bg-gradient-to-br from-[#800020] via-[#900025] to-[#5a0018]" />
 
@@ -106,6 +106,19 @@ function AlumnusCard({ alumnus, index, onMessage }: {
           </div>
         )}
 
+        {/* Photo centrée dans la bannière */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-16 h-16 rounded-2xl border-4 border-white/30 shadow-xl overflow-hidden bg-white/10 flex-shrink-0">
+            {photoUrl ? (
+              <img src={photoUrl} alt="" className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-110" />
+            ) : (
+              <div className="w-full h-full bg-white/10 flex items-center justify-center text-white font-black text-xl">
+                {initials}
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* LastSeen badge */}
         <div className="absolute bottom-2 right-2">
           <div className="flex items-center gap-1 bg-black/40 backdrop-blur-sm px-1.5 py-0.5 rounded-full">
@@ -113,23 +126,10 @@ function AlumnusCard({ alumnus, index, onMessage }: {
             <span className="text-[8px] text-white font-bold">{lastSeenLabel}</span>
           </div>
         </div>
-
-        {/* Photo — chevauchement */}
-        <div className="absolute -bottom-8 left-1/2 -translate-x-1/2">
-          <div className="w-16 h-16 rounded-2xl border-4 border-white shadow-lg overflow-hidden bg-white flex-shrink-0">
-            {photoUrl ? (
-              <img src={photoUrl} alt="" className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-110" />
-            ) : (
-              <div className="w-full h-full bg-gradient-to-br from-[#800020] to-[#5a0018] flex items-center justify-center text-white font-black text-base">
-                {initials}
-              </div>
-            )}
-          </div>
-        </div>
       </div>
 
       {/* Contenu */}
-      <div className="flex-1 flex flex-col px-4 pt-10 pb-4 text-center">
+      <div className="flex-1 flex flex-col px-4 pt-4 pb-4 text-center">
         {/* Nom */}
         <h2 className="text-sm font-black text-gray-900 uppercase tracking-tight leading-tight group-hover:text-[#800020] transition-colors">
           {alumnus.prenom} {alumnus.nom}
