@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     if (!groupId) return NextResponse.json({ error: 'groupId requis' }, { status: 400 })
 
     const result = await payload.find({
-      collection: 'group-posts' as any,
+      collection: 'group-posts',
       where: { group: { equals: Number(groupId) } },
       sort: '-createdAt',
       limit: 50,
@@ -35,7 +35,8 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ docs: result.docs })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    console.error('[GET /api/group-posts]', err?.message || err)
+    return NextResponse.json({ error: err?.message || 'Erreur serveur' }, { status: 500 })
   }
 }
 
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest) {
     if (!content?.trim() && !imageId) return NextResponse.json({ error: 'Contenu ou image requis' }, { status: 400 })
 
     const post = await payload.create({
-      collection: 'group-posts' as any,
+      collection: 'group-posts',
       overrideAccess: true,
       data: {
         group: Number(groupId),
@@ -66,7 +67,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, doc: post })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    console.error('[POST /api/group-posts]', err?.message || err)
+    return NextResponse.json({ error: err?.message || 'Erreur serveur' }, { status: 500 })
   }
 }
 
@@ -82,13 +84,14 @@ export async function DELETE(req: NextRequest) {
     if (!postId) return NextResponse.json({ error: 'postId requis' }, { status: 400 })
 
     await payload.delete({
-      collection: 'group-posts' as any,
+      collection: 'group-posts',
       id: Number(postId),
       overrideAccess: true,
     })
 
     return NextResponse.json({ success: true })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    console.error('[DELETE /api/group-posts]', err?.message || err)
+    return NextResponse.json({ error: err?.message || 'Erreur serveur' }, { status: 500 })
   }
 }
