@@ -90,6 +90,14 @@ function GroupCard({ group, index }: { group: GroupData; index: number }) {
             {group.isPublic ? '🌐 Public' : '🔒 Privé'}
           </span>
         </div>
+        {/* Badge Vous êtes membre en haut à droite */}
+        {group.isMember && !group.isCreator && (
+          <div className="absolute top-2 right-2">
+            <span className="text-[9px] font-black text-white bg-indigo-600/90 backdrop-blur-sm px-2 py-0.5 rounded-full">
+              ✓ Membre
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Contenu */}
@@ -104,11 +112,7 @@ function GroupCard({ group, index }: { group: GroupData; index: number }) {
             <span className="text-xs text-gray-400 flex items-center gap-1">
               👥 {group.membresCount} membre{group.membresCount !== 1 ? 's' : ''}
             </span>
-            {group.isMember && !group.isCreator && (
-              <span className="text-[10px] font-black text-indigo-700 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
-                ✓ Vous êtes membre
-              </span>
-            )}
+
             {group.hasPendingRequest && (
               <span className="text-[10px] font-black text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-full">
                 ⏳ Demande en approbation
