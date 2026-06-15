@@ -12,6 +12,8 @@ import * as migration_20260612_moderateur_action from './20260612_moderateur_act
 import * as migration_20260612_moderateurs from './20260612_moderateurs';
 import * as migration_20260612_removed_status from './20260612_removed_status';
 import * as migration_20260615_092322 from './20260615_092322';
+import * as migration_20260615_094353 from './20260615_094353';
+import * as migration_20260615_095024 from './20260615_095024';
 
 export const migrations = [
   {
@@ -82,6 +84,16 @@ export const migrations = [
   {
     up: migration_20260615_092322.up,
     down: migration_20260615_092322.down,
-    name: '20260615_092322'
+    name: '20260615_092322',
+  },
+  {
+    up: migration_20260615_094353.up,
+    down: migration_20260615_094353.down,
+    name: '20260615_094353',
+  },
+  {
+    up: migration_20260615_095024.up,
+    down: migration_20260615_095024.down,
+    name: '20260615_095024'
   },
 ];
