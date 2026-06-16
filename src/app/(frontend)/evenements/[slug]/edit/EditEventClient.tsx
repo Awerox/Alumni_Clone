@@ -51,6 +51,7 @@ export default function EditEventClient({ eventId, initialData }: Props) {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [showPastDateWarning, setShowPastDateWarning] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState('')
   const [visible, setVisible] = useState(false)
 
@@ -225,6 +226,37 @@ export default function EditEventClient({ eventId, initialData }: Props) {
         </div>
       )}
 
+      {/* Modale date passée */}
+      {showPastDateWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" style={{ animation: 'fadeIn 0.2s ease' }}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden" style={{ animation: 'scaleIn 0.2s ease' }}>
+            <div className="bg-amber-50 border-b border-amber-100 px-6 py-5 flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-lg flex-shrink-0">⚠️</div>
+              <div>
+                <h3 className="text-sm font-black text-gray-900">Date déjà passée</h3>
+                <p className="text-xs text-amber-700 font-medium mt-0.5">La date de début est dans le passé</p>
+              </div>
+            </div>
+            <div className="px-6 py-5">
+              <p className="text-sm text-gray-600 leading-relaxed">
+                La date sélectionnée (<span className="font-black text-gray-900">{formData.dateDebut} à {formData.heureDebut}</span>) est déjà passée.
+                Si vous continuez, l'événement sera <span className="font-black text-gray-900">publié immédiatement</span> au lieu d'être programmé.
+              </p>
+            </div>
+            <div className="px-6 pb-6 flex gap-3">
+              <button onClick={() => setShowPastDateWarning(false)}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-xs font-black uppercase text-gray-600 hover:bg-gray-50 cursor-pointer transition-all">
+                ← Modifier la date
+              </button>
+              <button onClick={() => { setShowPastDateWarning(false); handleSave('publie') }}
+                className="flex-1 py-2.5 bg-[#800020] hover:bg-[#600018] text-white rounded-xl text-xs font-black uppercase cursor-pointer transition-all">
+                🚀 Publier maintenant
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-gray-50 min-h-screen py-8 px-4">
         <div className="max-w-2xl mx-auto space-y-5">
 
@@ -389,7 +421,11 @@ export default function EditEventClient({ eventId, initialData }: Props) {
                 💾 Sauvegarder brouillon
               </button>
               <div className="flex items-center gap-2">
-                <button onClick={() => handleSave('programme')} disabled={loading}
+                <button onClick={() => {
+                    const debut = new Date(`${formData.dateDebut}T${formData.heureDebut}:00`)
+                    if (debut <= new Date()) { setShowPastDateWarning(true); return }
+                    handleSave('programme')
+                  }} disabled={loading}
                   className="px-4 py-2.5 border border-amber-200 bg-amber-50 rounded-xl text-xs font-black uppercase text-amber-700 hover:bg-amber-100 disabled:opacity-40 cursor-pointer transition-all">
                   🕐 Programmer
                 </button>
