@@ -82,6 +82,8 @@ function EventCard({ evt, index, currentUserId, onParticipate }: {
   const dateD = formatDateShort(evt.dateDebut)
   const isPast = new Date(evt.dateFin) < new Date()
   const isLive = new Date(evt.dateDebut) <= new Date() && new Date(evt.dateFin) >= new Date()
+  const minutesLeft = isLive ? Math.round((new Date(evt.dateFin).getTime() - Date.now()) / 60000) : null
+  const endingSoon = minutesLeft !== null && minutesLeft <= 30 && minutesLeft > 0
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), index * 60)
@@ -128,7 +130,7 @@ function EventCard({ evt, index, currentUserId, onParticipate }: {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          dateDebut: `${scheduleDate}T${scheduleTime}:00.000Z`,
+          dateDebut: new Date(`${scheduleDate}T${scheduleTime}:00`).toISOString(),
           statut: 'programme',
         }),
       })
@@ -186,9 +188,14 @@ function EventCard({ evt, index, currentUserId, onParticipate }: {
           {isPast && (
             <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-gray-500/80 backdrop-blur-sm text-white">Passé</span>
           )}
-          {isLive && (
+          {isLive && !endingSoon && (
             <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-red-500/90 backdrop-blur-sm text-white flex items-center gap-1">
               <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /> En direct
+            </span>
+          )}
+          {endingSoon && (
+            <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-orange-500/90 backdrop-blur-sm text-white">
+              ⏰ Finit dans {minutesLeft} min
             </span>
           )}
           {evt.statut === 'programme' && (

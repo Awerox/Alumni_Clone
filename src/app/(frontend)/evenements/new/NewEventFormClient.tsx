@@ -139,12 +139,16 @@ export default function NewEventFormClient() {
         root: { type: 'root', children: [{ type: 'paragraph', children: [{ type: 'text', text: formData.description, version: 1 }], version: 1 }], direction: 'ltr', format: '', indent: 0, version: 1 }
       }
 
+      // Construire les dates en heure locale (le navigateur convertit en UTC à l'envoi)
+      const dateDebutLocal = new Date(`${formData.dateDebut}T${formData.heureDebut}:00`)
+      const dateFinLocal = new Date(`${formData.dateFin}T${formData.heureFin}:00`)
+
       const payload: any = {
         nom: formData.nom,
         slug: formData.slug,
         typeLocalisation: formData.typeLocalisation,
-        dateDebut: `${formData.dateDebut}T${formData.heureDebut}:00.000Z`,
-        dateFin: `${formData.dateFin}T${formData.heureFin}:00.000Z`,
+        dateDebut: dateDebutLocal.toISOString(),
+        dateFin: dateFinLocal.toISOString(),
         categorie: formData.categorie,
         description: richText,
         modeInscription: formData.modeInscription,

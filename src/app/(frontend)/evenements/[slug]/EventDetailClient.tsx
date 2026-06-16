@@ -87,6 +87,15 @@ export default function EventDetailClient({ evt }: { evt: EvtData }) {
 
   const sameDay = evt.dateDebut.slice(0, 10) === evt.dateFin.slice(0, 10)
   const isLive = new Date(evt.dateDebut) <= new Date() && new Date(evt.dateFin) >= new Date()
+  const minutesLeft = isLive ? Math.round((new Date(evt.dateFin).getTime() - Date.now()) / 60000) : null
+  const endingSoon = minutesLeft !== null && minutesLeft <= 30 && minutesLeft > 0
+
+  const formatTimeLeft = (min: number) => {
+    if (min < 60) return `${min} min`
+    const h = Math.floor(min / 60)
+    const m = min % 60
+    return `${h}h${m > 0 ? m.toString().padStart(2, '0') : ''}`
+  }
 
   return (
     <>
@@ -342,6 +351,12 @@ export default function EventDetailClient({ evt }: { evt: EvtData }) {
               {evt.isPast && (
                 <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-center">
                   <p className="text-xs font-black text-gray-500">⏪ Événement terminé</p>
+                </div>
+              )}
+
+              {endingSoon && (
+                <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl text-center" style={{ animation: 'fadeIn 0.3s ease' }}>
+                  <p className="text-xs font-black text-orange-700">⏰ Se termine dans {formatTimeLeft(minutesLeft!)}</p>
                 </div>
               )}
             </div>
