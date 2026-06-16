@@ -86,7 +86,7 @@ export const Evenements: CollectionConfig = {
       options: [
         { label: 'Publié', value: 'publie' },
         { label: 'Brouillon', value: 'brouillon' },
-        { label: 'En attente de validation', value: 'attente' },
+        { label: 'Programmé (publication automatique à la date)', value: 'programme' },
       ],
     },
     {

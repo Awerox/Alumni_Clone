@@ -6,6 +6,35 @@ import EvenementsPageClient from './EvenementsPageClient'
 
 export const dynamic = 'force-dynamic'
 
+// ── Publication automatique des événements programmés ────────────────────────
+// Vercel Hobby n'a pas de cron — on déclenche au chargement de la page
+async function autoPublishScheduled(payload: any) {
+  try {
+    const now = new Date().toISOString()
+    const scheduled = await payload.find({
+      collection: 'evenements',
+      where: {
+        and: [
+          { statut: { equals: 'programme' } },
+          { dateDebut: { less_than_equal: now } },
+        ],
+      },
+      limit: 20,
+      overrideAccess: true,
+    })
+    for (const evt of scheduled.docs) {
+      await payload.update({
+        collection: 'evenements',
+        id: evt.id,
+        overrideAccess: true,
+        data: { statut: 'publie' } as any,
+      })
+    }
+  } catch (e) {
+    console.error('[autoPublish evenements]', e)
+  }
+}
+
 const CAT_LABELS: Record<string, string> = {
   conference: 'Conférence', reseau: 'Réseautage', formation: 'Formation',
   ceremonie: 'Remise des diplômes', gala: 'Gala', atelier: 'Atelier',
@@ -36,6 +65,9 @@ export default async function EvenementsPage({ searchParams }: PageProps) {
     )
   }
 
+  // Déclencher la publication automatique à chaque visite
+  autoPublishScheduled(payload).catch(() => {})
+
   const sp = await searchParams
   const currentTab = sp.tab || 'venir'
   const now = new Date(); now.setHours(0, 0, 0, 0)
@@ -65,12 +97,12 @@ export default async function EvenementsPage({ searchParams }: PageProps) {
   })
 
   // Charger tous les événements en parallèle
-  const [aVenirRaw, passesRaw, participationsRaw, brouillonsRaw, attenteRaw] = await Promise.all([
+  const [aVenirRaw, passesRaw, participationsRaw, brouillonsRaw, programmesRaw] = await Promise.all([
     payload.find({ collection: 'evenements', where: { and: [{ statut: { equals: 'publie' } }, { dateFin: { greater_than_equal: nowISO } }] }, sort: 'dateDebut', depth: 1, limit: 100 }),
     payload.find({ collection: 'evenements', where: { and: [{ statut: { equals: 'publie' } }, { dateFin: { less_than: nowISO } }] }, sort: '-dateDebut', depth: 1, limit: 50 }),
     payload.find({ collection: 'evenements', where: { participants: { contains: user.id } }, sort: 'dateDebut', depth: 1, limit: 100 }),
     payload.find({ collection: 'evenements', where: { and: [{ statut: { equals: 'brouillon' } }, { organisateur: { equals: user.id } }] }, sort: '-dateDebut', depth: 1, limit: 50 }),
-    payload.find({ collection: 'evenements', where: { and: [{ statut: { equals: 'attente' } }, { organisateur: { equals: user.id } }] }, sort: '-dateDebut', depth: 1, limit: 50 }),
+    payload.find({ collection: 'evenements', where: { and: [{ statut: { equals: 'programme' } }, { organisateur: { equals: user.id } }] }, sort: 'dateDebut', depth: 1, limit: 50 }),
   ])
 
   return (
@@ -83,7 +115,7 @@ export default async function EvenementsPage({ searchParams }: PageProps) {
       passes={passesRaw.docs.map(toEvt)}
       participations={participationsRaw.docs.map(toEvt)}
       brouillons={brouillonsRaw.docs.map(toEvt)}
-      attente={attenteRaw.docs.map(toEvt)}
+      programmes={programmesRaw.docs.map(toEvt)}
       currentUserId={String(user.id)}
     />
   )

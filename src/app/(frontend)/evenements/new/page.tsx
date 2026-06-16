@@ -120,7 +120,7 @@ export default function NewEventPage() {
 
   const prevStep = () => { setError(''); setStep(s => Math.max(s - 1, 0)) }
 
-  const handleSubmit = async (statut: 'publie' | 'brouillon') => {
+  const handleSubmit = async (statut: 'publie' | 'brouillon' | 'programme') => {
     const err = validateStep()
     if (err) { setError(err); return }
     setLoading(true)
@@ -483,11 +483,17 @@ export default function NewEventPage() {
                     className="px-4 py-2.5 border border-gray-200 rounded-xl text-xs font-black uppercase text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-all cursor-pointer">
                     💾 Brouillon
                   </button>
+                  {formData.dateDebut && new Date(formData.dateDebut) > new Date() && (
+                    <button onClick={() => handleSubmit('programme')} disabled={loading}
+                      className="px-4 py-2.5 border border-amber-200 bg-amber-50 rounded-xl text-xs font-black uppercase text-amber-700 hover:bg-amber-100 disabled:opacity-40 transition-all cursor-pointer">
+                      🕐 Programmer
+                    </button>
+                  )}
                   <button onClick={() => handleSubmit('publie')} disabled={loading}
                     className="flex items-center gap-2 px-6 py-2.5 bg-[#800020] hover:bg-[#600018] text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-sm hover:-translate-y-0.5 disabled:opacity-40">
                     {loading
                       ? <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Publication...</>
-                      : '🚀 Publier l\'événement'
+                      : '🚀 Publier maintenant'
                     }
                   </button>
                 </div>

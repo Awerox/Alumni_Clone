@@ -30,7 +30,7 @@ interface Props {
   passes: Evenement[]
   participations: Evenement[]
   brouillons: Evenement[]
-  attente: Evenement[]
+  programmes: Evenement[]
   currentUserId: string
 }
 
@@ -205,7 +205,7 @@ function EventCard({ evt, index, currentUserId, onParticipate }: {
 
 export default function EvenementsPageClient({
   initialTab, initialQ, initialLocalisation, initialCategorie,
-  aVenir, passes, participations, brouillons, attente, currentUserId,
+  aVenir, passes, participations, brouillons, programmes, currentUserId,
 }: Props) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState(initialTab)
@@ -216,7 +216,7 @@ export default function EvenementsPageClient({
   const [filtersOpen, setFiltersOpen] = useState(false)
 
   const allData: Record<string, Evenement[]> = {
-    venir: aVenir, passes, participations, brouillon: brouillons, attente,
+    venir: aVenir, passes, participations, brouillon: brouillons, programme: programmes,
   }
 
   // Filtrage côté client
@@ -243,7 +243,7 @@ export default function EvenementsPageClient({
     { key: 'passes', label: '⏪ Passés', count: passes.length },
     { key: 'participations', label: '✓ Mes inscriptions', count: participations.length },
     { key: 'brouillon', label: '✏️ Brouillons', count: brouillons.length },
-    { key: 'attente', label: '⏳ En attente', count: attente.length },
+    { key: 'programme', label: '🕐 Programmés', count: programmes.length },
   ]
 
   return (
