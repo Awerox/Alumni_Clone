@@ -82,10 +82,13 @@ function EventCard({ evt, index, currentUserId, onParticipate }: {
   const dateD = formatDateShort(evt.dateDebut)
   const isPast = new Date(evt.dateFin) < new Date()
   const isLive = new Date(evt.dateDebut) <= new Date() && new Date(evt.dateFin) >= new Date()
+  const isFuture = new Date(evt.dateDebut) > new Date()
   const minutesLeft = isLive ? Math.round((new Date(evt.dateFin).getTime() - Date.now()) / 60000) : null
   const endingSoon = minutesLeft !== null && minutesLeft <= 30 && minutesLeft > 0
   const minutesSinceEnd = isPast ? Math.round((Date.now() - new Date(evt.dateFin).getTime()) / 60000) : null
   const recentlyEnded = minutesSinceEnd !== null && minutesSinceEnd < 24 * 60
+  const minutesUntilStart = isFuture ? Math.round((new Date(evt.dateDebut).getTime() - Date.now()) / 60000) : null
+  const startingSoon = minutesUntilStart !== null && minutesUntilStart <= 30 && minutesUntilStart > 0
   const formatElapsed = (min: number) => {
     if (min < 60) return `${min} min`
     const h = Math.floor(min / 60)
@@ -212,6 +215,11 @@ function EventCard({ evt, index, currentUserId, onParticipate }: {
           )}
           {evt.statut === 'brouillon' && (
             <span className="text-[10px] font-black uppercase px-3 py-1.5 rounded-full bg-gray-800 text-white shadow-lg ring-2 ring-white/50">✏️ Brouillon</span>
+          )}
+          {startingSoon && (
+            <span className="text-[10px] font-black uppercase px-3 py-1.5 rounded-full bg-blue-600 text-white shadow-lg ring-2 ring-white/50">
+              🚀 Commence dans {minutesUntilStart} min
+            </span>
           )}
         </div>
 
