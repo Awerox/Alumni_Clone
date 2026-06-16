@@ -73,6 +73,8 @@ function EventCard({ evt, index, currentUserId, onParticipate }: {
   const [visible, setVisible] = useState(false)
   const [participating, setParticipating] = useState(evt.isParticipant)
   const [loading, setLoading] = useState(false)
+  const [publishing, setPublishing] = useState(false)
+  const [published, setPublished] = useState(false)
   const dateD = formatDateShort(evt.dateDebut)
   const isPast = new Date(evt.dateFin) < new Date()
 
@@ -98,6 +100,25 @@ function EventCard({ evt, index, currentUserId, onParticipate }: {
     } catch (e) { console.error(e) }
     finally { setLoading(false) }
   }
+
+  const handlePublish = async () => {
+    if (publishing) return
+    setPublishing(true)
+    try {
+      const res = await fetch(`/api/evenements/${evt.id}/publish`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      if (res.ok) setPublished(true)
+    } catch (e) { console.error(e) }
+    finally { setPublishing(false) }
+  }
+
+  if (published) return (
+    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center">
+      <p className="text-xs font-black text-emerald-700">✓ Événement publié avec succès</p>
+    </div>
+  )
 
   return (
     <div
@@ -175,6 +196,18 @@ function EventCard({ evt, index, currentUserId, onParticipate }: {
 
         {/* Actions */}
         <div className="space-y-2 pt-2 border-t border-gray-100">
+          {(evt.statut === 'brouillon' || evt.statut === 'programme') && evt.isOrganisateur && (
+            <button
+              onClick={handlePublish}
+              disabled={publishing}
+              className="w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-wide bg-emerald-600 hover:bg-emerald-700 text-white transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-40"
+            >
+              {publishing
+                ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                : '🚀 Publier maintenant'
+              }
+            </button>
+          )}
           <Link
             href={`/evenements/${evt.slug}`}
             className="block text-center py-2 bg-gray-900 hover:bg-[#800020] text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all"
