@@ -216,7 +216,7 @@ function EventCard({ evt, index, currentUserId, onParticipate }: {
         </div>
 
         {/* Badge localisation — en haut à gauche, sous la date */}
-        <div className="absolute top-16 left-3">
+        <div className="absolute top-24 left-3">
           <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full shadow-md ${evt.typeLocalisation === 'presentiel' ? 'bg-emerald-600 text-white' : 'bg-blue-600 text-white'}`}>
             {evt.typeLocalisation === 'presentiel' ? '📍 Présentiel' : '💻 En ligne'}
           </span>

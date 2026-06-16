@@ -144,10 +144,7 @@ export default function EventDetailClient({ evt }: { evt: EvtData }) {
         {/* ── HERO ── */}
         <div className="relative w-full h-72 md:h-96 overflow-hidden bg-gray-900">
           {evt.coverUrl ? (
-            <>
-              <img src={evt.coverUrl} alt="" className="absolute inset-0 w-full h-full object-cover opacity-60 blur-xl scale-110" />
-              <img src={evt.coverUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
-            </>
+            <img src={evt.coverUrl} alt="" className="absolute inset-0 w-full h-full object-cover" loading="eager" />
           ) : (
             <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center text-8xl">
               {evt.catIcon}
