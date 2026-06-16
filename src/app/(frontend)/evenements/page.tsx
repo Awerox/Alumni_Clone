@@ -69,7 +69,7 @@ export default async function EvenementsPage({ searchParams }: PageProps) {
   autoPublishScheduled(payload).catch(() => {})
 
   const sp = await searchParams
-  const currentTab = sp.tab || 'venir'
+  const currentTab = sp.tab || 'encours'
   const now = new Date(); now.setHours(0, 0, 0, 0)
   const nowISO = now.toISOString()
 

@@ -75,6 +75,10 @@ function EventCard({ evt, index, currentUserId, onParticipate }: {
   const [loading, setLoading] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [published, setPublished] = useState(false)
+  const [showScheduler, setShowScheduler] = useState(false)
+  const [scheduleDate, setScheduleDate] = useState(evt.dateDebut?.slice(0, 10) || '')
+  const [scheduleTime, setScheduleTime] = useState(evt.dateDebut ? new Date(evt.dateDebut).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '09:00')
+  const [scheduling, setScheduling] = useState(false)
   const dateD = formatDateShort(evt.dateDebut)
   const isPast = new Date(evt.dateFin) < new Date()
   const isLive = new Date(evt.dateDebut) <= new Date() && new Date(evt.dateFin) >= new Date()
@@ -113,6 +117,24 @@ function EventCard({ evt, index, currentUserId, onParticipate }: {
       if (res.ok) setPublished(true)
     } catch (e) { console.error(e) }
     finally { setPublishing(false) }
+  }
+
+  const handleSchedule = async () => {
+    if (!scheduleDate || scheduling) return
+    setScheduling(true)
+    try {
+      const res = await fetch(`/api/evenements/${evt.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          dateDebut: `${scheduleDate}T${scheduleTime}:00.000Z`,
+          statut: 'programme',
+        }),
+      })
+      if (res.ok) { setPublished(true); setShowScheduler(false) }
+    } catch (e) { console.error(e) }
+    finally { setScheduling(false) }
   }
 
   if (published) return (
@@ -212,16 +234,42 @@ function EventCard({ evt, index, currentUserId, onParticipate }: {
         {/* Actions */}
         <div className="space-y-2 pt-2 border-t border-gray-100">
           {(evt.statut === 'brouillon' || evt.statut === 'programme') && evt.isOrganisateur && (
-            <button
-              onClick={handlePublish}
-              disabled={publishing}
-              className="w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-wide bg-emerald-600 hover:bg-emerald-700 text-white transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-40"
-            >
-              {publishing
-                ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                : '🚀 Publier maintenant'
-              }
-            </button>
+            <>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  onClick={handlePublish}
+                  disabled={publishing}
+                  className="py-2 rounded-xl text-[10px] font-black uppercase tracking-wide bg-emerald-600 hover:bg-emerald-700 text-white transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-40"
+                >
+                  {publishing
+                    ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    : '🚀 Publier'
+                  }
+                </button>
+                <button
+                  onClick={() => setShowScheduler(!showScheduler)}
+                  className="py-2 rounded-xl text-[10px] font-black uppercase tracking-wide bg-amber-50 border border-amber-200 hover:bg-amber-100 text-amber-700 transition-all cursor-pointer"
+                >
+                  🕐 Programmer
+                </button>
+              </div>
+
+              {showScheduler && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2" style={{ animation: 'fadeIn 0.2s ease' }}>
+                  <p className="text-[9px] font-black text-amber-700 uppercase tracking-wide">Publication automatique le :</p>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)}
+                      className="px-2 py-1.5 bg-white border border-amber-200 rounded-lg text-[10px] font-bold text-gray-700 outline-none" />
+                    <input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)}
+                      className="px-2 py-1.5 bg-white border border-amber-200 rounded-lg text-[10px] font-bold text-gray-700 outline-none" />
+                  </div>
+                  <button onClick={handleSchedule} disabled={!scheduleDate || scheduling}
+                    className="w-full py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white rounded-lg text-[10px] font-black uppercase cursor-pointer flex items-center justify-center gap-1.5">
+                    {scheduling ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : '✓ Confirmer la programmation'}
+                  </button>
+                </div>
+              )}
+            </>
           )}
           <Link
             href={`/evenements/${evt.slug}`}
@@ -287,8 +335,8 @@ export default function EvenementsPageClient({
   const hasFilters = !!(searchQ || localisation || categorie)
 
   const tabs = [
-    { key: 'venir', label: '📅 À venir', count: aVenir.length },
     { key: 'encours', label: '🔴 En cours', count: enCours.length },
+    { key: 'venir', label: '📅 À venir', count: aVenir.length },
     { key: 'passes', label: '⏪ Passés', count: passes.length },
     { key: 'participations', label: '✓ Mes inscriptions', count: participations.length },
     { key: 'brouillon', label: '✏️ Brouillons & programmés', count: brouillons.length },
