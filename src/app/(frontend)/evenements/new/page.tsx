@@ -461,6 +461,20 @@ export default function NewEventPage() {
                       </div>
                     ))}
                   </div>
+
+                  {formData.dateDebut && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+                      <span className="text-lg flex-shrink-0">🕐</span>
+                      <div>
+                        <p className="text-xs font-black text-amber-800">Publication programmée</p>
+                        <p className="text-[11px] text-amber-700 mt-0.5">
+                          Si vous cliquez sur <span className="font-black">"Programmer la publication"</span>, cet événement sera automatiquement publié le{' '}
+                          <span className="font-black">{new Date(formData.dateDebut).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} à {formData.heureDebut}</span>.
+                          Il restera visible uniquement par vous dans "Brouillons & programmés" jusqu'à cette date.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
             </div>

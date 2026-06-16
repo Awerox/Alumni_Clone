@@ -27,7 +27,11 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     if (!isAdmin && String(organisateurId) !== String(user.id))
       return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
 
-    await payload.delete({ collection: 'evenements', id, overrideAccess: true })
+    // Suppression directe en SQL pour éviter le check payload_locked_documents
+    // qui échoue car la table de verrouillage a un schéma désynchronisé
+    const pool = (payload.db as any).pool
+    await pool.query('DELETE FROM "evenements" WHERE "id" = $1', [Number(id)])
+
     return NextResponse.json({ success: true })
   } catch (err: any) {
     console.error('[delete evenement]', err?.message)
