@@ -52,6 +52,9 @@ export default function EventDetailClient({ evt }: { evt: EvtData }) {
   const [participating, setParticipating] = useState(evt.isParticipant)
   const [count, setCount] = useState(evt.participantsCount)
   const [loading, setLoading] = useState(false)
+  const [showDelete, setShowDelete] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState('')
+  const [deleting, setDeleting] = useState(false)
 
   const handleParticipate = async () => {
     if (!evt.currentUserId) { router.push(`/login?redirect=/evenements/${evt.slug}`); return }
@@ -72,6 +75,16 @@ export default function EventDetailClient({ evt }: { evt: EvtData }) {
     finally { setLoading(false) }
   }
 
+  const handleDelete = async () => {
+    if (deleteConfirm !== evt.nom || deleting) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/evenements/${evt.id}`, { method: 'DELETE', credentials: 'include' })
+      if (res.ok) router.push('/evenements')
+    } catch (e) { console.error(e) }
+    finally { setDeleting(false) }
+  }
+
   const sameDay = evt.dateDebut.slice(0, 10) === evt.dateFin.slice(0, 10)
 
   return (
@@ -85,6 +98,36 @@ export default function EventDetailClient({ evt }: { evt: EvtData }) {
         .card-hover { transition: box-shadow 0.2s, transform 0.2s; }
         .card-hover:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.08); transform: translateY(-1px); }
       `}</style>
+
+      {/* Modale suppression */}
+      {showDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" style={{animation:'fadeIn 0.2s ease'}}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden" style={{animation:'scaleIn 0.2s ease'}}>
+            <div className="bg-red-50 border-b border-red-100 px-6 py-5 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-lg">🗑️</div>
+              <div>
+                <h3 className="text-sm font-black text-gray-900">Supprimer l'événement</h3>
+                <p className="text-xs text-red-600 font-medium mt-0.5">Action irréversible</p>
+              </div>
+              <button onClick={() => setShowDelete(false)} className="ml-auto text-gray-400 hover:text-gray-600 cursor-pointer">✕</button>
+            </div>
+            <div className="px-6 py-5 space-y-3">
+              <p className="text-sm text-gray-600">Tapez <span className="font-black text-gray-900">"{evt.nom}"</span> pour confirmer.</p>
+              <input type="text" value={deleteConfirm} onChange={e => setDeleteConfirm(e.target.value)}
+                placeholder={evt.nom}
+                className={`w-full px-4 py-3 bg-gray-50 border rounded-xl text-sm font-medium outline-none transition-colors ${deleteConfirm === evt.nom ? 'border-red-400 bg-red-50' : 'border-gray-200'}`} />
+              {deleteConfirm === evt.nom && <p className="text-[10px] text-emerald-600 font-bold">✓ Confirmation valide</p>}
+            </div>
+            <div className="px-6 pb-6 flex gap-3">
+              <button onClick={() => setShowDelete(false)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-xs font-black uppercase text-gray-600 hover:bg-gray-50 cursor-pointer">Annuler</button>
+              <button onClick={handleDelete} disabled={deleteConfirm !== evt.nom || deleting}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-40 rounded-xl text-xs font-black uppercase text-white cursor-pointer flex items-center justify-center gap-2">
+                {deleting ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> : '🗑️ Supprimer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="bg-gray-50 min-h-screen font-sans">
 
@@ -112,11 +155,15 @@ export default function EventDetailClient({ evt }: { evt: EvtData }) {
 
           {/* Actions organisateur */}
           {evt.isOrganisateur && (
-            <div className="absolute top-4 right-4">
+            <div className="absolute top-4 right-4 flex gap-2">
               <Link href={`/evenements/${evt.slug}/edit`}
                 className="inline-flex items-center gap-1.5 bg-black/30 backdrop-blur-sm text-white text-xs font-bold uppercase tracking-wide px-3 py-2 rounded-xl border border-white/10 hover:bg-black/50 transition-all">
                 ⚙️ Modifier
               </Link>
+              <button onClick={() => setShowDelete(true)}
+                className="inline-flex items-center gap-1.5 bg-red-600/80 backdrop-blur-sm text-white text-xs font-bold uppercase tracking-wide px-3 py-2 rounded-xl border border-red-400/30 hover:bg-red-600 transition-all cursor-pointer">
+                🗑️ Supprimer
+              </button>
             </div>
           )}
 
