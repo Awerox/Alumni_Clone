@@ -86,6 +86,7 @@ export default function EventDetailClient({ evt }: { evt: EvtData }) {
   }
 
   const sameDay = evt.dateDebut.slice(0, 10) === evt.dateFin.slice(0, 10)
+  const isLive = new Date(evt.dateDebut) <= new Date() && new Date(evt.dateFin) >= new Date()
 
   return (
     <>
@@ -179,6 +180,11 @@ export default function EventDetailClient({ evt }: { evt: EvtData }) {
                 </span>
                 {evt.isPast && (
                   <span className="text-[9px] font-black uppercase px-2.5 py-1 rounded-full bg-gray-500/80 text-white">Événement passé</span>
+                )}
+                {isLive && (
+                  <span className="text-[9px] font-black uppercase px-2.5 py-1 rounded-full bg-red-500/90 text-white flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /> En direct maintenant
+                  </span>
                 )}
                 {evt.prixEntree && Number(evt.prixEntree) > 0 ? (
                   <span className="text-[9px] font-black uppercase px-2.5 py-1 rounded-full bg-amber-500/90 text-white">💶 {evt.prixEntree}€</span>

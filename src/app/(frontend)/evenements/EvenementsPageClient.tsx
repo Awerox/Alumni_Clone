@@ -27,6 +27,7 @@ interface Props {
   initialLocalisation: string
   initialCategorie: string
   aVenir: Evenement[]
+  enCours: Evenement[]
   passes: Evenement[]
   participations: Evenement[]
   brouillons: Evenement[]
@@ -76,6 +77,7 @@ function EventCard({ evt, index, currentUserId, onParticipate }: {
   const [published, setPublished] = useState(false)
   const dateD = formatDateShort(evt.dateDebut)
   const isPast = new Date(evt.dateFin) < new Date()
+  const isLive = new Date(evt.dateDebut) <= new Date() && new Date(evt.dateFin) >= new Date()
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), index * 60)
@@ -162,6 +164,11 @@ function EventCard({ evt, index, currentUserId, onParticipate }: {
           {isPast && (
             <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-gray-500/80 backdrop-blur-sm text-white">Passé</span>
           )}
+          {isLive && (
+            <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-red-500/90 backdrop-blur-sm text-white flex items-center gap-1">
+              <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /> En direct
+            </span>
+          )}
           {evt.statut === 'programme' && (
             <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/90 backdrop-blur-sm text-white">🕐 Programmé</span>
           )}
@@ -246,7 +253,7 @@ function EventCard({ evt, index, currentUserId, onParticipate }: {
 
 export default function EvenementsPageClient({
   initialTab, initialQ, initialLocalisation, initialCategorie,
-  aVenir, passes, participations, brouillons, currentUserId,
+  aVenir, enCours, passes, participations, brouillons, currentUserId,
 }: Props) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState(initialTab)
@@ -257,7 +264,7 @@ export default function EvenementsPageClient({
   const [filtersOpen, setFiltersOpen] = useState(false)
 
   const allData: Record<string, Evenement[]> = {
-    venir: aVenir, passes, participations, brouillon: brouillons,
+    venir: aVenir, encours: enCours, passes, participations, brouillon: brouillons,
   }
 
   // Filtrage côté client
@@ -281,6 +288,7 @@ export default function EvenementsPageClient({
 
   const tabs = [
     { key: 'venir', label: '📅 À venir', count: aVenir.length },
+    { key: 'encours', label: '🔴 En cours', count: enCours.length },
     { key: 'passes', label: '⏪ Passés', count: passes.length },
     { key: 'participations', label: '✓ Mes inscriptions', count: participations.length },
     { key: 'brouillon', label: '✏️ Brouillons & programmés', count: brouillons.length },

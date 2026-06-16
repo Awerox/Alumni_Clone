@@ -97,8 +97,9 @@ export default async function EvenementsPage({ searchParams }: PageProps) {
   })
 
   // Charger tous les événements en parallèle
-  const [aVenirRaw, passesRaw, participationsRaw, brouillonsRaw] = await Promise.all([
-    payload.find({ collection: 'evenements', where: { and: [{ statut: { equals: 'publie' } }, { dateFin: { greater_than_equal: nowISO } }] }, sort: 'dateDebut', depth: 1, limit: 100 }),
+  const [aVenirRaw, enCoursRaw, passesRaw, participationsRaw, brouillonsRaw] = await Promise.all([
+    payload.find({ collection: 'evenements', where: { and: [{ statut: { equals: 'publie' } }, { dateDebut: { greater_than: nowISO } }] }, sort: 'dateDebut', depth: 1, limit: 100 }),
+    payload.find({ collection: 'evenements', where: { and: [{ statut: { equals: 'publie' } }, { dateDebut: { less_than_equal: nowISO } }, { dateFin: { greater_than_equal: nowISO } }] }, sort: 'dateFin', depth: 1, limit: 50 }),
     payload.find({ collection: 'evenements', where: { and: [{ statut: { equals: 'publie' } }, { dateFin: { less_than: nowISO } }] }, sort: '-dateDebut', depth: 1, limit: 50 }),
     payload.find({ collection: 'evenements', where: { participants: { contains: user.id } }, sort: 'dateDebut', depth: 1, limit: 100 }),
     payload.find({ collection: 'evenements', where: { and: [{ statut: { in: ['brouillon', 'programme'] } }, { organisateur: { equals: user.id } }] }, sort: 'dateDebut', depth: 1, limit: 50 }),
@@ -111,6 +112,7 @@ export default async function EvenementsPage({ searchParams }: PageProps) {
       initialLocalisation={sp.localisation || ''}
       initialCategorie={sp.categorie || ''}
       aVenir={aVenirRaw.docs.map(toEvt)}
+      enCours={enCoursRaw.docs.map(toEvt)}
       passes={passesRaw.docs.map(toEvt)}
       participations={participationsRaw.docs.map(toEvt)}
       brouillons={brouillonsRaw.docs.map(toEvt)}
