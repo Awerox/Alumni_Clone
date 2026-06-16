@@ -483,9 +483,9 @@ export default function NewEventPage() {
                     className="px-4 py-2.5 border border-gray-200 rounded-xl text-xs font-black uppercase text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-all cursor-pointer">
                     💾 Brouillon
                   </button>
-                  <button onClick={() => handleSubmit('programme')} disabled={loading}
+                  <button onClick={() => handleSubmit('programme')} disabled={loading} title="L'événement sera publié automatiquement à la date de début"
                     className="px-4 py-2.5 border border-amber-200 bg-amber-50 rounded-xl text-xs font-black uppercase text-amber-700 hover:bg-amber-100 disabled:opacity-40 transition-all cursor-pointer">
-                    🕐 Programmer
+                    🕐 Programmer la publication
                   </button>
                   <button onClick={() => handleSubmit('publie')} disabled={loading}
                     className="flex items-center gap-2 px-6 py-2.5 bg-[#800020] hover:bg-[#600018] text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-sm hover:-translate-y-0.5 disabled:opacity-40">

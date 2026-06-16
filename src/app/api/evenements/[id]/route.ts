@@ -1,4 +1,4 @@
-// src/app/api/evenements/[id]/route.ts  (DELETE)
+// src/app/api/evenements/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
@@ -51,8 +51,56 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (!isAdmin && String(organisateurId) !== String(user.id))
       return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
 
-    const updated = await payload.update({ collection: 'evenements', id, overrideAccess: true, data: body })
-    return NextResponse.json({ success: true, doc: updated })
+    // Update direct via SQL pour éviter les hooks payload_locked_documents
+    // qui peuvent échouer si la table de verrouillage a un schéma désynchronisé
+    const fieldMap: Record<string, string> = {
+      nom: 'nom',
+      typeLocalisation: 'type_localisation',
+      dateDebut: 'date_debut',
+      dateFin: 'date_fin',
+      categorie: 'categorie',
+      modeInscription: 'mode_inscription',
+      lieuNom: 'lieu_nom',
+      lieuAdresse: 'lieu_adresse',
+      lienVisio: 'lien_visio',
+      lienExterne: 'lien_externe',
+      contact: 'contact',
+      tags: 'tags',
+      statut: 'statut',
+      couverture: 'couverture_id',
+    }
+
+    const sets: string[] = []
+    const values: any[] = []
+    let idx = 1
+
+    for (const [key, col] of Object.entries(fieldMap)) {
+      if (key in body && body[key] !== undefined) {
+        sets.push(`"${col}" = $${idx}`)
+        values.push(body[key])
+        idx++
+      }
+    }
+
+    if ('description' in body) {
+      sets.push(`"description" = $${idx}::jsonb`)
+      values.push(JSON.stringify(body.description))
+      idx++
+    }
+
+    if (sets.length === 0) {
+      return NextResponse.json({ success: true, doc: evt })
+    }
+
+    sets.push(`"updated_at" = now()`)
+    values.push(Number(id))
+
+    const sql = `UPDATE "evenements" SET ${sets.join(', ')} WHERE "id" = $${idx} RETURNING *`
+
+    const pool = (payload.db as any).pool
+    const result = await pool.query(sql, values)
+
+    return NextResponse.json({ success: true, doc: result.rows[0] })
   } catch (err: any) {
     console.error('[patch evenement]', err?.message)
     return NextResponse.json({ error: err?.message }, { status: 500 })

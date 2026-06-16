@@ -79,6 +79,13 @@ export const Evenements: CollectionConfig = {
       label: 'Comment souhaitez-vous recevoir les inscriptions ?',
     },
     { name: 'lienExterne', type: 'text', label: "Lien d'inscription externe (Si applicable)" },
+    { name: 'lieuNom', type: 'text', label: 'Nom du lieu' },
+    { name: 'lieuAdresse', type: 'text', label: 'Adresse du lieu' },
+    { name: 'lienVisio', type: 'text', label: 'Lien de visioconférence' },
+    { name: 'capaciteMax', type: 'number', label: 'Capacité maximale' },
+    { name: 'prixEntree', type: 'number', label: "Prix d'entrée (€)" },
+    { name: 'contact', type: 'text', label: 'Contact organisateur' },
+    { name: 'tags', type: 'text', label: 'Tags (séparés par des virgules)' },
     {
       name: 'statut',
       type: 'select',
