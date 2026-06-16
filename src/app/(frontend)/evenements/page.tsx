@@ -70,8 +70,12 @@ export default async function EvenementsPage({ searchParams }: PageProps) {
 
   const sp = await searchParams
   const currentTab = sp.tab || 'encours'
+  const nowReal = new Date()
   const now = new Date(); now.setHours(0, 0, 0, 0)
   const nowISO = now.toISOString()
+  // Fenêtre de grâce : un événement reste "en cours" jusqu'à 24h après sa fin
+  const graceWindow = new Date(nowReal.getTime() - 24 * 60 * 60 * 1000)
+  const graceWindowISO = graceWindow.toISOString()
 
   const toEvt = (evt: any) => ({
     id: String(evt.id),
@@ -99,8 +103,8 @@ export default async function EvenementsPage({ searchParams }: PageProps) {
   // Charger tous les événements en parallèle
   const [aVenirRaw, enCoursRaw, passesRaw, participationsRaw, brouillonsRaw] = await Promise.all([
     payload.find({ collection: 'evenements', where: { and: [{ statut: { equals: 'publie' } }, { dateDebut: { greater_than: nowISO } }] }, sort: 'dateDebut', depth: 1, limit: 100 }),
-    payload.find({ collection: 'evenements', where: { and: [{ statut: { equals: 'publie' } }, { dateDebut: { less_than_equal: nowISO } }, { dateFin: { greater_than_equal: nowISO } }] }, sort: 'dateFin', depth: 1, limit: 50 }),
-    payload.find({ collection: 'evenements', where: { and: [{ statut: { equals: 'publie' } }, { dateFin: { less_than: nowISO } }] }, sort: '-dateDebut', depth: 1, limit: 50 }),
+    payload.find({ collection: 'evenements', where: { and: [{ statut: { equals: 'publie' } }, { dateDebut: { less_than_equal: nowISO } }, { dateFin: { greater_than_equal: graceWindowISO } }] }, sort: 'dateFin', depth: 1, limit: 50 }),
+    payload.find({ collection: 'evenements', where: { and: [{ statut: { equals: 'publie' } }, { dateFin: { less_than: graceWindowISO } }] }, sort: '-dateDebut', depth: 1, limit: 50 }),
     payload.find({ collection: 'evenements', where: { participants: { contains: user.id } }, sort: 'dateDebut', depth: 1, limit: 100 }),
     payload.find({ collection: 'evenements', where: { and: [{ statut: { in: ['brouillon', 'programme'] } }, { organisateur: { equals: user.id } }] }, sort: 'dateDebut', depth: 1, limit: 50 }),
   ])

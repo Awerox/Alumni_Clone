@@ -84,6 +84,13 @@ function EventCard({ evt, index, currentUserId, onParticipate }: {
   const isLive = new Date(evt.dateDebut) <= new Date() && new Date(evt.dateFin) >= new Date()
   const minutesLeft = isLive ? Math.round((new Date(evt.dateFin).getTime() - Date.now()) / 60000) : null
   const endingSoon = minutesLeft !== null && minutesLeft <= 30 && minutesLeft > 0
+  const minutesSinceEnd = isPast ? Math.round((Date.now() - new Date(evt.dateFin).getTime()) / 60000) : null
+  const recentlyEnded = minutesSinceEnd !== null && minutesSinceEnd < 24 * 60
+  const formatElapsed = (min: number) => {
+    if (min < 60) return `${min} min`
+    const h = Math.floor(min / 60)
+    return `${h}h`
+  }
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), index * 60)
@@ -180,30 +187,39 @@ function EventCard({ evt, index, currentUserId, onParticipate }: {
           </div>
         </div>
 
-        {/* Badges */}
-        <div className="absolute top-3 right-3 flex flex-col gap-1 items-end">
-          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full backdrop-blur-sm ${evt.typeLocalisation === 'presentiel' ? 'bg-emerald-500/90 text-white' : 'bg-blue-500/90 text-white'}`}>
-            {evt.typeLocalisation === 'presentiel' ? '📍 Présentiel' : '💻 En ligne'}
-          </span>
-          {isPast && (
-            <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-gray-500/80 backdrop-blur-sm text-white">Passé</span>
-          )}
+        {/* Badge statut principal — gros, en haut à droite, très visible */}
+        <div className="absolute top-3 right-3">
           {isLive && !endingSoon && (
-            <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-red-500/90 backdrop-blur-sm text-white flex items-center gap-1">
-              <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" /> En direct
+            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase px-3 py-1.5 rounded-full bg-red-600 text-white shadow-lg ring-2 ring-white/50">
+              <span className="w-2 h-2 bg-white rounded-full animate-pulse" /> En direct
             </span>
           )}
           {endingSoon && (
-            <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-orange-500/90 backdrop-blur-sm text-white">
+            <span className="text-[10px] font-black uppercase px-3 py-1.5 rounded-full bg-orange-600 text-white shadow-lg ring-2 ring-white/50">
               ⏰ Finit dans {minutesLeft} min
             </span>
           )}
+          {isPast && recentlyEnded && (
+            <span className="text-[10px] font-black uppercase px-3 py-1.5 rounded-full bg-gray-700 text-white shadow-lg ring-2 ring-white/50">
+              ✓ Terminé il y a {formatElapsed(minutesSinceEnd!)}
+            </span>
+          )}
+          {isPast && !recentlyEnded && (
+            <span className="text-[10px] font-black uppercase px-3 py-1.5 rounded-full bg-gray-600 text-white shadow-lg">Passé</span>
+          )}
           {evt.statut === 'programme' && (
-            <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/90 backdrop-blur-sm text-white">🕐 Programmé</span>
+            <span className="text-[10px] font-black uppercase px-3 py-1.5 rounded-full bg-amber-600 text-white shadow-lg ring-2 ring-white/50">🕐 Programmé</span>
           )}
           {evt.statut === 'brouillon' && (
-            <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-gray-700/90 backdrop-blur-sm text-white">✏️ Brouillon</span>
+            <span className="text-[10px] font-black uppercase px-3 py-1.5 rounded-full bg-gray-800 text-white shadow-lg ring-2 ring-white/50">✏️ Brouillon</span>
           )}
+        </div>
+
+        {/* Badge localisation — en haut à gauche, sous la date */}
+        <div className="absolute top-16 left-3">
+          <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full shadow-md ${evt.typeLocalisation === 'presentiel' ? 'bg-emerald-600 text-white' : 'bg-blue-600 text-white'}`}>
+            {evt.typeLocalisation === 'presentiel' ? '📍 Présentiel' : '💻 En ligne'}
+          </span>
         </div>
 
         {/* Catégorie en bas */}
