@@ -377,6 +377,18 @@ export default function EditEventClient({ eventId, initialData }: Props) {
                 )}
               </div>
 
+              {/* Capacité + Prix */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={labelCls}>Capacité maximale</label>
+                  <input type="number" min="0" value={formData.capaciteMax} onChange={e => set('capaciteMax', e.target.value)} className={inputCls} placeholder="Illimitée" />
+                </div>
+                <div>
+                  <label className={labelCls}>Prix d'entrée (€)</label>
+                  <input type="number" min="0" step="0.01" value={formData.prixEntree} onChange={e => set('prixEntree', e.target.value)} className={inputCls} placeholder="Gratuit" />
+                </div>
+              </div>
+
               {/* Contact + Tags */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
