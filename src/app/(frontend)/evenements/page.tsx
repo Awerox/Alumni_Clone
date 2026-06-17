@@ -12,25 +12,12 @@ async function autoPublishScheduled(payload: any) {
   if (!payload) return
   try {
     const now = new Date().toISOString()
-    const scheduled = await payload.find({
-      collection: 'evenements',
-      where: {
-        and: [
-          { statut: { equals: 'programme' } },
-          { dateDebut: { less_than_equal: now } },
-        ],
-      },
-      limit: 20,
-      overrideAccess: true,
-    })
-    for (const evt of scheduled.docs) {
-      await payload.update({
-        collection: 'evenements',
-        id: evt.id,
-        overrideAccess: true,
-        data: { statut: 'publie' } as any,
-      })
-    }
+    const pool = (payload.db as any).pool
+    if (!pool) return
+    await pool.query(
+      `UPDATE "evenements" SET "statut" = 'publie', "updated_at" = now() WHERE "statut" = 'programme' AND "date_debut" <= $1`,
+      [now]
+    )
   } catch (e) {
     console.error('[autoPublish evenements]', e)
   }
