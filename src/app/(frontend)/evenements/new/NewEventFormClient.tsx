@@ -159,10 +159,15 @@ export default function NewEventFormClient() {
       if (formData.lieuNom) payload.lieuNom = formData.lieuNom
       if (formData.lieuAdresse) payload.lieuAdresse = formData.lieuAdresse
       if (formData.lienVisio) payload.lienVisio = formData.lienVisio
+      if (formData.contact) payload.contact = formData.contact
+      if (formData.tags) payload.tags = formData.tags
+      if (formData.capaciteMax) payload.capaciteMax = Number(formData.capaciteMax)
+      if (formData.prixEntree) payload.prixEntree = Number(formData.prixEntree)
 
       const res = await fetch('/api/evenements', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(payload),
       })
 
