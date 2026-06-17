@@ -371,8 +371,8 @@ export default function EventDetailClient({ evt }: { evt: EvtData }) {
             <div className="anim-fade-up d1 card-hover bg-white border border-gray-100 rounded-2xl p-5 shadow-xs space-y-3">
               <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Informations</h2>
               {[
-                { icon: '📅', label: 'Date', val: evt.dateDebut.slice(0, 10) === evt.dateFin.slice(0, 10) ? evt.formatDateDebut : `${evt.formatDateDebut} → ${evt.formatDateFin}` },
-                { icon: '🕐', label: 'Horaires', val: `${evt.formatTimeDebut} – ${evt.formatTimeFin}` },
+                { icon: '📅', label: 'Début', val: `${evt.formatDateDebut} à ${evt.formatTimeDebut}` },
+                { icon: '🏁', label: 'Fin', val: `${evt.formatDateFin} à ${evt.formatTimeFin}` },
                 { icon: evt.typeLocalisation === 'presentiel' ? '📍' : '💻', label: 'Format', val: evt.typeLocalisation === 'presentiel' ? (evt.lieuNom || 'En présentiel') : 'En ligne' },
                 { icon: '👥', label: 'Participants', val: `${count}${evt.capaciteMax ? ` / ${evt.capaciteMax}` : ''}` },
                 evt.prixEntree && Number(evt.prixEntree) > 0 ? { icon: '💶', label: 'Prix', val: `${evt.prixEntree}€` } : { icon: '🎫', label: 'Prix', val: 'Gratuit' },
