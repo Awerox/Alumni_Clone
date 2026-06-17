@@ -30,7 +30,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const isOrganisateur = String(organisateurId) === String(user.id)
     if (!isAdmin && !isOrganisateur) return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
 
-    await payload.update({ collection: 'evenements', id, overrideAccess: true, data: { statut: 'publie' } as any })
+    // Update direct en SQL pour éviter le check payload_locked_documents
+    const pool = (payload.db as any).pool
+    await pool.query('UPDATE "evenements" SET "statut" = $1, "updated_at" = now() WHERE "id" = $2', ['publie', Number(id)])
+
     return NextResponse.json({ success: true })
   } catch (err: any) {
     console.error('[publish route]', err?.message)

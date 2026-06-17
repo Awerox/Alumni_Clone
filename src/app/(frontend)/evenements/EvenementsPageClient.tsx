@@ -70,6 +70,7 @@ function EventCard({ evt, index, currentUserId, onParticipate }: {
   currentUserId: string
   onParticipate: (id: string, join: boolean) => void
 }) {
+  const router = useRouter()
   const [visible, setVisible] = useState(false)
   const [participating, setParticipating] = useState(evt.isParticipant)
   const [loading, setLoading] = useState(false)
@@ -118,16 +119,25 @@ function EventCard({ evt, index, currentUserId, onParticipate }: {
     finally { setLoading(false) }
   }
 
+  const [publishError, setPublishError] = useState('')
+
   const handlePublish = async () => {
     if (publishing) return
     setPublishing(true)
+    setPublishError('')
     try {
       const res = await fetch(`/api/evenements/${evt.id}/publish`, {
         method: 'POST',
         credentials: 'include',
       })
-      if (res.ok) setPublished(true)
-    } catch (e) { console.error(e) }
+      if (res.ok) {
+        setPublished(true)
+        router.refresh()
+      } else {
+        const j = await res.json().catch(() => ({}))
+        setPublishError(j.error || 'Erreur lors de la publication')
+      }
+    } catch (e: any) { setPublishError(e.message || 'Erreur réseau') }
     finally { setPublishing(false) }
   }
 
@@ -144,8 +154,12 @@ function EventCard({ evt, index, currentUserId, onParticipate }: {
           statut: 'programme',
         }),
       })
-      if (res.ok) { setPublished(true); setShowScheduler(false) }
-    } catch (e) { console.error(e) }
+      if (res.ok) { setPublished(true); setShowScheduler(false); router.refresh() }
+      else {
+        const j = await res.json().catch(() => ({}))
+        setPublishError(j.error || 'Erreur lors de la programmation')
+      }
+    } catch (e: any) { setPublishError(e.message || 'Erreur réseau') }
     finally { setScheduling(false) }
   }
 
@@ -264,6 +278,9 @@ function EventCard({ evt, index, currentUserId, onParticipate }: {
 
         {/* Actions */}
         <div className="space-y-2 pt-2 border-t border-gray-100">
+          {publishError && (
+            <p className="text-[10px] font-bold text-red-600 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">⚠️ {publishError}</p>
+          )}
           {(evt.statut === 'brouillon' || evt.statut === 'programme') && evt.isOrganisateur && (
             <>
               <div className="grid grid-cols-2 gap-1.5">
