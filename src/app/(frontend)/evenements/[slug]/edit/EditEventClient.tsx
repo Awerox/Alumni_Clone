@@ -433,27 +433,44 @@ export default function EditEventClient({ eventId, initialData }: Props) {
 
             {/* Footer actions */}
             <div className="px-6 py-4 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
-              <button onClick={() => handleSave('brouillon')} disabled={loading}
-                className="px-4 py-2.5 border border-gray-200 rounded-xl text-xs font-black uppercase text-gray-600 hover:bg-gray-50 disabled:opacity-40 cursor-pointer transition-all">
-                💾 Sauvegarder brouillon
-              </button>
-              <div className="flex items-center gap-2">
-                <button onClick={() => {
-                    const debut = new Date(`${formData.dateDebut}T${formData.heureDebut}:00`)
-                    if (debut <= new Date()) { setShowPastDateWarning(true); return }
-                    handleSave('programme')
-                  }} disabled={loading}
-                  className="px-4 py-2.5 border border-amber-200 bg-amber-50 rounded-xl text-xs font-black uppercase text-amber-700 hover:bg-amber-100 disabled:opacity-40 cursor-pointer transition-all">
-                  🕐 Programmer
-                </button>
-                <button onClick={() => handleSave('publie')} disabled={loading}
-                  className="flex items-center gap-2 px-6 py-2.5 bg-[#800020] hover:bg-[#600018] text-white rounded-xl text-xs font-black uppercase cursor-pointer shadow-sm hover:-translate-y-0.5 disabled:opacity-40 transition-all">
-                  {loading
-                    ? <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Sauvegarde...</>
-                    : '🚀 Publier'
-                  }
-                </button>
-              </div>
+              {formData.statut === 'publie' ? (
+                <>
+                  <span className="text-[10px] font-black uppercase text-emerald-600 flex items-center gap-1.5">
+                    <span className="w-2 h-2 bg-emerald-500 rounded-full" /> Événement publié
+                  </span>
+                  <button onClick={() => handleSave()} disabled={loading}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-[#800020] hover:bg-[#600018] text-white rounded-xl text-xs font-black uppercase cursor-pointer shadow-sm hover:-translate-y-0.5 disabled:opacity-40 transition-all">
+                    {loading
+                      ? <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Enregistrement...</>
+                      : '💾 Enregistrer les modifications'
+                    }
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button onClick={() => handleSave('brouillon')} disabled={loading}
+                    className="px-4 py-2.5 border border-gray-200 rounded-xl text-xs font-black uppercase text-gray-600 hover:bg-gray-50 disabled:opacity-40 cursor-pointer transition-all">
+                    💾 Sauvegarder brouillon
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => {
+                        const debut = new Date(`${formData.dateDebut}T${formData.heureDebut}:00`)
+                        if (debut <= new Date()) { setShowPastDateWarning(true); return }
+                        handleSave('programme')
+                      }} disabled={loading}
+                      className="px-4 py-2.5 border border-amber-200 bg-amber-50 rounded-xl text-xs font-black uppercase text-amber-700 hover:bg-amber-100 disabled:opacity-40 cursor-pointer transition-all">
+                      🕐 Programmer
+                    </button>
+                    <button onClick={() => handleSave('publie')} disabled={loading}
+                      className="flex items-center gap-2 px-6 py-2.5 bg-[#800020] hover:bg-[#600018] text-white rounded-xl text-xs font-black uppercase cursor-pointer shadow-sm hover:-translate-y-0.5 disabled:opacity-40 transition-all">
+                      {loading
+                        ? <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Sauvegarde...</>
+                        : '🚀 Publier'
+                      }
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
