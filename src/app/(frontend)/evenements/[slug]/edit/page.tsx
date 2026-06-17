@@ -20,8 +20,15 @@ function extractText(desc: any): string {
 function extractDate(dateStr: string) {
   if (!dateStr) return { date: '', time: '09:00' }
   const d = new Date(dateStr)
-  const date = d.toISOString().slice(0, 10)
-  const time = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+  // Extraire date et heure en fuseau Europe/Paris pour éviter le décalage UTC
+  const parts = new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Europe/Paris',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  }).formatToParts(d)
+  const get = (type: string) => parts.find(p => p.type === type)?.value ?? ''
+  const date = `${get('year')}-${get('month')}-${get('day')}`
+  const time = `${get('hour')}:${get('minute')}`
   return { date, time }
 }
 

@@ -34,11 +34,12 @@ const CAT_ICONS: Record<string, string> = {
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('fr-FR', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+    timeZone: 'Europe/Paris',
   })
 }
 
 function formatTime(dateStr: string) {
-  return new Date(dateStr).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+  return new Date(dateStr).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })
 }
 
 export default async function EventDetailPage({ params }: { params: Promise<{ slug: string }> }) {

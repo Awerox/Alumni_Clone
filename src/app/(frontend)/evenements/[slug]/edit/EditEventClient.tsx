@@ -135,6 +135,8 @@ export default function EditEventClient({ eventId, initialData }: Props) {
         contact: formData.contact || undefined,
         tags: formData.tags || undefined,
       }
+      if (formData.capaciteMax) body.capaciteMax = Number(formData.capaciteMax)
+      if (formData.prixEntree) body.prixEntree = Number(formData.prixEntree)
       if (imageId) body.couverture = imageId
       if (statut) body.statut = statut
 

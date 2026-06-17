@@ -10,7 +10,7 @@ interface Evenement {
   slug: string
   categorie: string
   catLabel: string
-  typeLocalisation: 'presentiel' | 'enligne'
+  typeLocalisation: string
   dateDebut: string
   dateFin: string
   statut: string

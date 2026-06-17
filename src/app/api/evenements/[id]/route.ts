@@ -72,6 +72,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       tags: 'tags',
       statut: 'statut',
       couverture: 'couverture_id',
+      capaciteMax: 'capacite_max',
+      prixEntree: 'prix_entree',
     }
 
     const sets: string[] = []
