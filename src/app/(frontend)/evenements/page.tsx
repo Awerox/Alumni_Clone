@@ -61,7 +61,7 @@ export default async function EvenementsPage({ searchParams }: PageProps) {
   const nowReal = new Date()
   const nowISO = nowReal.toISOString()
   // Fenêtre de grâce : un événement reste "en cours" jusqu'à 24h après sa fin
-  const graceWindow = new Date(nowReal.getTime() - 24 * 60 * 60 * 1000)
+  const graceWindow = new Date(nowReal.getTime() - 60 * 60 * 1000)
   const graceWindowISO = graceWindow.toISOString()
 
   const toEvt = (evt: any) => ({

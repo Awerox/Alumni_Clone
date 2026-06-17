@@ -87,7 +87,7 @@ function EventCard({ evt, index, currentUserId, onParticipate }: {
   const minutesLeft = isLive ? Math.round((new Date(evt.dateFin).getTime() - Date.now()) / 60000) : null
   const endingSoon = minutesLeft !== null && minutesLeft <= 30 && minutesLeft > 0
   const minutesSinceEnd = isPast ? Math.round((Date.now() - new Date(evt.dateFin).getTime()) / 60000) : null
-  const recentlyEnded = minutesSinceEnd !== null && minutesSinceEnd < 24 * 60
+  const recentlyEnded = minutesSinceEnd !== null && minutesSinceEnd < 60
   const minutesUntilStart = isFuture ? Math.round((new Date(evt.dateDebut).getTime() - Date.now()) / 60000) : null
   const startingSoon = minutesUntilStart !== null && minutesUntilStart <= 30 && minutesUntilStart > 0
   const formatElapsed = (min: number) => {
