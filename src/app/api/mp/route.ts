@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
 
   try {
-    const { to, message, fileId, fileUrl, fileName } = await req.json()
+    const { to, message, fileId } = await req.json()
     if (!to) return NextResponse.json({ error: 'Destinataire manquant' }, { status: 400 })
     if (!message && !fileId) return NextResponse.json({ error: 'Message ou fichier requis' }, { status: 400 })
 
@@ -103,29 +103,10 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    const alumniUser = await payload.findByID({ collection: 'alumni', id: fromId }).catch(() => null)
-    const displayPrenom = (alumniUser as any)?.prenom || 'Membre'
-    const displayNom = (alumniUser as any)?.nom || 'ENC'
-
-    // Notification SSE temps réel
-    const streamUrl = `${new URL(req.url).origin}/api/chat/stream`
-    await fetch(streamUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'msg-prive',
-        from: String(fromId),
-        to: String(toId),
-        user: `${displayPrenom} ${displayNom}`,
-        fromPrenom: displayPrenom,
-        fromNom: displayNom,
-        text: message || '',
-        fileUrl: fileUrl || null,
-        fileName: fileName || null,
-        time: new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-      }),
-    })
-
+    // ✅ Plus besoin de notifier manuellement /api/chat/stream : le flux SSE du
+    // destinataire interroge directement la table "direct-messages" en base, ce qui
+    // est fiable même quand l'expéditeur et le destinataire sont sur des instances
+    // serverless différentes (contrairement à l'ancien push en mémoire).
     return NextResponse.json({ success: true, doc: savedMsg })
   } catch (err: any) {
     console.error('[POST /api/mp]', err)

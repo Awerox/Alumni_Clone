@@ -26,32 +26,39 @@ export async function POST(req: NextRequest) {
 
   try {
     const { discussionId, message } = await req.json()
-
-    const current: any = await payload.findByID({
-      collection: 'discussions',
-      id: discussionId,
-      overrideAccess: true,
-    })
-
-    if (!current) {
-      return NextResponse.json({ error: 'Discussion introuvable' }, { status: 404 })
+    if (!discussionId || !message || !String(message).trim()) {
+      return NextResponse.json({ error: 'Message manquant' }, { status: 400 })
     }
 
-    const existants = current.commentaires || []
+    const discussion = await payload.findByID({ collection: 'discussions', id: discussionId, depth: 0 }).catch(() => null)
+    if (!discussion) return NextResponse.json({ error: 'Discussion introuvable' }, { status: 404 })
 
-    const updated = await payload.update({
-      collection: 'discussions',
-      id: discussionId,
-      overrideAccess: true,
-      data: {
-        commentaires: [
-          ...existants,
-          { auteur: user.id, message },
-        ],
+    const pool = (payload.db as any).pool
+    const parentId = Number(discussionId)
+    const authorId = Number(user.id)
+    const text = String(message).trim()
+
+    // ✅ INSERT direct dans la table enfant du champ array "commentaires", au lieu de
+    // payload.update() qui relisait puis réécrivait TOUT le tableau (perte de commentaires
+    // possible en cas d'écritures concurrentes + coût croissant avec la taille du fil).
+    const result = await pool.query(
+      `INSERT INTO "discussions_commentaires" ("_order", "_parent_id", "auteur_id", "message", "created_at")
+       VALUES ((SELECT COALESCE(MAX("_order"), -1) + 1 FROM "discussions_commentaires" WHERE "_parent_id" = $1), $1, $2, $3, now())
+       RETURNING *`,
+      [parentId, authorId, text]
+    )
+
+    const auteur = await payload.findByID({ collection: 'alumni', id: authorId, depth: 0 }).catch(() => null) as any
+
+    return NextResponse.json({
+      success: true,
+      comment: {
+        id: String(result.rows[0].id),
+        message: text,
+        createdAt: result.rows[0].created_at,
+        auteur: auteur ? { id: String(auteur.id), prenom: auteur.prenom, nom: auteur.nom } : { id: String(authorId), prenom: '?', nom: '' },
       },
     })
-
-    return NextResponse.json({ success: true, discussion: updated })
   } catch (err: any) {
     console.error('[POST /api/forum]', err)
     return NextResponse.json({ error: err.message }, { status: 500 })
