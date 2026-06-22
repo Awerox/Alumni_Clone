@@ -94,6 +94,7 @@ export function MessagesAndChatPage() {
 
   const chatEndRef = useRef<HTMLDivElement>(null)
   const mpEndRef = useRef<HTMLDivElement>(null)
+  const mpContainerRef = useRef<HTMLDivElement>(null)
   const chatFileInputRef = useRef<HTMLInputElement>(null)
 
   const meRef = useRef<any>(null)
@@ -361,7 +362,12 @@ export function MessagesAndChatPage() {
   }, [me?.id])
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [chatMessages])
-  useEffect(() => { mpEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [directMessages, selectedUserForMP])
+  // ✅ Scroll uniquement dans le conteneur MP, pas sur toute la page
+  useEffect(() => {
+    const container = mpContainerRef.current
+    if (!container) return
+    container.scrollTop = container.scrollHeight
+  }, [directMessages, selectedUserForMP])
 
   const handleSendForumComment = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -685,7 +691,7 @@ export function MessagesAndChatPage() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex-1 overflow-y-auto pr-1 space-y-3 max-h-[70%]">
+                  <div ref={mpContainerRef} className="flex-1 overflow-y-auto pr-1 space-y-3 max-h-[70%]">
                     {loadingHistory ? (
                       <div className="flex items-center justify-center h-full text-xs font-medium text-gray-400 animate-pulse">Chargement de l'historique...</div>
                     ) : directMessages.length === 0 ? (
