@@ -489,6 +489,15 @@ export function MessagesAndChatPage() {
     </div>
   )
 
+  if (!me) return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 gap-4">
+      <div className="w-16 h-16 rounded-2xl bg-[#800020]/10 flex items-center justify-center text-3xl">🔒</div>
+      <p className="text-sm font-black text-gray-700">Accès réservé aux membres</p>
+      <p className="text-xs text-gray-400">Connectez-vous pour accéder à la messagerie.</p>
+      <a href="/login" className="mt-2 px-6 py-3 bg-[#800020] hover:bg-[#600018] text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-sm transition-all">Se connecter</a>
+    </div>
+  )
+
   const ConnIndicator = () => (
     <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400">
       <span className={`w-1.5 h-1.5 rounded-full ${connState === 'connected' ? 'bg-emerald-500' : 'bg-amber-400 animate-pulse'}`} />
@@ -707,7 +716,9 @@ export function MessagesAndChatPage() {
                             )}
                           </div>
                           <span className="text-[8px] text-gray-400 font-bold mt-0.5 px-1">
-                            {msg.time}
+                            {msg.createdAt
+                              ? new Date(msg.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', timeZone: 'Europe/Paris' }) + ' · ' + new Date(msg.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })
+                              : msg.time}
                             {isLastMine && onlineUsers.some((u) => String(u.id) === String(selectedUserForMP.id)) && (
                               <span className="text-emerald-500 ml-1" title="En ligne récemment">· Vu</span>
                             )}
