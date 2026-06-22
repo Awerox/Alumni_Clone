@@ -16,11 +16,11 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 // Se referme proprement avant la coupure dure de Vercel ; le client (EventSource) se
 // reconnecte alors automatiquement — voir le hook côté client.
-export const maxDuration = 290
+export const maxDuration = 150
 
-const POLL_INTERVAL_MS = 1800
+const POLL_INTERVAL_MS = 3000
 const HEARTBEAT_INTERVAL_MS = 45_000
-const SELF_CLOSE_MS = 280_000
+const SELF_CLOSE_MS = 120_000
 const ONLINE_WINDOW_SQL = `NOW() - INTERVAL '2 minutes'` // ✅ même seuil que l'annuaire (formatLastSeen)
 
 const MAX_MESSAGE_LENGTH = 500
@@ -291,7 +291,7 @@ export async function POST(req: NextRequest) {
     const displayNom = alumniUser?.nom || 'ENC'
     const time = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
 
-    const saved = await payload.create({
+    const saved = await (payload.create as any)({
       collection: 'public-messages',
       overrideAccess: true,
       data: {
